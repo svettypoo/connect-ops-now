@@ -100,6 +100,8 @@ export default function Dialer() {
           {activeNav === 'supervisor' && <SupervisorPanel/>}
           {activeNav === 'business-hours' && <BusinessHours/>}
           {activeNav === 'meetings' && <MeetingScheduler/>}
+          {activeNav === 'business-hours' && <BusinessHours/>}
+          {activeNav === 'meetings' && <MeetingScheduler/>}
           {activeNav === 'team' && <ChannelsView/>}
         </div>
 

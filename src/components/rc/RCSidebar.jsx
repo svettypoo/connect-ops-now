@@ -20,6 +20,8 @@ const NAV = [
   { id: 'ai-receptionist', icon: Bot, label: 'AI Desk', iconClass: 'text-purple-400' },
   { id: 'business-hours', icon: Clock, label: 'Hours', iconClass: 'text-teal-400' },
   { id: 'admin', icon: Shield, label: 'Admin', iconClass: 'text-red-400' },
+  { id: 'business-hours', icon: Clock, label: 'Hours', iconClass: 'text-teal-400' },
+  { id: 'meetings', icon: Calendar, label: 'Meetin', iconClass: 'text-sky-400' },
 ];
 
 export default function RCSidebar({ activeNav, setActiveNav, user, onLogout, vmUnread = 0 }) {
