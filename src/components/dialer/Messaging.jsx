@@ -30,6 +30,7 @@ export default function Messaging({ initialThread }) {
   const [newNumber, setNewNumber] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(true);
+  const [error, setError] = useState('');
   const bottomRef = useRef(null);
   const pollRef = useRef(null);
   const lastMsgCountRef = useRef(0);
@@ -106,6 +107,8 @@ export default function Messaging({ initialThread }) {
     } catch (e) {
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       setInput(text);
+      setError(e.message || 'Failed to send message');
+      setTimeout(() => setError(''), 4000);
     }
     setSending(false);
     setSuggestions([]);
@@ -195,6 +198,10 @@ export default function Messaging({ initialThread }) {
           </div>
         )}
 
+        {/* Error toast */}
+        {error && (
+          <div style={{ padding: '8px 16px', background: '#FF4444', color: '#fff', fontSize: '13px', flexShrink: 0 }}>{error}</div>
+        )}
         {/* Input row */}
         <div style={{ padding: '12px', borderTop: '1px solid #2A2D35', display: 'flex', gap: '8px', flexShrink: 0 }}>
           <input
