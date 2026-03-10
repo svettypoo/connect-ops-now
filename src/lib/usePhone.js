@@ -10,6 +10,7 @@ export function usePhone() {
   const [isOnHold, setIsOnHold] = useState(false);
   const [inboundCall, setInboundCall] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState(null);
+  const [callControlId, setCallControlId] = useState(null);
 
   const clientRef = useRef(null);
   const callRef = useRef(null);
@@ -58,14 +59,17 @@ export function usePhone() {
             callRef.current = call;
             const name = call.options?.remoteCallerName || call.options?.remoteCallerNumber || "Unknown";
             setInboundCall({ name, number: call.options?.remoteCallerNumber || "" });
+            setCallControlId(call.id || call.options?.call_control_id || null);
             setStatus("ringing");
           } else if (st === "active") {
             setInboundCall(null);
+            setCallControlId(call.id || call.options?.call_control_id || null);
             setStatus("active");
             startTimer();
           } else if (st === "done" || st === "destroy") {
             callRef.current = null;
             setInboundCall(null);
+            setCallControlId(null);
             setStatus("ready");
             stopTimer();
             setElapsed(0);
@@ -88,6 +92,7 @@ export function usePhone() {
     if (!clientRef.current) return;
     const call = clientRef.current.newCall({ destinationNumber: number, callerNumber: phoneNumber || "" });
     callRef.current = call;
+    setCallControlId(call.id || null);
     setActiveNumber(number);
     setActiveName(name || number);
     setStatus("active");
@@ -114,6 +119,7 @@ export function usePhone() {
     setActiveName("");
     setActiveNumber("");
     setInboundCall(null);
+    setCallControlId(null);
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -138,5 +144,5 @@ export function usePhone() {
   };
 
   return { status, activeName, activeNumber, elapsed, fmtElapsed, isMuted, isOnHold,
-    inboundCall, phoneNumber, makeCall, answerCall, hangup, toggleMute, toggleHold, sendDtmf, blindTransfer };
+    inboundCall, phoneNumber, callControlId, makeCall, answerCall, hangup, toggleMute, toggleHold, sendDtmf, blindTransfer };
 }
