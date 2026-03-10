@@ -5,9 +5,17 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import Dialer from '@/pages/Dialer';
 import LoginPage from '@/pages/Login';
+import { useEffect } from 'react';
+import { initPushNotifications } from '@/lib/pushNotifications';
 
 const AppContent = () => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      initPushNotifications().catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   if (isLoadingAuth) {
     return (

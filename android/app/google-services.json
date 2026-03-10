@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "134634569423",
+    "project_id": "connect-ops-now",
+    "storage_bucket": "connect-ops-now.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:134634569423:android:48638923ba17270a15c1ba",
+        "android_client_info": {
+          "package_name": "com.connectops.now"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBAO7LmILY4_SZTDJiXMHePeTA6nzsyzTQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

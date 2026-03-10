@@ -70,6 +70,7 @@ export const api = {
   getDMUsers: () => request('GET', '/api/dm/users'),
   getDMMessages: (userId) => request('GET', '/api/dm/' + userId + '/messages'),
   sendDM: (userId, body, attachment_url) => request('POST', '/api/dm/' + userId + '/messages', { body, attachment_url }),
+  registerPushToken: (data) => request('POST', '/api/push/register', data),
   parkCall: (call_control_id) => request('POST', '/api/phone/park', { call_control_id }),
   unparkCall: (call_control_id) => request('POST', '/api/phone/unpark', { call_control_id }),
   startRecording: (call_control_id) => request('POST', '/api/phone/recording/start', { call_control_id }),
