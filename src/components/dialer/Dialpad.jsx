@@ -9,6 +9,32 @@ const KEYS = [
   { key: "*", sub: "" }, { key: "0", sub: "+" }, { key: "#", sub: "" },
 ];
 
+const DTMF_FREQS = {
+  '1':[697,1209],'2':[697,1336],'3':[697,1477],
+  '4':[770,1209],'5':[770,1336],'6':[770,1477],
+  '7':[852,1209],'8':[852,1336],'9':[852,1477],
+  '*':[941,1209],'0':[941,1336],'#':[941,1477],
+};
+
+function playDtmf(key) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const [f1, f2] = DTMF_FREQS[key] || [];
+    if (!f1) return;
+    [f1, f2].forEach(freq => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.12);
+    });
+    setTimeout(() => ctx.close(), 300);
+  } catch(e) {}
+}
+
 function fmtTime(ts) {
   if (!ts) return "";
   const d = new Date(ts), diff = Date.now() - d;
@@ -49,7 +75,7 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
     }
   }, [number, contacts]);
 
-  const pressKey = (k) => setNumber(n => n + k);
+  const pressKey = (k) => { playDtmf(k); setNumber(n => n + k); };
   const backspace = () => setNumber(n => n.slice(0, -1));
   const handleCall = () => { if (number.trim()) onCall?.(number.trim(), matchedContact?.name || ""); };
 
