@@ -3,14 +3,14 @@
 FROM node:18-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline
+RUN --mount=type=cache,id=npm-connectops,target=/root/.npm npm ci --prefer-offline
 
 # Stage 2: Build
 FROM node:18-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN --mount=type=cache,target=/app/node_modules/.vite npm run build
+RUN --mount=type=cache,id=vite-connectops,target=/app/node_modules/.vite npm run build
 
 # Stage 3: Serve static output
 FROM node:18-alpine AS runner
