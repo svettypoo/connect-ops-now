@@ -79,7 +79,16 @@ export default function RCListPanel({ activeNav, selectedContact, setSelectedCon
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-[15px] text-white">{title}</h2>
-          <button onClick={loadData} className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#0684BD]/20 hover:bg-[#0684BD]/40 text-[#0EB8FF] transition-all text-lg font-bold">↻</button>
+          <div className="flex gap-1">
+            {activeNav === 'contacts' && (
+              <button onClick={() => {
+                const name = prompt('Contact name:'); if (!name) return;
+                const phone = prompt('Phone number:'); if (!phone) return;
+                api.createContact({ name, phone }).then(loadData).catch(() => alert('Failed to create contact'));
+              }} className="w-7 h-7 rounded-lg flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-400 transition-all text-lg font-bold" title="Add contact">+</button>
+            )}
+            <button onClick={loadData} className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#0684BD]/20 hover:bg-[#0684BD]/40 text-[#0EB8FF] transition-all text-lg font-bold">↻</button>
+          </div>
         </div>
         <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
           <Search className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />

@@ -23,6 +23,7 @@ import SMSCampaign from '@/components/features/SMSCampaign';
 import SupervisorPanel from '@/components/features/SupervisorPanel';
 import BusinessHours from '@/components/features/BusinessHours';
 import MeetingScheduler from '@/components/features/MeetingScheduler';
+import TeamView from '@/components/dialer/TeamView';
 
 const HAS_LIST = ['message','recent','contacts','voicemail','video','channels'];
 
@@ -88,7 +89,10 @@ export default function Dialer() {
           {activeNav === 'recent' && <CallHistory onCallBack={handleCallBack}/>}
           {activeNav === 'voicemail' && <VoicemailList onCallBack={handleCallBack}/>}
           {activeNav === 'contacts' && (
-            <div className="h-full flex items-center justify-center text-gray-500 text-sm">Select a contact from the list</div>
+            <div className="h-full flex items-center justify-center flex-col gap-3 text-gray-500 text-sm">
+              <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="opacity-30"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <p className="text-gray-400">Select a contact from the list, or add a new one</p>
+            </div>
           )}
           {activeNav === 'analytics' && <AnalyticsDashboard/>}
           {activeNav === 'channels' && <ChannelsView/>}
@@ -100,9 +104,7 @@ export default function Dialer() {
           {activeNav === 'supervisor' && <SupervisorPanel/>}
           {activeNav === 'business-hours' && <BusinessHours/>}
           {activeNav === 'meetings' && <MeetingScheduler/>}
-          {activeNav === 'business-hours' && <BusinessHours/>}
-          {activeNav === 'meetings' && <MeetingScheduler/>}
-          {activeNav === 'team' && <ChannelsView/>}
+          {activeNav === 'team' && <TeamView/>}
         </div>
 
         {activeContact && HAS_LIST.includes(activeNav) && (
