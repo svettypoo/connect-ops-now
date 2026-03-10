@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Connect Ops Now</string>
+    <string name="title_activity_main">Connect Ops Now</string>
+    <string name="package_name">com.connectops.now</string>
+    <string name="custom_url_scheme">com.connectops.now</string>
+</resources>

@@ -1,0 +1,91 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [master, main]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Capacitor
+        run: |
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/splash-screen
+
+      - name: Build web app
+        run: npm run build
+        env:
+          VITE_API_BASE: https://web-production-bb17f2.up.railway.app
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Add Android platform
+        run: npx cap add android || echo "Android platform already exists"
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Make Gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: connect-ops-now-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: "Connect Ops Now APK (Build ${{ github.run_number }})"
+          body: |
+            ## Connect Ops Now Android APK
+
+            **Build**: ${{ github.run_number }}
+            **Commit**: ${{ github.sha }}
+
+            ### Install Instructions
+            1. Download `app-debug.apk` below
+            2. On your Android device: Settings → Security → Enable "Install from unknown sources"
+            3. Open the downloaded APK to install
+
+            ### Login
+            - URL: https://connect-ops-now.vercel.app
+            - Email: hr@stproperties.com
+            - Password: Partycard
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

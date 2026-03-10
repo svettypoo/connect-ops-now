@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, Loader2, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, Loader2, Trash2, PlayCircle, StopCircle } from "lucide-react";
 import api from "@/api/inboxAiClient";
 
 function fmtTime(ts) {
@@ -25,6 +25,8 @@ export default function CallHistory({ onCallBack }) {
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [playingId, setPlayingId] = useState(null);
+  const audioRef = useRef(null);
 
   useEffect(() => { loadLogs(); }, [filter]);
 
@@ -41,6 +43,23 @@ export default function CallHistory({ onCallBack }) {
     e.stopPropagation();
     await api.deleteCallLog(id).catch(() => {});
     setLogs(prev => prev.filter(l => l.id !== id));
+  };
+
+  const playRecording = (log) => {
+    if (!log.recording_id) return;
+    const url = api.streamRecording(log.recording_id);
+    if (playingId === log.id) {
+      audioRef.current?.pause();
+      setPlayingId(null);
+    } else {
+      if (audioRef.current) audioRef.current.pause();
+      const audio = new Audio(url);
+      audio.crossOrigin = 'use-credentials';
+      audio.onended = () => setPlayingId(null);
+      audio.play().catch(() => {});
+      audioRef.current = audio;
+      setPlayingId(log.id);
+    }
   };
 
   const Icon = ({ dir, status }) => {
@@ -92,6 +111,12 @@ export default function CallHistory({ onCallBack }) {
                   className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 transition-all" title="Delete">
                   <Trash2 className="w-3.5 h-3.5 text-red-400" />
                 </button>
+                {log.recording_id && (
+                  <button onClick={() => playRecording(log)}
+                    className="p-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/40 transition-all" title="Play recording">
+                    {playingId === log.id ? <StopCircle className="w-3.5 h-3.5 text-blue-400" /> : <PlayCircle className="w-3.5 h-3.5 text-blue-400" />}
+                  </button>
+                )}
               </div>
             </div>
           );

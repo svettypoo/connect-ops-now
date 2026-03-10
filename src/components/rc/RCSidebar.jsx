@@ -6,6 +6,7 @@ const NAV = [
   { id: 'voicemail', icon: Voicemail, label: 'Voicemail' },
   { id: 'message', icon: MessageSquare, label: 'SMS' },
   { id: 'channels', icon: MessageSquare, label: 'Channels', iconClass: 'text-indigo-400' },
+  { id: 'dm', icon: MessageSquare, label: 'DMs', iconClass: 'text-indigo-400' },
   { id: 'video', icon: Video, label: 'Video' },
   { id: 'contacts', icon: Users, label: 'Contacts' },
   { id: 'meetings', icon: Calendar, label: 'Meetings' },
@@ -20,8 +21,6 @@ const NAV = [
   { id: 'ai-receptionist', icon: Bot, label: 'AI Desk', iconClass: 'text-purple-400' },
   { id: 'business-hours', icon: Clock, label: 'Hours', iconClass: 'text-teal-400' },
   { id: 'admin', icon: Shield, label: 'Admin', iconClass: 'text-red-400' },
-  { id: 'business-hours', icon: Clock, label: 'Hours', iconClass: 'text-teal-400' },
-  { id: 'meetings', icon: Calendar, label: 'Meetin', iconClass: 'text-sky-400' },
 ];
 
 export default function RCSidebar({ activeNav, setActiveNav, user, onLogout, vmUnread = 0 }) {

@@ -24,8 +24,9 @@ import SupervisorPanel from '@/components/features/SupervisorPanel';
 import BusinessHours from '@/components/features/BusinessHours';
 import MeetingScheduler from '@/components/features/MeetingScheduler';
 import TeamView from '@/components/dialer/TeamView';
+import DirectMessages from '@/components/dialer/DirectMessages';
 
-const HAS_LIST = ['message','recent','contacts','voicemail','video','channels'];
+const HAS_LIST = ['message','recent','contacts','voicemail','video','channels','dm'];
 
 export default function Dialer() {
   const { user, logout } = useAuth();
@@ -36,6 +37,7 @@ export default function Dialer() {
   const [activeContact, setActiveContact] = useState(null);
   const [vmUnread, setVmUnread] = useState(0);
   const [messageTo, setMessageTo] = useState('');
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   useEffect(() => {
     api.getVoicemails().then(vms => setVmUnread(vms.filter(v => !v.is_read).length)).catch(() => {});
@@ -53,13 +55,43 @@ export default function Dialer() {
   const showList = HAS_LIST.includes(activeNav);
 
   return (
-    <div className="flex h-screen bg-[#0f0f23] overflow-hidden">
-      <RCSidebar activeNav={activeNav} setActiveNav={setActiveNav} user={user} onLogout={logout} vmUnread={vmUnread}/>
+    <div className="flex h-screen bg-[#0f0f23] overflow-hidden relative">
+      <div className="hidden sm:flex flex-col">
+        <RCSidebar activeNav={activeNav} setActiveNav={setActiveNav} user={user} onLogout={logout} vmUnread={vmUnread}/>
+      </div>
 
       {showList && (
         <RCListPanel activeNav={activeNav} onSelectContact={c => { setActiveContact(c); }}
           onCallBack={handleCallBack} onSelectMessage={num => { setMessageTo(num); setActiveNav('message'); }}/>
       )}
+
+      {/* Mobile bottom nav */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111126] border-t border-[#1e1e3a] flex items-center justify-around px-2 py-2 safe-area-pb">
+        {[
+          { id: 'dialpad', icon: '📞', label: 'Dial' },
+          { id: 'recent', icon: '📋', label: 'Calls' },
+          { id: 'message', icon: '💬', label: 'SMS' },
+          { id: 'channels', icon: '#', label: 'Channels' },
+          { id: 'dm', icon: '✉', label: 'DMs' },
+          { id: 'contacts', icon: '👤', label: 'Contacts' },
+          { id: 'voicemail', icon: '📭', label: 'Voicemail' },
+          { id: 'more', icon: '⋯', label: 'More' },
+        ].map(item => (
+          item.id === 'more' ? (
+            <button key="more" onClick={() => setShowMobileNav(p => !p)}
+              className="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500">
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="text-[9px]">{item.label}</span>
+            </button>
+          ) : (
+            <button key={item.id} onClick={() => setActiveNav(item.id)}
+              className={"flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-all " + (activeNav === item.id ? "text-blue-400" : "text-slate-500")}>
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="text-[9px]">{item.label}</span>
+            </button>
+          )
+        ))}
+      </div>
 
       {/* Inbound call banner */}
       {inbound && (
@@ -76,7 +108,7 @@ export default function Dialer() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex min-w-0">
+      <div className="flex-1 flex min-w-0 sm:pb-0 pb-16">
         <div className="flex-1 min-w-0 overflow-hidden">
           {activeNav === 'dialpad' && (
             <Dialpad phone={phone} onDial={handleDialDirect}/>
@@ -105,6 +137,7 @@ export default function Dialer() {
           {activeNav === 'business-hours' && <BusinessHours/>}
           {activeNav === 'meetings' && <MeetingScheduler/>}
           {activeNav === 'team' && <TeamView/>}
+          {activeNav === 'dm' && <DirectMessages/>}
         </div>
 
         {activeContact && HAS_LIST.includes(activeNav) && (
@@ -115,6 +148,33 @@ export default function Dialer() {
             onEmail={() => window.open('mailto:' + activeContact.email)}/>
         )}
       </div>
+
+      {/* Mobile more menu overlay */}
+      {showMobileNav && (
+        <div className="sm:hidden fixed inset-0 z-50 bg-black/60" onClick={() => setShowMobileNav(false)}>
+          <div className="absolute bottom-16 left-0 right-0 bg-[#111126] border-t border-[#1e1e3a] p-4 grid grid-cols-3 gap-3" onClick={e => e.stopPropagation()}>
+            {[
+              { id: 'analytics', icon: '📊', label: 'Analytics' },
+              { id: 'wallboard', icon: '📺', label: 'Wallboard' },
+              { id: 'supervisor', icon: '🎧', label: 'Supervisor' },
+              { id: 'sms-campaign', icon: '📣', label: 'Campaigns' },
+              { id: 'ivr', icon: '🌿', label: 'IVR' },
+              { id: 'ai-receptionist', icon: '🤖', label: 'AI Desk' },
+              { id: 'business-hours', icon: '🕐', label: 'Hours' },
+              { id: 'admin', icon: '🛡', label: 'Admin' },
+              { id: 'team', icon: '👥', label: 'Team' },
+              { id: 'meetings', icon: '📅', label: 'Meetings' },
+              { id: 'video', icon: '📹', label: 'Video' },
+            ].map(item => (
+              <button key={item.id} onClick={() => { setActiveNav(item.id); setShowMobileNav(false); }}
+                className={"flex flex-col items-center gap-1 p-3 rounded-xl transition-all " + (activeNav === item.id ? "bg-blue-600/20 text-blue-400" : "bg-white/5 text-slate-400")}>
+                <span className="text-2xl">{item.icon}</span>
+                <span className="text-[10px]">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

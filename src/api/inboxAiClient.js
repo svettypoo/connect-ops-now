@@ -67,6 +67,16 @@ export const api = {
   getAdminUsers: () => request('GET', '/api/admin/users'),
   inviteUser: (email, name) => request('POST', '/api/admin/users', { email, name }),
   getScheduledCallbacks: () => request('GET', '/api/callback/scheduled'),
+  getDMUsers: () => request('GET', '/api/dm/users'),
+  getDMMessages: (userId) => request('GET', '/api/dm/' + userId + '/messages'),
+  sendDM: (userId, body, attachment_url) => request('POST', '/api/dm/' + userId + '/messages', { body, attachment_url }),
+  parkCall: (call_control_id) => request('POST', '/api/phone/park', { call_control_id }),
+  unparkCall: (call_control_id) => request('POST', '/api/phone/unpark', { call_control_id }),
+  startRecording: (call_control_id) => request('POST', '/api/phone/recording/start', { call_control_id }),
+  stopRecording: (call_control_id) => request('POST', '/api/phone/recording/stop', { call_control_id }),
+  sendChannelMessageWithAttachment: (id, body, attachment_url) => request('POST', '/api/channels/' + id + '/messages', { body, attachment_url }),
+  getCallScores: () => request('GET', '/api/ai/call-scores'),
+  subscribePush: (subscription) => request('POST', '/api/notifications/subscribe', { subscription }),
 };
 
 export default api;

@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
-import { Phone, PhoneOff, Mic, MicOff, PauseCircle, PlayCircle, ArrowRightLeft, Keyboard, FileText } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, PauseCircle, PlayCircle, ArrowRightLeft, Keyboard, FileText, Circle, ParkingSquare } from "lucide-react";
 import { usePhone } from "@/lib/usePhone";
 import CallNotes from "@/components/dialer/CallNotes";
+import api from "@/api/inboxAiClient";
 
 export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
   const phone = usePhone();
@@ -10,6 +11,9 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
   const [sessionId] = useState(() => "voice-" + Date.now());
   const [transcript, setTranscript] = useState([]);
   const recognitionRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isParked, setIsParked] = useState(false);
+  const [callControlId, setCallControlId] = useState(null);
 
   // Auto-call if dialTo passed in
   const prevDialToRef = useRef(null);
@@ -43,6 +47,22 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
     stopTranscription();
     phone.hangup();
     onCallEnd?.();
+  };
+
+  const toggleRecording = async () => {
+    if (!callControlId) return;
+    try {
+      if (isRecording) { await api.stopRecording(callControlId); setIsRecording(false); }
+      else { await api.startRecording(callControlId); setIsRecording(true); }
+    } catch(_) {}
+  };
+
+  const togglePark = async () => {
+    if (!callControlId) return;
+    try {
+      if (isParked) { await api.unparkCall(callControlId); setIsParked(false); }
+      else { await api.parkCall(callControlId); setIsParked(true); }
+    } catch(_) {}
   };
 
   const pressKey = (k) => {
@@ -123,6 +143,11 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
               title="Hold">
               {phone.isOnHold ? <PlayCircle className="w-5 h-5 text-white" /> : <PauseCircle className="w-5 h-5 text-white" />}
             </button>
+            <button onClick={toggleRecording}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isRecording ? "bg-red-600 animate-pulse" : "bg-white/10 hover:bg-white/20"}`}
+              title="Record">
+              <Circle className={`w-4 h-4 ${isRecording ? "text-white fill-white" : "text-red-400"}`} />
+            </button>
           </div>
           <div className="flex justify-center gap-3">
             <button onClick={() => setShowDtmf(p => !p)}
@@ -135,6 +160,10 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
             }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-slate-300 transition-all">
               <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer
+            </button>
+            <button onClick={togglePark}
+              className={"flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-300 transition-all " + (isParked ? "bg-yellow-500/30" : "bg-white/5 hover:bg-white/10")}>
+              <span className="text-xs">{isParked ? "📞 Unpark" : "🅿 Park"}</span>
             </button>
           </div>
 
@@ -154,12 +183,14 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
           )}
 
           {/* Live transcript */}
-          {transcript.length > 0 && (
-            <div className="bg-black/20 rounded-xl p-3 max-h-28 overflow-y-auto">
+          {isActive && (
+            <div className="bg-black/20 rounded-xl p-3 max-h-32 overflow-y-auto">
               <div className="flex items-center gap-2 mb-1.5">
                 <FileText className="w-3 h-3 text-slate-500" />
                 <span className="text-xs text-slate-500">Live Transcript</span>
+                <span className="ml-auto text-[9px] text-slate-600 animate-pulse">{transcript.length > 0 ? '● REC' : '○ listening...'}</span>
               </div>
+              {transcript.length === 0 && <p className="text-xs text-slate-700">Transcript will appear here as you speak...</p>}
               {transcript.map((line, i) => <p key={i} className="text-xs text-slate-300">{line}</p>)}
             </div>
           )}
