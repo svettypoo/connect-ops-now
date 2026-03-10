@@ -231,15 +231,17 @@ export default function Dialer() {
         <RCSidebar activeNav={activeNav} setActiveNav={setActiveNav} user={user} onLogout={logout} vmUnread={vmUnread} />
       </div>
 
-      {/* List panel */}
-      {showList && (
-        <RCListPanel
-          activeNav={activeNav}
-          onSelectContact={c => { setActiveContact(c); }}
-          onCallBack={handleCallBack}
-          onSelectMessage={num => { setMessageTo(num); setActiveNav('message'); }}
-        />
-      )}
+      {/* List panel — desktop only */}
+      <div className="hidden sm:contents">
+        {showList && (
+          <RCListPanel
+            activeNav={activeNav}
+            onSelectContact={c => { setActiveContact(c); }}
+            onCallBack={handleCallBack}
+            onSelectMessage={num => { setMessageTo(num); setActiveNav('message'); }}
+          />
+        )}
+      </div>
 
       {/* Inbound call banner */}
       {inbound && (
