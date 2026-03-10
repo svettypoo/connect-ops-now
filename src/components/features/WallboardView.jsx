@@ -20,6 +20,7 @@ const PRESENCE_COLOR = { available: "bg-green-400", busy: "bg-red-400", away: "b
 export default function WallboardView() {
   const [data, setData] = useState(null);
   const [history, setHistory] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const pollRef = useRef(null);
 
   const load = () => {
@@ -27,6 +28,7 @@ export default function WallboardView() {
       .then(d => {
         setData(d || {});
         setHistory(h => [...h.slice(-29), { t: Date.now(), queue: d?.calls_in_queue || 0 }]);
+        setLastUpdated(new Date());
       })
       .catch(() => setData({}));
   };
@@ -43,9 +45,15 @@ export default function WallboardView() {
     <div className="p-6 space-y-6 text-white">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Live Wallboard</h2>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-3 text-xs text-slate-500">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
-          Updates every 5s
+          <span>Updates every 5s</span>
+          {lastUpdated && (
+            <span className="text-slate-600">
+              Last: {lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          )}
+          <button onClick={load} className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors" title="Refresh now">↻</button>
         </div>
       </div>
 

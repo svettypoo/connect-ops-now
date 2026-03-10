@@ -26,9 +26,8 @@ export default function AnalyticsDashboard() {
     { label: "SMS Sent", value: data?.sms_sent ?? 0, icon: MessageSquare, color: "#6366F1" },
   ];
 
-  const pieData = data?.breakdown?.length ? data.breakdown : [
-    { name: "Inbound", value: 40 }, { name: "Outbound", value: 35 }, { name: "Missed", value: 25 }
-  ];
+  const pieData = data?.breakdown?.length ? data.breakdown : null;
+  const hasAnyData = (data?.total_calls ?? 0) > 0;
 
   const barData = data?.by_day?.length ? data.by_day : ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day: d, calls: 0 }));
 
@@ -50,6 +49,12 @@ export default function AnalyticsDashboard() {
         <div className="flex items-center justify-center h-40 text-slate-400">Loading analytics...</div>
       ) : (
         <>
+          {!hasAnyData && (
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-3 text-sm text-blue-300/70 flex items-center gap-2">
+              <span>📊</span>
+              <span>No calls recorded yet in this period. Make your first call to see analytics populate.</span>
+            </div>
+          )}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map(({ label, value, icon: Icon, color }) => (
               <div key={label} className="bg-white/5 rounded-xl p-4 border border-white/10">
@@ -57,7 +62,8 @@ export default function AnalyticsDashboard() {
                   <Icon className="w-4 h-4" style={{ color }} />
                   <span className="text-slate-400 text-xs">{label}</span>
                 </div>
-                <p className="text-2xl font-bold">{value}</p>
+                <p className={"text-2xl font-bold " + (!hasAnyData ? "text-slate-600" : "")}>{value}</p>
+                {!hasAnyData && <p className="text-xs text-slate-700 mt-1">No data yet</p>}
               </div>
             ))}
           </div>
@@ -78,15 +84,22 @@ export default function AnalyticsDashboard() {
 
             <div className="bg-white/5 rounded-xl p-4 border border-white/10">
               <h3 className="text-sm font-semibold mb-4 text-slate-300">Call Breakdown</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" outerRadius={70} dataKey="value"
-                    label={({ name, percent }) => name + " " + Math.round(percent * 100) + "%"} labelLine={false}>
-                    {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: "#1e1e30", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              {pieData ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={pieData} cx="50%" cy="50%" outerRadius={70} dataKey="value"
+                      label={({ name, percent }) => name + " " + Math.round(percent * 100) + "%"} labelLine={false}>
+                      {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: "#1e1e30", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[200px] flex flex-col items-center justify-center text-slate-600 gap-2">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                  <p className="text-sm">No calls to break down yet</p>
+                </div>
+              )}
             </div>
           </div>
 
