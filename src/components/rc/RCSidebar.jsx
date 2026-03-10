@@ -1,4 +1,4 @@
-import { Phone, MessageSquare, Voicemail, Video, Users, Hash, BarChart2, Shield, Monitor, GitBranch, Bot, Megaphone, Headphones } from 'lucide-react';
+import { Phone, MessageSquare, Voicemail, Video, Users, Hash, BarChart2, Shield, Monitor, GitBranch, Bot, Megaphone, Headphones, Calendar, Clock } from 'lucide-react';
 
 const NAV = [
   { id: 'dialpad', icon: Hash, label: 'Dialpad' },
@@ -8,6 +8,8 @@ const NAV = [
   { id: 'channels', icon: MessageSquare, label: 'Channels', iconClass: 'text-indigo-400' },
   { id: 'video', icon: Video, label: 'Video' },
   { id: 'contacts', icon: Users, label: 'Contacts' },
+  { id: 'meetings', icon: Calendar, label: 'Meetings' },
+  { id: 'team', icon: Hash, label: 'Team', iconClass: 'text-indigo-400' },
   null, // divider
   { id: 'analytics', icon: BarChart2, label: 'Analytics', iconClass: 'text-blue-400' },
   { id: 'wallboard', icon: Monitor, label: 'Wallboard', iconClass: 'text-green-400' },
@@ -16,6 +18,7 @@ const NAV = [
   null, // divider
   { id: 'ivr', icon: GitBranch, label: 'IVR', iconClass: 'text-purple-400' },
   { id: 'ai-receptionist', icon: Bot, label: 'AI Desk', iconClass: 'text-purple-400' },
+  { id: 'business-hours', icon: Clock, label: 'Hours', iconClass: 'text-teal-400' },
   { id: 'admin', icon: Shield, label: 'Admin', iconClass: 'text-red-400' },
 ];
 

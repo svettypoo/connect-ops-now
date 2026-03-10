@@ -13,14 +13,16 @@ import VideoCall from '@/components/dialer/VideoCall';
 import Messaging from '@/components/dialer/Messaging';
 import CallHistory from '@/components/dialer/CallHistory';
 import VoicemailList from '@/components/dialer/VoicemailList';
-import AnalyticsDashboard from '@/components/dialer/AnalyticsDashboard';
-import ChannelsView from '@/components/dialer/ChannelsView';
-import WallboardView from '@/components/dialer/WallboardView';
-import IVRBuilder from '@/components/dialer/IVRBuilder';
-import AdminPanel from '@/components/dialer/AdminPanel';
-import AIReceptionist from '@/components/dialer/AIReceptionist';
-import SMSCampaign from '@/components/dialer/SMSCampaign';
-import SupervisorPanel from '@/components/dialer/SupervisorPanel';
+import AnalyticsDashboard from '@/components/features/AnalyticsDashboard';
+import ChannelsView from '@/components/features/ChannelsView';
+import WallboardView from '@/components/features/WallboardView';
+import IVRBuilder from '@/components/features/IVRBuilder';
+import AdminPanel from '@/components/features/AdminPanel';
+import AIReceptionist from '@/components/features/AIReceptionist';
+import SMSCampaign from '@/components/features/SMSCampaign';
+import SupervisorPanel from '@/components/features/SupervisorPanel';
+import BusinessHours from '@/components/features/BusinessHours';
+import MeetingScheduler from '@/components/features/MeetingScheduler';
 
 const HAS_LIST = ['message','recent','contacts','voicemail','video','channels'];
 
@@ -96,6 +98,9 @@ export default function Dialer() {
           {activeNav === 'ai-receptionist' && <AIReceptionist/>}
           {activeNav === 'sms-campaign' && <SMSCampaign/>}
           {activeNav === 'supervisor' && <SupervisorPanel/>}
+          {activeNav === 'business-hours' && <BusinessHours/>}
+          {activeNav === 'meetings' && <MeetingScheduler/>}
+          {activeNav === 'team' && <ChannelsView/>}
         </div>
 
         {activeContact && HAS_LIST.includes(activeNav) && (
