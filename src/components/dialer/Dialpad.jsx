@@ -57,7 +57,11 @@ const PhoneCallIcon = () => (
   </svg>
 );
 
-export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
+export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumber }) {
+  // Support both old onCall prop and new onDial prop from PhoneScreen
+  const handleCallProp = onDial || onCall;
+  const resolvedPhoneStatus = phoneStatus || phone?.status;
+  const resolvedPhoneNumber = phoneNumber || phone?.phoneNumber;
   const [number, setNumber] = useState("");
   const [recents, setRecents] = useState([]);
   const [matchedContact, setMatchedContact] = useState(null);
@@ -90,7 +94,7 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
 
   const pressKey = (k) => { playDtmf(k); setNumber(n => n + k); };
   const backspace = () => setNumber(n => n.slice(0, -1));
-  const handleCall = () => { if (number.trim()) onCall?.(number.trim(), matchedContact?.name || ""); };
+  const handleCall = () => { if (number.trim()) handleCallProp?.(number.trim(), matchedContact?.name || ""); };
 
   useEffect(() => {
     const handler = (e) => {
@@ -104,7 +108,7 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
     return () => window.removeEventListener('keydown', handler);
   }, [number]);
 
-  const busy = phoneStatus === "active" || phoneStatus === "held" || phoneStatus === "ringing";
+  const busy = resolvedPhoneStatus === "active" || resolvedPhoneStatus === "held" || resolvedPhoneStatus === "ringing";
 
   const StatusIcon = ({ direction, status }) => {
     if (status === "missed") return <PhoneMissed size={14} color="#F44336" />;
@@ -133,31 +137,33 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
         width: '100%', minHeight: '56px', display: 'flex', alignItems: 'center',
         justifyContent: 'center', position: 'relative', marginBottom: '4px',
       }}>
-        <span style={{
-          fontSize: number ? '36px' : '0px', fontWeight: 300, color: '#FFFFFF',
-          letterSpacing: '3px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
-          transition: 'font-size 0.15s',
-        }}>
-          {number || ''}
-        </span>
-        {!number && (
-          <span style={{ fontSize: '36px', color: '#444', fontWeight: 200 }}>|</span>
-        )}
-        {number && (
-          <button
-            onClick={backspace}
-            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer', color: '#8B8F9B',
-              display: 'flex', alignItems: 'center', padding: '8px',
-            }}
-          >
-            <BackspaceIcon />
-          </button>
+        {!number ? (
+          <span style={{ fontSize: '15px', color: '#555', fontWeight: 400, fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
+            Enter a name or number
+          </span>
+        ) : (
+          <>
+            <span style={{
+              fontSize: '34px', fontWeight: 300, color: '#FFFFFF',
+              letterSpacing: '3px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
+            }}>
+              {number}
+            </span>
+            <button
+              onClick={backspace}
+              style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer', color: '#8B8F9B',
+                display: 'flex', alignItems: 'center', padding: '8px',
+              }}
+            >
+              <BackspaceIcon />
+            </button>
+          </>
         )}
       </div>
 
-      {phoneNumber && (
-        <p style={{ fontSize: '11px', color: '#8B8F9B', marginBottom: '16px' }}>Your number: <span style={{ color: '#FFFFFF' }}>{phoneNumber}</span></p>
+      {resolvedPhoneNumber && (
+        <p style={{ fontSize: '11px', color: '#8B8F9B', marginBottom: '16px' }}>Your number: <span style={{ color: '#FFFFFF' }}>{resolvedPhoneNumber}</span></p>
       )}
 
       {/* 12-key pad */}
@@ -183,26 +189,39 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
         ))}
       </div>
 
-      {/* Call button */}
-      <button
-        onClick={handleCall}
-        disabled={!number.trim() || busy}
-        style={{
-          width: '64px', height: '64px', borderRadius: '50%',
-          background: (!number.trim() || busy) ? '#2A2D35' : '#4CAF50',
-          border: 'none', cursor: (!number.trim() || busy) ? 'not-allowed' : 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: (!number.trim() || busy) ? 'none' : '0 4px 20px rgba(76,175,80,0.4)',
-          transition: 'all 0.15s',
-          marginBottom: '8px',
-        }}
-      >
-        <PhoneCallIcon />
-      </button>
+      {/* Call button row: Notes on (left) + Call button (center) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '300px', position: 'relative', marginBottom: '8px' }}>
+        {/* Notes on button — left-aligned */}
+        <button
+          style={{
+            position: 'absolute', left: 0,
+            background: '#1A3A3A', border: 'none', borderRadius: '20px',
+            padding: '8px 14px', color: '#0EE2C4', fontSize: '12px',
+            fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+          }}
+        >
+          Notes on
+        </button>
+        {/* Green call button — centered */}
+        <button
+          onClick={handleCall}
+          disabled={!number.trim() || busy}
+          style={{
+            width: '64px', height: '64px', borderRadius: '50%',
+            background: (!number.trim() || busy) ? '#2A2D35' : '#4CAF50',
+            border: 'none', cursor: (!number.trim() || busy) ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: (!number.trim() || busy) ? 'none' : '0 4px 20px rgba(76,175,80,0.4)',
+            transition: 'all 0.15s',
+          }}
+        >
+          <PhoneCallIcon />
+        </button>
+      </div>
 
       {busy && (
         <p style={{ fontSize: '12px', color: '#FF6E00', marginBottom: '8px' }}>
-          {phoneStatus === "ringing" ? "Incoming call…" : phoneStatus === "active" ? "In call" : "On hold"}
+          {resolvedPhoneStatus === "ringing" ? "Incoming call…" : resolvedPhoneStatus === "active" ? "In call" : "On hold"}
         </p>
       )}
 
@@ -217,7 +236,7 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
               return (
                 <button
                   key={log.id}
-                  onClick={() => { setNumber(num); onCall?.(num, name); }}
+                  onClick={() => { setNumber(num); handleCallProp?.(num, name); }}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
                     padding: '10px 12px', borderRadius: '10px', background: 'none',
