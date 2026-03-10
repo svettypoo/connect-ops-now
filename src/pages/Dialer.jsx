@@ -70,9 +70,10 @@ const GridIcon = ({ size = 24, color = 'currentColor' }) => (
   </svg>
 );
 
-const ChevronRightIcon = ({ size = 16, color = '#8B8F9B' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6" />
+const BellIcon = ({ size = 22, color = '#8B8F9B' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 01-3.46 0" />
   </svg>
 );
 
@@ -193,8 +194,42 @@ const TAB_LABELS = {
   analytics: 'Analytics', wallboard: 'Wallboard', supervisor: 'Supervisor',
   'sms-campaign': 'SMS Campaigns', ivr: 'IVR Builder', 'ai-receptionist': 'AI Receptionist',
   'business-hours': 'Business Hours', admin: 'Admin', team: 'Team', meetings: 'Meetings',
-  voice: 'Call',
+  voice: 'Call', more: 'More',
 };
+
+function getInitials(nameOrEmail) {
+  if (!nameOrEmail) return '?';
+  const parts = nameOrEmail.trim().split(/[\s@]/);
+  return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function MoreGrid({ items, onNavigate }) {
+  return (
+    <div style={{ padding: '16px', overflowY: 'auto', height: '100%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        {items.map(item => (
+          <button
+            key={item.id}
+            onClick={() => onNavigate(item.id)}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              padding: '20px 12px', borderRadius: '16px',
+              background: '#1E2025', border: '1px solid #2A2D35',
+              cursor: 'pointer', gap: '10px', transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#2A2D35'}
+            onMouseLeave={e => e.currentTarget.style.background = '#1E2025'}
+          >
+            <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(6,132,189,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <item.icon size={24} color='#0684BD' />
+            </div>
+            <span style={{ fontSize: '12px', color: '#C8CAD0', fontWeight: 500, textAlign: 'center', lineHeight: '1.3' }}>{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Dialer() {
   const { user, logout } = useAuth();
@@ -205,7 +240,6 @@ export default function Dialer() {
   const [activeContact, setActiveContact] = useState(null);
   const [vmUnread, setVmUnread] = useState(0);
   const [messageTo, setMessageTo] = useState('');
-  const [showMobileNav, setShowMobileNav] = useState(false);
 
   useEffect(() => {
     api.getVoicemails().then(vms => setVmUnread(vms.filter(v => !v.is_read).length)).catch(() => {});
@@ -222,6 +256,8 @@ export default function Dialer() {
   const showList = HAS_LIST.includes(activeNav);
 
   const mobileTabActive = MOBILE_TABS.find(t => t.id === activeNav) ? activeNav : 'more';
+
+  const userInitials = getInitials(user?.name || user?.email);
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#17191C', overflow: 'hidden', position: 'relative', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
@@ -278,12 +314,43 @@ export default function Dialer() {
       <div style={{ flex: 1, display: 'flex', minWidth: 0, paddingBottom: 0 }} className="sm:pb-0 pb-16">
         {/* Top header for mobile */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {/* Mobile header */}
-          <div className="sm:hidden" style={{ background: '#17191C', height: '56px', borderBottom: '1px solid #2A2D35', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0 }}>
-            <span style={{ color: '#FFFFFF', fontSize: '17px', fontWeight: 600 }}>{TAB_LABELS[activeNav] || 'Phone'}</span>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B8F9B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B8F9B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          {/* RC-style mobile header */}
+          <div className="sm:hidden" style={{
+            background: '#17191C', height: '56px', borderBottom: '1px solid #2A2D35',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '0 16px', flexShrink: 0,
+          }}>
+            {/* Left: user avatar + company name */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                background: '#0684BD', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', fontWeight: 700, color: '#fff', flexShrink: 0,
+              }}>
+                {userInitials}
+              </div>
+              <span style={{ color: '#FFFFFF', fontSize: '17px', fontWeight: 700 }}>Connect Ops</span>
+            </div>
+            {/* Right: bell + presence avatar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                <BellIcon size={22} color='#8B8F9B' />
+              </button>
+              <div style={{ position: 'relative' }}>
+                <div style={{
+                  width: '28px', height: '28px', borderRadius: '50%',
+                  background: '#0684BD', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '10px', fontWeight: 700, color: '#fff',
+                }}>
+                  {userInitials}
+                </div>
+                {/* Green presence dot */}
+                <div style={{
+                  position: 'absolute', bottom: '0px', right: '0px',
+                  width: '8px', height: '8px', borderRadius: '50%',
+                  background: '#4CAF50', border: '2px solid #17191C',
+                }} />
+              </div>
             </div>
           </div>
 
@@ -312,6 +379,7 @@ export default function Dialer() {
             {activeNav === 'meetings' && <MeetingScheduler />}
             {activeNav === 'team' && <TeamView />}
             {activeNav === 'dm' && <DirectMessages />}
+            {activeNav === 'more' && <MoreGrid items={MORE_ITEMS} onNavigate={id => setActiveNav(id)} />}
           </div>
         </div>
 
@@ -339,71 +407,31 @@ export default function Dialer() {
           return (
             <button
               key={id}
-              onClick={() => {
-                if (id === 'more') setShowMobileNav(p => !p);
-                else { setActiveNav(id); setShowMobileNav(false); }
-              }}
+              onClick={() => setActiveNav(id)}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: isActive ? '#0684BD' : '#8B8F9B',
                 padding: '4px 8px', minWidth: '56px',
+                position: 'relative',
               }}
             >
               <Icon size={22} color={isActive ? '#0684BD' : '#8B8F9B'} />
               <span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400, color: isActive ? '#0684BD' : '#8B8F9B' }}>
                 {label}
               </span>
+              {id === 'dialpad' && vmUnread > 0 && (
+                <div style={{
+                  position: 'absolute', top: '2px', right: '8px',
+                  background: '#F44336', color: '#fff', borderRadius: '10px',
+                  fontSize: '9px', fontWeight: 700, minWidth: '16px', height: '16px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+                }}>{vmUnread}</div>
+              )}
             </button>
           );
         })}
       </div>
-
-      {/* Mobile More overlay */}
-      {showMobileNav && (
-        <div
-          className="sm:hidden"
-          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)' }}
-          onClick={() => setShowMobileNav(false)}
-        >
-          <div
-            style={{
-              position: 'absolute', bottom: '64px', left: 0, right: 0,
-              background: '#17191C', borderTop: '1px solid #2A2D35',
-              maxHeight: '60vh', overflowY: 'auto',
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Drag handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
-              <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: '#2A2D35' }} />
-            </div>
-
-            {MORE_ITEMS.map(item => {
-              const isActive = activeNav === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => { setActiveNav(item.id); setShowMobileNav(false); }}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
-                    padding: '14px 20px', background: isActive ? 'rgba(6,132,189,0.1)' : 'none',
-                    border: 'none', borderBottom: '1px solid #2A2D35', cursor: 'pointer',
-                  }}
-                >
-                  <item.icon size={20} color={isActive ? '#0684BD' : '#8B8F9B'} />
-                  <span style={{ flex: 1, textAlign: 'left', color: isActive ? '#0684BD' : '#FFFFFF', fontSize: '15px', fontWeight: isActive ? 600 : 400 }}>
-                    {item.label}
-                  </span>
-                  <ChevronRightIcon />
-                </button>
-              );
-            })}
-
-            <div style={{ height: 'env(safe-area-inset-bottom)' }} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

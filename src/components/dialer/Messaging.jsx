@@ -10,6 +10,9 @@ function fmtTime(ts) {
   return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
 }
 
+const AVATAR_COLORS = ['#E53935','#8E24AA','#1E88E5','#00897B','#F4511E','#6D4C41','#3949AB','#039BE5'];
+function avatarColor(name) { let h = 0; for (const c of (name||'?')) h = (h * 31 + c.charCodeAt(0)) & 0xffff; return AVATAR_COLORS[h % AVATAR_COLORS.length]; }
+
 export default function Messaging({ initialThread }) {
   const [threads, setThreads] = useState([]);
   const [activeThread, setActiveThread] = useState(initialThread || null);
@@ -92,34 +95,59 @@ export default function Messaging({ initialThread }) {
   if (activeThread) {
     const name = activeThread.contact_name || activeThread.name || activeThread.from_number || activeThread.number || "Unknown";
     return (
-      <div className="rounded-2xl overflow-hidden bg-[#12122a] border border-white/5 flex flex-col" style={{ height: 500 }}>
-        <div className="px-4 py-3 border-b border-white/5 flex items-center gap-3">
-          <button onClick={() => { setActiveThread(null); setMessages([]); setSuggestions([]); }}
-            className="p-1 rounded-lg hover:bg-white/10 transition-all">
-            <ArrowLeft className="w-4 h-4 text-slate-400" />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#17191C' }}>
+        {/* Thread header */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2D35', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          <button
+            onClick={() => { setActiveThread(null); setMessages([]); setSuggestions([]); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '8px' }}
+          >
+            <ArrowLeft style={{ width: '16px', height: '16px', color: '#8B8F9B' }} />
           </button>
-          <div className="w-8 h-8 rounded-full bg-[#0684BD] flex items-center justify-center text-xs font-bold text-white">
-            {initials(name)}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '50%',
+              background: avatarColor(name),
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '13px', fontWeight: 700, color: '#fff',
+            }}>
+              {initials(name)}
+            </div>
+            <div style={{
+              position: 'absolute', bottom: '0px', right: '0px',
+              width: '9px', height: '9px', borderRadius: '50%',
+              background: '#4CAF50', border: '2px solid #17191C',
+            }} />
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-white">{name}</p>
-            <p className="text-xs text-slate-500">{activeThread.from_number || activeThread.number}</p>
+          <div style={{ flex: 1 }}>
+            <p style={{ color: '#FFFFFF', fontSize: '15px', fontWeight: 600, margin: 0 }}>{name}</p>
+            <p style={{ color: '#8B8F9B', fontSize: '12px', margin: 0 }}>{activeThread.from_number || activeThread.number}</p>
           </div>
-          <button onClick={loadSuggestions} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-slate-400 transition-all">
-            {loadingSugg ? <Loader2 className="w-3 h-3 animate-spin" /> : <Lightbulb className="w-3 h-3" />}
+          <button
+            onClick={loadSuggestions}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', color: '#8B8F9B', fontSize: '12px' }}
+          >
+            {loadingSugg ? <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" /> : <Lightbulb style={{ width: '12px', height: '12px' }} />}
             Suggest
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {messages.length === 0 && <p className="text-slate-600 text-sm text-center py-8">No messages yet</p>}
+        {/* Messages */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {messages.length === 0 && <p style={{ color: '#8B8F9B', fontSize: '14px', textAlign: 'center', paddingTop: '32px' }}>No messages yet</p>}
           {messages.map((m, i) => {
             const out = m.direction === "outbound" || m.out;
             return (
-              <div key={m.id || i} className={`flex ${out ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${out ? "bg-[#0684BD] text-white" : "bg-slate-700/80 text-slate-100"}`}>
+              <div key={m.id || i} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '78%', borderRadius: '18px', padding: '10px 14px', fontSize: '14px',
+                  background: out ? '#0684BD' : '#2A2D35',
+                  color: out ? '#FFFFFF' : '#E8E9EC',
+                }}>
                   {m.body || m.text}
-                  <div className={`text-xs mt-1 ${out ? "text-blue-200/70" : "text-slate-500"}`}>{fmtTime(m.created_at || m.time || Date.now())}</div>
+                  <div style={{ fontSize: '11px', marginTop: '4px', color: out ? 'rgba(255,255,255,0.6)' : '#8B8F9B' }}>
+                    {fmtTime(m.created_at || m.time || Date.now())}
+                  </div>
                 </div>
               </div>
             );
@@ -128,24 +156,39 @@ export default function Messaging({ initialThread }) {
         </div>
 
         {suggestions.length > 0 && (
-          <div className="px-3 py-2 border-t border-white/5 flex gap-2 overflow-x-auto">
+          <div style={{ padding: '8px 12px', borderTop: '1px solid #2A2D35', display: 'flex', gap: '8px', overflowX: 'auto', flexShrink: 0 }}>
             {suggestions.map((s, i) => (
               <button key={i} onClick={() => setInput(s)}
-                className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs text-slate-300 border border-white/10 transition-all">
+                style={{ flexShrink: 0, padding: '6px 12px', borderRadius: '14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', color: '#C8CAD0', fontSize: '12px' }}>
                 {s}
               </button>
             ))}
           </div>
         )}
 
-        <div className="p-3 border-t border-white/5 flex gap-2">
-          <input value={input} onChange={e => setInput(e.target.value)}
+        {/* Input row */}
+        <div style={{ padding: '12px', borderTop: '1px solid #2A2D35', display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
             placeholder="Type a message..."
-            className="flex-1 bg-slate-800/80 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#0EB8FF]/40" />
-          <button onClick={sendMessage} disabled={!input.trim() || sending}
-            className="w-10 h-10 rounded-xl bg-[#0684BD] hover:bg-[#0EB8FF] disabled:opacity-40 flex items-center justify-center transition-all">
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-white" />}
+            style={{
+              flex: 1, background: '#1E2025', border: '1px solid #2A2D35', borderRadius: '22px',
+              padding: '10px 16px', fontSize: '14px', color: '#FFFFFF', outline: 'none',
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!input.trim() || sending}
+            style={{
+              width: '40px', height: '40px', borderRadius: '50%', background: '#0684BD',
+              border: 'none', cursor: input.trim() && !sending ? 'pointer' : 'not-allowed',
+              opacity: input.trim() && !sending ? 1 : 0.4,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {sending ? <Loader2 style={{ width: '16px', height: '16px', color: '#fff' }} className="animate-spin" /> : <Send style={{ width: '16px', height: '16px', color: '#fff' }} />}
           </button>
         </div>
       </div>
@@ -153,45 +196,90 @@ export default function Messaging({ initialThread }) {
   }
 
   return (
-    <div className="rounded-2xl overflow-hidden bg-[#12122a] border border-white/5 flex flex-col" style={{ height: 500 }}>
-      <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-sm font-medium text-white">Messages</span>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#17191C' }}>
+      {/* Header */}
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2D35', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4CAF50', display: 'inline-block' }} />
+          <span style={{ fontSize: '15px', fontWeight: 600, color: '#FFFFFF' }}>Messages</span>
         </div>
-        <button onClick={() => setShowNew(p => !p)}
-          className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#0684BD]/20 hover:bg-[#0684BD]/40 text-[#0EB8FF] transition-all text-lg font-bold">+</button>
+        <button
+          onClick={() => setShowNew(p => !p)}
+          style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6,132,189,0.2)', border: 'none', cursor: 'pointer', color: '#0EB8FF', fontSize: '18px', fontWeight: 700 }}
+        >+</button>
       </div>
 
       {showNew && (
-        <div className="px-4 py-3 border-b border-white/5 flex gap-2">
-          <input value={newNumber} onChange={e => setNewNumber(e.target.value)} placeholder="+1 (555) 000-0000"
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2D35', display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <input
+            value={newNumber}
+            onChange={e => setNewNumber(e.target.value)}
+            placeholder="+1 (555) 000-0000"
             onKeyDown={e => e.key === "Enter" && startNewThread()}
-            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none" />
-          <button onClick={startNewThread} className="px-3 py-2 rounded-lg bg-[#0684BD] text-white text-xs font-semibold">New</button>
+            style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px', fontSize: '14px', color: '#FFFFFF', outline: 'none' }}
+          />
+          <button onClick={startNewThread} style={{ padding: '8px 14px', borderRadius: '8px', background: '#0684BD', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>New</button>
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
-        {loadingThreads && <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-slate-600 border-t-[#0EB8FF] rounded-full animate-spin" /></div>}
-        {!loadingThreads && threads.length === 0 && <p className="text-slate-600 text-sm text-center py-12">No conversations yet</p>}
+      {/* Thread list */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {loadingThreads && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #2A2D35', borderTopColor: '#0EB8FF', animation: 'spin 0.8s linear infinite' }} />
+          </div>
+        )}
+        {!loadingThreads && threads.length === 0 && (
+          <p style={{ color: '#8B8F9B', fontSize: '14px', textAlign: 'center', paddingTop: '48px' }}>No conversations yet</p>
+        )}
         {threads.map(t => {
           const name = t.contact_name || t.name || t.from_number || t.number || "Unknown";
+          const bg = avatarColor(name);
           return (
-            <button key={t.id} onClick={() => openThread(t)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/4 border-l-2 border-transparent hover:border-[#0EB8FF] transition-all">
-              <div className="w-9 h-9 rounded-full bg-[#0684BD] flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                {initials(name)}
-              </div>
-              <div className="flex-1 min-w-0 text-left">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-white">{name}</span>
-                  {t.last_message_at && <span className="text-[10px] text-slate-600">{fmtTime(t.last_message_at)}</span>}
+            <button
+              key={t.id}
+              onClick={() => openThread(t)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '12px 16px', background: 'none', border: 'none',
+                borderBottom: '1px solid #2A2D35', cursor: 'pointer',
+                minHeight: '68px', textAlign: 'left',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              {/* Avatar with presence dot */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div style={{
+                  width: '44px', height: '44px', borderRadius: '50%',
+                  background: bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '15px', fontWeight: 700, color: '#fff',
+                }}>
+                  {initials(name)}
                 </div>
-                <p className="text-xs text-slate-500 truncate">{t.last_message || t.lastMsg || ""}</p>
+                <div style={{
+                  position: 'absolute', bottom: '1px', right: '1px',
+                  width: '10px', height: '10px', borderRadius: '50%',
+                  background: '#4CAF50', border: '2px solid #17191C',
+                }} />
               </div>
+              {/* Text */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 600, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}>{name}</span>
+                  {t.last_message_at && <span style={{ fontSize: '12px', color: '#8B8F9B', flexShrink: 0 }}>{fmtTime(t.last_message_at)}</span>}
+                </div>
+                <p style={{ fontSize: '13px', color: '#8B8F9B', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.last_message || t.lastMsg || ""}</p>
+              </div>
+              {/* Unread badge */}
               {t.unread > 0 && (
-                <div className="w-5 h-5 rounded-full bg-[#0684BD] flex items-center justify-center text-[10px] font-bold text-white">{t.unread}</div>
+                <div style={{
+                  width: '20px', height: '20px', borderRadius: '50%',
+                  background: '#0684BD', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0,
+                }}>{t.unread}</div>
               )}
             </button>
           );

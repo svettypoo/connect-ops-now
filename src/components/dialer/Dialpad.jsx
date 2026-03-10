@@ -92,6 +92,18 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
   const backspace = () => setNumber(n => n.slice(0, -1));
   const handleCall = () => { if (number.trim()) onCall?.(number.trim(), matchedContact?.name || ""); };
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key >= '0' && e.key <= '9') pressKey(e.key);
+      else if (e.key === '*') pressKey('*');
+      else if (e.key === '#') pressKey('#');
+      else if (e.key === 'Backspace') backspace();
+      else if (e.key === 'Enter') handleCall();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [number]);
+
   const busy = phoneStatus === "active" || phoneStatus === "held" || phoneStatus === "ringing";
 
   const StatusIcon = ({ direction, status }) => {
@@ -116,26 +128,28 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
         </div>
       )}
 
-      {/* Number input */}
-      <div style={{ width: '100%', position: 'relative', marginBottom: '8px' }}>
-        <input
-          value={number}
-          onChange={e => setNumber(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handleCall()}
-          placeholder="Enter number"
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            background: 'transparent', border: 'none', outline: 'none',
-            textAlign: 'center', fontSize: '28px', fontWeight: 300,
-            color: '#FFFFFF', padding: '8px 40px 8px 8px',
-            fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
-            letterSpacing: '1px',
-          }}
-        />
+      {/* RC-style number display */}
+      <div style={{
+        width: '100%', minHeight: '56px', display: 'flex', alignItems: 'center',
+        justifyContent: 'center', position: 'relative', marginBottom: '4px',
+      }}>
+        <span style={{
+          fontSize: number ? '36px' : '0px', fontWeight: 300, color: '#FFFFFF',
+          letterSpacing: '3px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
+          transition: 'font-size 0.15s',
+        }}>
+          {number || ''}
+        </span>
+        {!number && (
+          <span style={{ fontSize: '36px', color: '#444', fontWeight: 200 }}>|</span>
+        )}
         {number && (
           <button
             onClick={backspace}
-            style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#8B8F9B', display: 'flex', alignItems: 'center', padding: '4px' }}
+            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer', color: '#8B8F9B',
+              display: 'flex', alignItems: 'center', padding: '8px',
+            }}
           >
             <BackspaceIcon />
           </button>
