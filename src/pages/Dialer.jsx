@@ -55,7 +55,7 @@ export default function Dialer() {
   const showList = HAS_LIST.includes(activeNav);
 
   return (
-    <div className="flex h-screen bg-[#0f0f23] overflow-hidden relative">
+    <div className="flex h-screen bg-[#1a1a2e] overflow-hidden relative">
       <div className="hidden sm:flex flex-col">
         <RCSidebar activeNav={activeNav} setActiveNav={setActiveNav} user={user} onLogout={logout} vmUnread={vmUnread}/>
       </div>
