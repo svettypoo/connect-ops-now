@@ -611,6 +611,19 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
     );
   }
 
+  // ── Mic permission denied ────────────────────────────────────────────────
+  if (phone.micDenied) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#17191C', gap: '12px', padding: '32px', textAlign: 'center' }}>
+        <div style={{ fontSize: '40px' }}>🎤</div>
+        <p style={{ color: '#FF5252', fontSize: '15px', fontWeight: 600 }}>Microphone Access Required</p>
+        <p style={{ color: '#8B8F9B', fontSize: '13px', maxWidth: '260px' }}>
+          Go to Settings → Apps → Connect Ops → Permissions and enable Microphone, then restart the app.
+        </p>
+      </div>
+    );
+  }
+
   // ── Ready / connecting ───────────────────────────────────────────────────
   return (
     <div style={{
@@ -620,7 +633,7 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
     }}>
       <div style={{ width: '48px', height: '48px', borderRadius: '50%', border: '2px solid #2A2D35', borderTopColor: '#0EB8FF', animation: 'spin 0.8s linear infinite' }} />
       <p style={{ color: '#8B8F9B', fontSize: '14px' }}>
-        {phone.status === 'connecting' ? 'Connecting…' : 'Initializing phone…'}
+        {phone.status === 'reconnecting' ? 'Reconnecting…' : phone.status === 'connecting' ? 'Connecting…' : 'Initializing phone…'}
       </p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
