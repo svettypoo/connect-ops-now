@@ -1,6 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Languages, Loader2, ArrowLeft, Lightbulb } from "lucide-react";
 import api from "@/api/inboxAiClient";
+import { playMessageSound } from "@/lib/useNotificationSettings";
+
+function getNotifSettings() {
+  try { const r = localStorage.getItem("con_notif_settings"); return r ? JSON.parse(r) : {}; } catch { return {}; }
+}
 
 function initials(name) { return (name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(); }
 function fmtTime(ts) {
@@ -26,26 +31,50 @@ export default function Messaging({ initialThread }) {
   const [showNew, setShowNew] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(true);
   const bottomRef = useRef(null);
+  const pollRef = useRef(null);
+  const lastMsgCountRef = useRef(0);
+
+  const refreshThreads = useCallback(() => {
+    api.getSmsThreads()
+      .then(t => setThreads(Array.isArray(t) ? t : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.getSmsThreads()
       .then(t => setThreads(Array.isArray(t) ? t : []))
       .catch(() => setThreads([]))
       .finally(() => setLoadingThreads(false));
+    const tid = setInterval(refreshThreads, 10000);
+    return () => clearInterval(tid);
+  }, [refreshThreads]);
+
+  const loadMessages = useCallback(async (number, isPolling = false) => {
+    try {
+      const msgs = await api.getSmsThread(number);
+      const arr = Array.isArray(msgs) ? msgs : [];
+      if (isPolling) {
+        const newInbound = arr.filter(m => m.direction === 'inbound').length;
+        if (newInbound > lastMsgCountRef.current) {
+          playMessageSound({ soundOnMessage: true, messageSound: 'chime', ringVolume: 80, vibrateOnMessage: true, ...getNotifSettings() });
+        }
+        lastMsgCountRef.current = newInbound;
+      }
+      setMessages(arr);
+    } catch { setMessages([]); }
   }, []);
 
   useEffect(() => {
-    if (activeThread) loadMessages(activeThread.from_number || activeThread.number);
-  }, [activeThread]);
+    if (!activeThread) { clearInterval(pollRef.current); return; }
+    const number = activeThread.from_number || activeThread.number;
+    lastMsgCountRef.current = 0;
+    loadMessages(number);
+    clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => loadMessages(number, true), 5000);
+    return () => clearInterval(pollRef.current);
+  }, [activeThread, loadMessages]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
-
-  const loadMessages = async (number) => {
-    try {
-      const msgs = await api.getSmsThread(number);
-      setMessages(Array.isArray(msgs) ? msgs : []);
-    } catch { setMessages([]); }
-  };
 
   const openThread = (t) => {
     setActiveThread(t);
