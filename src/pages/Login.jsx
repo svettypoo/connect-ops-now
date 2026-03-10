@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
-import { Phone } from "lucide-react";
+import { Phone, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const { login, authError } = useAuth();
@@ -8,6 +8,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,8 +32,14 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email"
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-[#0EB8FF]/50" required />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-[#0EB8FF]/50" required />
+          <div className="relative">
+            <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-12 text-white placeholder-slate-500 focus:outline-none focus:border-[#0EB8FF]/50" required />
+            <button type="button" onClick={() => setShowPassword(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors">
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
           {(err || authError?.message) && <p className="text-red-400 text-sm text-center">{err || authError?.message}</p>}
           <button type="submit" disabled={loading} className="w-full py-3 rounded-xl font-semibold text-white transition-all"
             style={{ background: loading ? "#555" : "linear-gradient(135deg, #0684BD, #0EB8FF)" }}>
