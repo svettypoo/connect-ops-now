@@ -273,6 +273,56 @@ function getInitials(nameOrEmail) {
   return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2);
 }
 
+// RecordingsList — fetches /api/recordings and lists them with a playback button
+function RecordingsList() {
+  const [recordings, setRecordings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [playingId, setPlayingId] = useState(null);
+  const audioRef = useState(null);
+
+  useEffect(() => {
+    api.getRecordings()
+      .then(data => setRecordings(data?.recordings || []))
+      .catch(() => setRecordings([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (rec) => {
+    const url = api.streamRecording(rec.id);
+    if (playingId === rec.id) {
+      audioRef[0]?.pause();
+      setPlayingId(null);
+    } else {
+      audioRef[0]?.pause();
+      const audio = new Audio(url);
+      audio.crossOrigin = 'use-credentials';
+      audio.onended = () => setPlayingId(null);
+      audio.play().catch(() => {});
+      audioRef[0] = audio;
+      setPlayingId(rec.id);
+    }
+  };
+
+  if (loading) return <div style={{ padding: '24px', textAlign: 'center', color: '#8B8F9B', fontSize: '14px' }}>Loading…</div>;
+  if (!recordings.length) return <div style={{ padding: '24px', color: '#8B8F9B', textAlign: 'center', fontSize: '14px' }}>No recordings</div>;
+
+  return (
+    <div style={{ overflowY: 'auto', height: '100%' }}>
+      {recordings.map(rec => (
+        <div key={rec.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <button onClick={() => toggle(rec)} style={{ background: 'rgba(14,184,255,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', color: '#0EB8FF', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {playingId === rec.id ? '⏹' : '▶'}
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: '13px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.title || 'Recording'}</p>
+            <p style={{ margin: 0, fontSize: '11px', color: '#8B8F9B' }}>{new Date(rec.created_at).toLocaleString()} · {rec.size ? (rec.size / 1024 / 1024).toFixed(1) + ' MB' : ''}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // PhoneScreen: sub-tabs (Keypad, Calls, Voicemail, Notes, Recordings)
 function PhoneScreen({ phone, user, onDial, onCallBack, vmUnread }) {
   const [subTab, setSubTab] = useState('keypad');
@@ -323,11 +373,7 @@ function PhoneScreen({ phone, user, onDial, onCallBack, vmUnread }) {
             No notes yet
           </div>
         )}
-        {subTab === 'recordings' && (
-          <div style={{ padding: '24px', color: '#8B8F9B', textAlign: 'center', fontSize: '14px' }}>
-            No recordings
-          </div>
-        )}
+        {subTab === 'recordings' && <RecordingsList />}
       </div>
     </div>
   );

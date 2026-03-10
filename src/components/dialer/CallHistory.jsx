@@ -34,7 +34,7 @@ export default function CallHistory({ onCallBack }) {
     setLoading(true);
     try {
       const data = await api.getCallLogs(filter === "all" ? null : filter);
-      setLogs(Array.isArray(data) ? data : []);
+      setLogs(Array.isArray(data) ? data : (data?.call_logs || []));
     } catch { setLogs([]); }
     setLoading(false);
   };
