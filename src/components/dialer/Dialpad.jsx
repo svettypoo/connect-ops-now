@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { PhoneCall, Delete, Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed } from "lucide-react";
+import { PhoneIncoming, PhoneOutgoing, PhoneMissed } from "lucide-react";
 import api from "@/api/inboxAiClient";
 
 const KEYS = [
@@ -10,10 +10,10 @@ const KEYS = [
 ];
 
 const DTMF_FREQS = {
-  '1':[697,1209],'2':[697,1336],'3':[697,1477],
-  '4':[770,1209],'5':[770,1336],'6':[770,1477],
-  '7':[852,1209],'8':[852,1336],'9':[852,1477],
-  '*':[941,1209],'0':[941,1336],'#':[941,1477],
+  '1': [697, 1209], '2': [697, 1336], '3': [697, 1477],
+  '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
+  '7': [852, 1209], '8': [852, 1336], '9': [852, 1477],
+  '*': [941, 1209], '0': [941, 1336], '#': [941, 1477],
 };
 
 function playDtmf(key) {
@@ -32,7 +32,7 @@ function playDtmf(key) {
       osc.stop(ctx.currentTime + 0.12);
     });
     setTimeout(() => ctx.close(), 300);
-  } catch(e) {}
+  } catch (e) {}
 }
 
 function fmtTime(ts) {
@@ -42,6 +42,20 @@ function fmtTime(ts) {
   if (diff < 86400000) return Math.round(diff / 3600000) + "h ago";
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
+
+const BackspaceIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
+    <line x1="18" y1="9" x2="12" y2="15" />
+    <line x1="12" y1="9" x2="18" y2="15" />
+  </svg>
+);
+
+const PhoneCallIcon = () => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
+  </svg>
+);
 
 export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
   const [number, setNumber] = useState("");
@@ -65,7 +79,6 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
     api.getContacts().then(cs => { if (Array.isArray(cs)) setContacts(cs); }).catch(() => {});
   }, []);
 
-  // Live caller ID lookup while typing
   useEffect(() => {
     if (number.length >= 7) {
       const match = contacts.find(c => c.phone && c.phone.replace(/\D/g, "").includes(number.replace(/\D/g, "")));
@@ -82,82 +95,126 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
   const busy = phoneStatus === "active" || phoneStatus === "held" || phoneStatus === "ringing";
 
   const StatusIcon = ({ direction, status }) => {
-    if (status === "missed") return <PhoneMissed className="w-3.5 h-3.5 text-red-400" />;
-    if (direction === "inbound") return <PhoneIncoming className="w-3.5 h-3.5 text-green-400" />;
-    return <PhoneOutgoing className="w-3.5 h-3.5 text-blue-400" />;
+    if (status === "missed") return <PhoneMissed size={14} color="#F44336" />;
+    if (direction === "inbound") return <PhoneIncoming size={14} color="#4CAF50" />;
+    return <PhoneOutgoing size={14} color="#8B8F9B" />;
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 p-6 max-w-sm mx-auto">
-      {/* Caller ID lookup display */}
-      {matchedContact ? (
-        <div className="w-full bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-2 text-center">
-          <p className="text-blue-300 font-semibold text-sm">{matchedContact.name}</p>
-          <p className="text-blue-400/60 text-xs">{matchedContact.company || "Contact"}</p>
-        </div>
-      ) : number.length >= 7 ? (
-        <div className="w-full bg-white/3 border border-white/5 rounded-xl px-4 py-2 text-center">
-          <p className="text-slate-500 text-xs">Unknown caller</p>
-        </div>
-      ) : null}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', maxWidth: '360px', margin: '0 auto', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
 
-      {/* Number display */}
-      <div className="w-full relative">
-        <input value={number} onChange={e => setNumber(e.target.value)}
+      {/* Caller ID match */}
+      {matchedContact && (
+        <div style={{ width: '100%', background: 'rgba(6,132,189,0.1)', border: '1px solid rgba(6,132,189,0.25)', borderRadius: '10px', padding: '8px 16px', textAlign: 'center', marginBottom: '12px' }}>
+          <p style={{ color: '#0684BD', fontWeight: 600, fontSize: '14px', margin: 0 }}>{matchedContact.name}</p>
+          <p style={{ color: '#8B8F9B', fontSize: '11px', margin: 0 }}>{matchedContact.company || "Contact"}</p>
+        </div>
+      )}
+      {!matchedContact && number.length >= 7 && (
+        <div style={{ width: '100%', background: '#1E2025', borderRadius: '10px', padding: '8px 16px', textAlign: 'center', marginBottom: '12px' }}>
+          <p style={{ color: '#8B8F9B', fontSize: '12px', margin: 0 }}>Unknown caller</p>
+        </div>
+      )}
+
+      {/* Number input */}
+      <div style={{ width: '100%', position: 'relative', marginBottom: '8px' }}>
+        <input
+          value={number}
+          onChange={e => setNumber(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleCall()}
           placeholder="Enter number"
-          className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-center text-2xl font-mono text-white placeholder-slate-600 focus:outline-none focus:border-[#0EB8FF]/50 pr-12"
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'transparent', border: 'none', outline: 'none',
+            textAlign: 'center', fontSize: '28px', fontWeight: 300,
+            color: '#FFFFFF', padding: '8px 40px 8px 8px',
+            fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
+            letterSpacing: '1px',
+          }}
         />
         {number && (
-          <button onClick={backspace} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
-            <Delete className="w-5 h-5" />
+          <button
+            onClick={backspace}
+            style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#8B8F9B', display: 'flex', alignItems: 'center', padding: '4px' }}
+          >
+            <BackspaceIcon />
           </button>
         )}
       </div>
 
       {phoneNumber && (
-        <p className="text-xs text-slate-600">Your number: <span className="text-slate-400">{phoneNumber}</span></p>
+        <p style={{ fontSize: '11px', color: '#8B8F9B', marginBottom: '16px' }}>Your number: <span style={{ color: '#FFFFFF' }}>{phoneNumber}</span></p>
       )}
 
       {/* 12-key pad */}
-      <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', width: '100%', maxWidth: '300px', marginBottom: '24px' }}>
         {KEYS.map(({ key, sub }) => (
-          <button key={key} onClick={() => pressKey(key)}
-            className="aspect-square rounded-2xl bg-white/5 hover:bg-white/12 active:scale-95 flex flex-col items-center justify-center gap-0.5 transition-all border border-white/5 hover:border-white/10">
-            <span className="text-white text-xl font-semibold leading-none">{key}</span>
-            {sub && <span className="text-slate-600 text-[9px] tracking-widest">{sub}</span>}
+          <button
+            key={key}
+            onClick={() => pressKey(key)}
+            style={{
+              aspectRatio: '1 / 1', borderRadius: '50%', background: '#1E2025', border: '1px solid #2A2D35',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: '1px', cursor: 'pointer', transition: 'background 0.1s',
+              outline: 'none',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#2A2D35'}
+            onMouseLeave={e => e.currentTarget.style.background = '#1E2025'}
+            onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
+            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <span style={{ color: '#FFFFFF', fontSize: '22px', fontWeight: 600, lineHeight: 1 }}>{key}</span>
+            {sub && <span style={{ color: '#8B8F9B', fontSize: '9px', letterSpacing: '1.5px' }}>{sub}</span>}
           </button>
         ))}
       </div>
 
       {/* Call button */}
-      <button onClick={handleCall} disabled={!number.trim() || busy}
-        className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95 disabled:opacity-40"
-        style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)" }}>
-        <PhoneCall className="w-7 h-7 text-white" />
+      <button
+        onClick={handleCall}
+        disabled={!number.trim() || busy}
+        style={{
+          width: '64px', height: '64px', borderRadius: '50%',
+          background: (!number.trim() || busy) ? '#2A2D35' : '#4CAF50',
+          border: 'none', cursor: (!number.trim() || busy) ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: (!number.trim() || busy) ? 'none' : '0 4px 20px rgba(76,175,80,0.4)',
+          transition: 'all 0.15s',
+          marginBottom: '8px',
+        }}
+      >
+        <PhoneCallIcon />
       </button>
 
       {busy && (
-        <p className="text-xs text-yellow-400 animate-pulse">
+        <p style={{ fontSize: '12px', color: '#FF6E00', marginBottom: '8px' }}>
           {phoneStatus === "ringing" ? "Incoming call…" : phoneStatus === "active" ? "In call" : "On hold"}
         </p>
       )}
 
       {/* Recent calls */}
       {recents.length > 0 && !busy && (
-        <div className="w-full mt-2">
-          <p className="text-xs text-slate-600 uppercase tracking-wider mb-2 px-1">Recent</p>
-          <div className="space-y-1">
+        <div style={{ width: '100%', marginTop: '16px' }}>
+          <p style={{ fontSize: '11px', color: '#8B8F9B', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px', padding: '0 4px' }}>Recent</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {recents.map(log => {
               const num = log.direction === "inbound" ? log.from_number : log.to_number;
               const name = (log.direction === "inbound" ? log.from_name : log.to_name) || num || "?";
               return (
-                <button key={log.id} onClick={() => { setNumber(num); onCall?.(num, name); }}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group">
+                <button
+                  key={log.id}
+                  onClick={() => { setNumber(num); onCall?.(num, name); }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '10px 12px', borderRadius: '10px', background: 'none',
+                    border: 'none', cursor: 'pointer', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#1E2025'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
                   <StatusIcon direction={log.direction} status={log.status} />
-                  <span className="flex-1 text-left text-sm text-slate-300 group-hover:text-white truncate">{name}</span>
-                  <span className="text-xs text-slate-600">{fmtTime(log.started_at)}</span>
-                  <PhoneCall className="w-3.5 h-3.5 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span style={{ flex: 1, textAlign: 'left', fontSize: '14px', color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                  <span style={{ fontSize: '12px', color: '#8B8F9B' }}>{fmtTime(log.started_at)}</span>
                 </button>
               );
             })}
@@ -166,9 +223,7 @@ export default function Dialpad({ onCall, phoneStatus, phoneNumber }) {
       )}
 
       {recents.length === 0 && !busy && (
-        <div className="w-full mt-2 text-center">
-          <p className="text-xs text-slate-700">No recent calls</p>
-        </div>
+        <p style={{ fontSize: '13px', color: '#8B8F9B', marginTop: '12px' }}>No recent calls</p>
       )}
     </div>
   );

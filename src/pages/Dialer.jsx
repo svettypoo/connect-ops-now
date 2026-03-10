@@ -26,7 +26,175 @@ import MeetingScheduler from '@/components/features/MeetingScheduler';
 import TeamView from '@/components/dialer/TeamView';
 import DirectMessages from '@/components/dialer/DirectMessages';
 
-const HAS_LIST = ['message','recent','contacts','voicemail','video','channels','dm'];
+// SVG icons — no emojis
+const DialpadIcon = ({ size = 24, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <circle cx="6" cy="6" r="1.5" />
+    <circle cx="12" cy="6" r="1.5" />
+    <circle cx="18" cy="6" r="1.5" />
+    <circle cx="6" cy="12" r="1.5" />
+    <circle cx="12" cy="12" r="1.5" />
+    <circle cx="18" cy="12" r="1.5" />
+    <circle cx="6" cy="18" r="1.5" />
+    <circle cx="12" cy="18" r="1.5" />
+    <circle cx="18" cy="18" r="1.5" />
+  </svg>
+);
+
+const MessageIcon = ({ size = 24, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+  </svg>
+);
+
+const VideoIcon = ({ size = 24, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="23 7 16 12 23 17 23 7" />
+    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+  </svg>
+);
+
+const ContactIcon = ({ size = 24, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const GridIcon = ({ size = 24, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+  </svg>
+);
+
+const ChevronRightIcon = ({ size = 16, color = '#8B8F9B' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
+const PhoneIcon = ({ size = 20, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
+  </svg>
+);
+
+const BarChartIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+  </svg>
+);
+
+const MonitorIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+  </svg>
+);
+
+const HeadphonesIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 18v-6a9 9 0 0118 0v6" /><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z" />
+  </svg>
+);
+
+const MegaphoneIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 11l19-9-9 19-2-8-8-2z" />
+  </svg>
+);
+
+const GitBranchIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="6" y1="3" x2="6" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 01-9 9" />
+  </svg>
+);
+
+const BotIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" />
+  </svg>
+);
+
+const ClockIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const ShieldIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+);
+
+const UsersIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
+  </svg>
+);
+
+const CalendarIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+
+const VoicemailIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="5.5" cy="11.5" r="4.5" /><circle cx="18.5" cy="11.5" r="4.5" /><line x1="5.5" y1="16" x2="18.5" y2="16" />
+  </svg>
+);
+
+const HashIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="4" y1="9" x2="20" y2="9" /><line x1="4" y1="15" x2="20" y2="15" /><line x1="10" y1="3" x2="8" y2="21" /><line x1="16" y1="3" x2="14" y2="21" />
+  </svg>
+);
+
+const MailIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" />
+  </svg>
+);
+
+const HAS_LIST = ['message', 'recent', 'contacts', 'voicemail', 'video', 'channels', 'dm'];
+
+const MOBILE_TABS = [
+  { id: 'dialpad', label: 'Phone', icon: DialpadIcon },
+  { id: 'message', label: 'Message', icon: MessageIcon },
+  { id: 'video', label: 'Video', icon: VideoIcon },
+  { id: 'contacts', label: 'Contacts', icon: ContactIcon },
+  { id: 'more', label: 'More', icon: GridIcon },
+];
+
+const MORE_ITEMS = [
+  { id: 'recent', label: 'Call History', icon: PhoneIcon },
+  { id: 'voicemail', label: 'Voicemail', icon: VoicemailIcon },
+  { id: 'channels', label: 'Channels', icon: HashIcon },
+  { id: 'dm', label: 'Direct Messages', icon: MailIcon },
+  { id: 'analytics', label: 'Analytics', icon: BarChartIcon },
+  { id: 'wallboard', label: 'Wallboard', icon: MonitorIcon },
+  { id: 'supervisor', label: 'Supervisor', icon: HeadphonesIcon },
+  { id: 'sms-campaign', label: 'SMS Campaigns', icon: MegaphoneIcon },
+  { id: 'ivr', label: 'IVR Builder', icon: GitBranchIcon },
+  { id: 'ai-receptionist', label: 'AI Receptionist', icon: BotIcon },
+  { id: 'business-hours', label: 'Business Hours', icon: ClockIcon },
+  { id: 'admin', label: 'Admin', icon: ShieldIcon },
+  { id: 'team', label: 'Team', icon: UsersIcon },
+  { id: 'meetings', label: 'Meetings', icon: CalendarIcon },
+];
+
+const TAB_LABELS = {
+  dialpad: 'Phone', message: 'Messages', video: 'Video', contacts: 'Contacts',
+  recent: 'Call History', voicemail: 'Voicemail', channels: 'Channels', dm: 'Direct Messages',
+  analytics: 'Analytics', wallboard: 'Wallboard', supervisor: 'Supervisor',
+  'sms-campaign': 'SMS Campaigns', ivr: 'IVR Builder', 'ai-receptionist': 'AI Receptionist',
+  'business-hours': 'Business Hours', admin: 'Admin', team: 'Team', meetings: 'Meetings',
+  voice: 'Call',
+};
 
 export default function Dialer() {
   const { user, logout } = useAuth();
@@ -43,135 +211,194 @@ export default function Dialer() {
     api.getVoicemails().then(vms => setVmUnread(vms.filter(v => !v.is_read).length)).catch(() => {});
   }, [activeNav]);
 
-  const callContact = (c) => { setDialTo(c.phone); setDialName(c.name||c.phone); setActiveNav('voice'); };
+  const callContact = (c) => { setDialTo(c.phone); setDialName(c.name || c.phone); setActiveNav('voice'); };
   const videoContact = (c) => { setActiveNav('video'); };
   const messageContact = (c) => { setMessageTo(c.phone); setActiveNav('message'); };
 
-  const handleCallBack = (number, name) => { setDialTo(number); setDialName(name||number); setActiveNav('voice'); };
+  const handleCallBack = (number, name) => { setDialTo(number); setDialName(name || number); setActiveNav('voice'); };
   const handleDialDirect = (number) => { setDialTo(number); setDialName(number); setActiveNav('voice'); };
 
   const inbound = phone.inboundCall;
-
   const showList = HAS_LIST.includes(activeNav);
 
+  const mobileTabActive = MOBILE_TABS.find(t => t.id === activeNav) ? activeNav : 'more';
+
   return (
-    <div className="flex h-screen bg-[#1a1a2e] overflow-hidden relative">
+    <div style={{ display: 'flex', height: '100vh', background: '#17191C', overflow: 'hidden', position: 'relative', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
+
+      {/* Desktop sidebar */}
       <div className="hidden sm:flex flex-col">
-        <RCSidebar activeNav={activeNav} setActiveNav={setActiveNav} user={user} onLogout={logout} vmUnread={vmUnread}/>
+        <RCSidebar activeNav={activeNav} setActiveNav={setActiveNav} user={user} onLogout={logout} vmUnread={vmUnread} />
       </div>
 
+      {/* List panel */}
       {showList && (
-        <RCListPanel activeNav={activeNav} onSelectContact={c => { setActiveContact(c); }}
-          onCallBack={handleCallBack} onSelectMessage={num => { setMessageTo(num); setActiveNav('message'); }}/>
+        <RCListPanel
+          activeNav={activeNav}
+          onSelectContact={c => { setActiveContact(c); }}
+          onCallBack={handleCallBack}
+          onSelectMessage={num => { setMessageTo(num); setActiveNav('message'); }}
+        />
       )}
-
-      {/* Mobile bottom nav */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111126] border-t border-[#1e1e3a] flex items-center justify-around px-2 py-2 safe-area-pb">
-        {[
-          { id: 'dialpad', icon: '📞', label: 'Dial' },
-          { id: 'recent', icon: '📋', label: 'Calls' },
-          { id: 'message', icon: '💬', label: 'SMS' },
-          { id: 'channels', icon: '#', label: 'Channels' },
-          { id: 'dm', icon: '✉', label: 'DMs' },
-          { id: 'contacts', icon: '👤', label: 'Contacts' },
-          { id: 'voicemail', icon: '📭', label: 'Voicemail' },
-          { id: 'more', icon: '⋯', label: 'More' },
-        ].map(item => (
-          item.id === 'more' ? (
-            <button key="more" onClick={() => setShowMobileNav(p => !p)}
-              className="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500">
-              <span className="text-lg leading-none">{item.icon}</span>
-              <span className="text-[9px]">{item.label}</span>
-            </button>
-          ) : (
-            <button key={item.id} onClick={() => setActiveNav(item.id)}
-              className={"flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-all " + (activeNav === item.id ? "text-blue-400" : "text-slate-500")}>
-              <span className="text-lg leading-none">{item.icon}</span>
-              <span className="text-[9px]">{item.label}</span>
-            </button>
-          )
-        ))}
-      </div>
 
       {/* Inbound call banner */}
       {inbound && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#1e1e3a] border border-blue-500/50 rounded-2xl px-6 py-4 flex items-center gap-6 shadow-2xl animate-bounce-once">
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
+          background: 'linear-gradient(135deg, #1B4332, #2D6A4F)',
+          borderBottom: '1px solid #4CAF50',
+          padding: '12px 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          boxShadow: '0 4px 24px rgba(76,175,80,0.3)',
+        }}>
           <div>
-            <div className="text-xs text-blue-400 font-semibold uppercase">Incoming Call</div>
-            <div className="text-white font-bold text-lg">{inbound.callerNumber}</div>
+            <div style={{ fontSize: '11px', color: '#81C784', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Incoming Call</div>
+            <div style={{ color: '#FFFFFF', fontWeight: 700, fontSize: '17px' }}>{inbound.callerNumber}</div>
           </div>
-          <div className="flex gap-3">
-            <button onClick={() => phone.answerCall()} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-semibold transition">Answer</button>
-            <button onClick={() => phone.hangup()} className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-xl font-semibold transition">Decline</button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => phone.answerCall()}
+              style={{ background: '#4CAF50', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 20px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+            >
+              Answer
+            </button>
+            <button
+              onClick={() => phone.hangup()}
+              style={{ background: '#F44336', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 20px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+            >
+              Decline
+            </button>
           </div>
         </div>
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex min-w-0 sm:pb-0 pb-16">
-        <div className="flex-1 min-w-0 overflow-hidden">
-          {activeNav === 'dialpad' && (
-            <Dialpad phone={phone} onDial={handleDialDirect}/>
-          )}
-          {activeNav === 'voice' && (
-            <VoiceCall phone={phone} dialTo={dialTo} dialName={dialName} onHangup={() => setActiveNav('recent')}/>
-          )}
-          {activeNav === 'video' && <VideoCall/>}
-          {activeNav === 'message' && <Messaging initialTo={messageTo}/>}
-          {activeNav === 'recent' && <CallHistory onCallBack={handleCallBack}/>}
-          {activeNav === 'voicemail' && <VoicemailList onCallBack={handleCallBack}/>}
-          {activeNav === 'contacts' && (
-            <div className="h-full flex items-center justify-center flex-col gap-3 text-gray-500 text-sm">
-              <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="opacity-30"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              <p className="text-gray-400">Select a contact from the list, or add a new one</p>
+      <div style={{ flex: 1, display: 'flex', minWidth: 0, paddingBottom: 0 }} className="sm:pb-0 pb-16">
+        {/* Top header for mobile */}
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Mobile header */}
+          <div className="sm:hidden" style={{ background: '#17191C', height: '56px', borderBottom: '1px solid #2A2D35', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0 }}>
+            <span style={{ color: '#FFFFFF', fontSize: '17px', fontWeight: 600 }}>{TAB_LABELS[activeNav] || 'Phone'}</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B8F9B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B8F9B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             </div>
-          )}
-          {activeNav === 'analytics' && <AnalyticsDashboard/>}
-          {activeNav === 'channels' && <ChannelsView/>}
-          {activeNav === 'wallboard' && <WallboardView/>}
-          {activeNav === 'ivr' && <IVRBuilder/>}
-          {activeNav === 'admin' && <AdminPanel/>}
-          {activeNav === 'ai-receptionist' && <AIReceptionist/>}
-          {activeNav === 'sms-campaign' && <SMSCampaign/>}
-          {activeNav === 'supervisor' && <SupervisorPanel/>}
-          {activeNav === 'business-hours' && <BusinessHours/>}
-          {activeNav === 'meetings' && <MeetingScheduler/>}
-          {activeNav === 'team' && <TeamView/>}
-          {activeNav === 'dm' && <DirectMessages/>}
+          </div>
+
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            {activeNav === 'dialpad' && <Dialpad phone={phone} onDial={handleDialDirect} />}
+            {activeNav === 'voice' && <VoiceCall phone={phone} dialTo={dialTo} dialName={dialName} onHangup={() => setActiveNav('recent')} />}
+            {activeNav === 'video' && <VideoCall />}
+            {activeNav === 'message' && <Messaging initialTo={messageTo} />}
+            {activeNav === 'recent' && <CallHistory onCallBack={handleCallBack} />}
+            {activeNav === 'voicemail' && <VoicemailList onCallBack={handleCallBack} />}
+            {activeNav === 'contacts' && (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: '#8B8F9B' }}>
+                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="#2A2D35" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <p style={{ color: '#8B8F9B', fontSize: '14px' }}>Select a contact from the list, or add a new one</p>
+              </div>
+            )}
+            {activeNav === 'analytics' && <AnalyticsDashboard />}
+            {activeNav === 'channels' && <ChannelsView />}
+            {activeNav === 'wallboard' && <WallboardView />}
+            {activeNav === 'ivr' && <IVRBuilder />}
+            {activeNav === 'admin' && <AdminPanel />}
+            {activeNav === 'ai-receptionist' && <AIReceptionist />}
+            {activeNav === 'sms-campaign' && <SMSCampaign />}
+            {activeNav === 'supervisor' && <SupervisorPanel />}
+            {activeNav === 'business-hours' && <BusinessHours />}
+            {activeNav === 'meetings' && <MeetingScheduler />}
+            {activeNav === 'team' && <TeamView />}
+            {activeNav === 'dm' && <DirectMessages />}
+          </div>
         </div>
 
         {activeContact && HAS_LIST.includes(activeNav) && (
-          <RCContactPanel contact={activeContact} onClose={() => setActiveContact(null)}
+          <RCContactPanel
+            contact={activeContact}
+            onClose={() => setActiveContact(null)}
             onCall={() => callContact(activeContact)}
             onVideo={() => videoContact(activeContact)}
             onSms={() => messageContact(activeContact)}
-            onEmail={() => window.open('mailto:' + activeContact.email)}/>
+            onEmail={() => window.open('mailto:' + activeContact.email)}
+          />
         )}
       </div>
 
-      {/* Mobile more menu overlay */}
+      {/* Mobile bottom nav */}
+      <div className="sm:hidden" style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
+        background: '#17191C', borderTop: '1px solid #2A2D35',
+        height: '64px', paddingBottom: 'env(safe-area-inset-bottom)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+      }}>
+        {MOBILE_TABS.map(({ id, label, icon: Icon }) => {
+          const isActive = id === 'more' ? mobileTabActive === 'more' : activeNav === id;
+          return (
+            <button
+              key={id}
+              onClick={() => {
+                if (id === 'more') setShowMobileNav(p => !p);
+                else { setActiveNav(id); setShowMobileNav(false); }
+              }}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: isActive ? '#0684BD' : '#8B8F9B',
+                padding: '4px 8px', minWidth: '56px',
+              }}
+            >
+              <Icon size={22} color={isActive ? '#0684BD' : '#8B8F9B'} />
+              <span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400, color: isActive ? '#0684BD' : '#8B8F9B' }}>
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Mobile More overlay */}
       {showMobileNav && (
-        <div className="sm:hidden fixed inset-0 z-50 bg-black/60" onClick={() => setShowMobileNav(false)}>
-          <div className="absolute bottom-16 left-0 right-0 bg-[#111126] border-t border-[#1e1e3a] p-4 grid grid-cols-3 gap-3" onClick={e => e.stopPropagation()}>
-            {[
-              { id: 'analytics', icon: '📊', label: 'Analytics' },
-              { id: 'wallboard', icon: '📺', label: 'Wallboard' },
-              { id: 'supervisor', icon: '🎧', label: 'Supervisor' },
-              { id: 'sms-campaign', icon: '📣', label: 'Campaigns' },
-              { id: 'ivr', icon: '🌿', label: 'IVR' },
-              { id: 'ai-receptionist', icon: '🤖', label: 'AI Desk' },
-              { id: 'business-hours', icon: '🕐', label: 'Hours' },
-              { id: 'admin', icon: '🛡', label: 'Admin' },
-              { id: 'team', icon: '👥', label: 'Team' },
-              { id: 'meetings', icon: '📅', label: 'Meetings' },
-              { id: 'video', icon: '📹', label: 'Video' },
-            ].map(item => (
-              <button key={item.id} onClick={() => { setActiveNav(item.id); setShowMobileNav(false); }}
-                className={"flex flex-col items-center gap-1 p-3 rounded-xl transition-all " + (activeNav === item.id ? "bg-blue-600/20 text-blue-400" : "bg-white/5 text-slate-400")}>
-                <span className="text-2xl">{item.icon}</span>
-                <span className="text-[10px]">{item.label}</span>
-              </button>
-            ))}
+        <div
+          className="sm:hidden"
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setShowMobileNav(false)}
+        >
+          <div
+            style={{
+              position: 'absolute', bottom: '64px', left: 0, right: 0,
+              background: '#17191C', borderTop: '1px solid #2A2D35',
+              maxHeight: '60vh', overflowY: 'auto',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+              <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: '#2A2D35' }} />
+            </div>
+
+            {MORE_ITEMS.map(item => {
+              const isActive = activeNav === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => { setActiveNav(item.id); setShowMobileNav(false); }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
+                    padding: '14px 20px', background: isActive ? 'rgba(6,132,189,0.1)' : 'none',
+                    border: 'none', borderBottom: '1px solid #2A2D35', cursor: 'pointer',
+                  }}
+                >
+                  <item.icon size={20} color={isActive ? '#0684BD' : '#8B8F9B'} />
+                  <span style={{ flex: 1, textAlign: 'left', color: isActive ? '#0684BD' : '#FFFFFF', fontSize: '15px', fontWeight: isActive ? 600 : 400 }}>
+                    {item.label}
+                  </span>
+                  <ChevronRightIcon />
+                </button>
+              );
+            })}
+
+            <div style={{ height: 'env(safe-area-inset-bottom)' }} />
           </div>
         </div>
       )}
