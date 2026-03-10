@@ -25,6 +25,7 @@ import BusinessHours from '@/components/features/BusinessHours';
 import MeetingScheduler from '@/components/features/MeetingScheduler';
 import TeamView from '@/components/dialer/TeamView';
 import DirectMessages from '@/components/dialer/DirectMessages';
+import NotificationSettings from '@/components/settings/NotificationSettings';
 
 // SVG icons — no emojis
 const DialpadIcon = ({ size = 24, color = 'currentColor' }) => (
@@ -661,6 +662,7 @@ export default function Dialer() {
             {activeNav === 'meetings' && <MeetingScheduler />}
             {activeNav === 'team' && <TeamView />}
             {activeNav === 'dm' && <DirectMessages />}
+            {activeNav === 'notifications' && <NotificationSettings />}
           </div>
         </div>
 

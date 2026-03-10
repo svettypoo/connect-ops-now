@@ -1,5 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import api from "@/api/inboxAiClient";
+import { startRingtone, stopRingtone } from "@/lib/useNotificationSettings";
+
+// Load notification settings on demand (avoids circular dep)
+function getNotifSettings() {
+  try {
+    const raw = localStorage.getItem("con_notif_settings");
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
 
 export function usePhone() {
   const [status, setStatus] = useState("idle");
@@ -61,12 +70,20 @@ export function usePhone() {
             setInboundCall({ name, number: call.options?.remoteCallerNumber || "" });
             setCallControlId(call.id || call.options?.call_control_id || null);
             setStatus("ringing");
+            // Fire ringtone + vibration using saved prefs
+            startRingtone({ ringOnCall: true, ringtone: "classic", ringVolume: 80, vibrateOnCall: true, ...getNotifSettings() });
+            // Browser notification (if permission granted)
+            if (Notification?.permission === "granted") {
+              new Notification("Incoming Call", { body: name, icon: "/favicon.ico", tag: "incoming-call", renotify: false });
+            }
           } else if (st === "active") {
+            stopRingtone();
             setInboundCall(null);
             setCallControlId(call.id || call.options?.call_control_id || null);
             setStatus("active");
             startTimer();
           } else if (st === "done" || st === "destroy") {
+            stopRingtone();
             callRef.current = null;
             setInboundCall(null);
             setCallControlId(null);
@@ -100,6 +117,7 @@ export function usePhone() {
   }, [phoneNumber]);
 
   const answerCall = useCallback(() => {
+    stopRingtone();
     callRef.current?.answer();
     setStatus("active");
     setActiveName(inboundCall?.name || "");
@@ -109,6 +127,7 @@ export function usePhone() {
   }, [inboundCall]);
 
   const hangup = useCallback(() => {
+    stopRingtone();
     callRef.current?.hangup();
     callRef.current = null;
     stopTimer();
