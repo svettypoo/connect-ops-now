@@ -37,11 +37,12 @@ export default function RCListPanel({ activeNav, selectedContact, setSelectedCon
     try {
       if (activeNav === "message") {
         const d = await api.getSmsThreads();
-        setItems(Array.isArray(d) ? d.map(t => ({
+        const threads = Array.isArray(d) ? d : (d?.threads || []);
+        setItems(threads.map(t => ({
           id: t.id, name: t.contact_name || t.from_number || "?",
           sub: t.last_message || "", time: t.last_message_at, unread: t.unread || 0,
           status: "active", _raw: t,
-        })) : []);
+        })));
       } else if (activeNav === "recent") {
         const d = await api.getCallLogs();
         const logs = Array.isArray(d) ? d : (d?.call_logs || []);
@@ -51,16 +52,18 @@ export default function RCListPanel({ activeNav, selectedContact, setSelectedCon
         }));
       } else if (activeNav === "contacts") {
         const d = await api.getContacts();
-        setItems(Array.isArray(d) ? d.map(c => ({
+        const contacts = Array.isArray(d) ? d : (d?.contacts || []);
+        setItems(contacts.map(c => ({
           id: c.id, name: c.name || c.phone, sub: c.phone, status: "offline", _raw: c,
-        })) : []);
+        })));
       } else if (activeNav === "voicemail") {
         const d = await api.getVoicemails();
-        setItems(Array.isArray(d) ? d.map(v => ({
+        const vms = Array.isArray(d) ? d : (d?.voicemails || []);
+        setItems(vms.map(v => ({
           id: v.id, name: v.contact_name || v.from_number || "?",
           sub: v.transcript?.slice(0,60) || "", time: v.created_at,
           unread: v.is_read ? 0 : 1, status: "offline", _raw: v,
-        })) : []);
+        })));
       } else if (activeNav === "video") {
         const d = await api.getMeetings();
         setItems(Array.isArray(d) ? d.map(m => ({
