@@ -649,9 +649,9 @@ export default function Dialer() {
         <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
           {/* RC-style mobile header — matches real RingCentral */}
-          <div className="sm:hidden" style={{
+          <div className="flex sm:hidden" style={{
             background: '#17191C', height: '56px', borderBottom: '1px solid #2A2D35',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            alignItems: 'center', justifyContent: 'space-between',
             padding: '0 16px', flexShrink: 0,
           }}>
             {/* Left: user avatar + tab title */}
@@ -725,11 +725,11 @@ export default function Dialer() {
       </div>
 
       {/* Mobile bottom nav — 4 tabs */}
-      <div className="sm:hidden" style={{
+      <div className="flex sm:hidden" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
         background: '#17191C', borderTop: '1px solid #2A2D35',
         height: '64px', paddingBottom: 'env(safe-area-inset-bottom)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+        alignItems: 'center', justifyContent: 'space-around',
       }}>
         {MOBILE_TABS.map(({ id, label, icon: Icon }) => {
           const isActive = id === activeNav || (id === 'phone' && activeNav === 'voice');
