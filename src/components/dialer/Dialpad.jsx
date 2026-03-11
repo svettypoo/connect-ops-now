@@ -214,9 +214,11 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: (!number.trim() || busy) ? 'none' : '0 4px 20px rgba(76,175,80,0.4)',
             transition: 'all 0.15s',
+            position: 'relative',
           }}
         >
           <PhoneCallIcon />
+          <span style={{position:'absolute',width:'1px',height:'1px',overflow:'hidden',clip:'rect(0,0,0,0)',whiteSpace:'nowrap'}}>Make Call</span>
         </button>
       </div>
 
