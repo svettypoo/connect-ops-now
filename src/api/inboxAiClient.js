@@ -78,6 +78,12 @@ export const api = {
   sendChannelMessageWithAttachment: (id, body, attachment_url) => request('POST', '/api/channels/' + id + '/messages', { body, attachment_url }),
   getCallScores: () => request('GET', '/api/ai/call-scores'),
   subscribePush: (subscription) => request('POST', '/api/notifications/subscribe', { subscription }),
+  demoCall: () => request('POST', '/api/phone/demo-call'),
+  demoStatus: () => request('GET', '/api/phone/demo-status'),
+  saveCallLogTranscript: (id, transcript, duration) => request('POST', '/api/call-logs/transcript', { call_log_id: id, transcript, duration }),
+  getRecordingComments: (id) => request('GET', '/api/recordings/' + id + '/comments'),
+  addRecordingComment: (id, body, timestampSec) => request('POST', '/api/recordings/' + id + '/comments', { body, timestamp_sec: timestampSec }),
+  deleteRecording: (id) => request('DELETE', '/api/recordings/' + id),
 };
 
 export default api;

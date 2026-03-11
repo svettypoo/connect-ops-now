@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { api } from '@/api/inboxAiClient';
 import { usePhone } from '@/lib/usePhone';
@@ -273,12 +273,14 @@ function getInitials(nameOrEmail) {
   return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2);
 }
 
-// RecordingsList — fetches /api/recordings and lists them with a playback button
+// RecordingsList — fetches /api/recordings and lists them with playback, search, AI summary + transcript expand
 function RecordingsList() {
   const [recordings, setRecordings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState(null);
-  const audioRef = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+  const [search, setSearch] = useState('');
+  const audioRef = useRef(null);
 
   useEffect(() => {
     api.getRecordings()
@@ -290,35 +292,116 @@ function RecordingsList() {
   const toggle = (rec) => {
     const url = api.streamRecording(rec.id);
     if (playingId === rec.id) {
-      audioRef[0]?.pause();
+      audioRef.current?.pause();
       setPlayingId(null);
     } else {
-      audioRef[0]?.pause();
+      audioRef.current?.pause();
       const audio = new Audio(url);
       audio.crossOrigin = 'use-credentials';
       audio.onended = () => setPlayingId(null);
       audio.play().catch(() => {});
-      audioRef[0] = audio;
+      audioRef.current = audio;
       setPlayingId(rec.id);
     }
   };
 
-  if (loading) return <div style={{ padding: '24px', textAlign: 'center', color: '#8B8F9B', fontSize: '14px' }}>Loading…</div>;
-  if (!recordings.length) return <div style={{ padding: '24px', color: '#8B8F9B', textAlign: 'center', fontSize: '14px' }}>No recordings</div>;
+  const deleteRec = async (id, e) => {
+    e.stopPropagation();
+    await api.deleteRecording(id).catch(() => {});
+    setRecordings(prev => prev.filter(r => r.id !== id));
+    if (playingId === id) { audioRef.current?.pause(); setPlayingId(null); }
+  };
+
+  const fmtDur = (secs) => {
+    if (!secs) return '';
+    const m = Math.floor(secs/60), s = secs%60;
+    return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  };
+  const fmtSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes > 1048576) return (bytes/1048576).toFixed(1) + ' MB';
+    return Math.round(bytes/1024) + ' KB';
+  };
+  const fmtTime = (ts) => {
+    const d = new Date(ts), now = new Date(), diff = now - d;
+    if (diff < 3600000) return Math.round(diff/60000) + 'm ago';
+    if (diff < 86400000) return Math.round(diff/3600000) + 'h ago';
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  };
+
+  const filtered = recordings.filter(r => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (r.title||'').toLowerCase().includes(q) || (r.transcript||'').toLowerCase().includes(q) || (r.ai_summary||'').toLowerCase().includes(q);
+  });
+
+  if (loading) return <div style={{ padding:'24px', textAlign:'center', color:'#8B8F9B', fontSize:'14px' }}>Loading…</div>;
 
   return (
-    <div style={{ overflowY: 'auto', height: '100%' }}>
-      {recordings.map(rec => (
-        <div key={rec.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <button onClick={() => toggle(rec)} style={{ background: 'rgba(14,184,255,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', color: '#0EB8FF', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {playingId === rec.id ? '⏹' : '▶'}
-          </button>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: '13px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.title || 'Recording'}</p>
-            <p style={{ margin: 0, fontSize: '11px', color: '#8B8F9B' }}>{new Date(rec.created_at).toLocaleString()} · {rec.size ? (rec.size / 1024 / 1024).toFixed(1) + ' MB' : ''}</p>
-          </div>
-        </div>
-      ))}
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      {/* Search bar */}
+      <div style={{ padding:'12px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search title or transcript…"
+          style={{ width:'100%', background:'rgba(255,255,255,0.06)', border:'none', borderRadius:'12px', padding:'8px 12px', color:'#fff', fontSize:'13px', outline:'none', boxSizing:'border-box' }}
+        />
+      </div>
+
+      {filtered.length === 0 && <div style={{ padding:'24px', color:'#8B8F9B', textAlign:'center', fontSize:'14px' }}>{recordings.length === 0 ? 'No recordings' : 'No matches'}</div>}
+
+      <div style={{ flex:1, overflowY:'auto' }}>
+        {filtered.map(rec => {
+          const isExpanded = expandedId === rec.id;
+          const isPlaying = playingId === rec.id;
+          return (
+            <div key={rec.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 16px', cursor:'pointer' }}
+                onClick={() => setExpandedId(isExpanded ? null : rec.id)}>
+                <button onClick={(e) => { e.stopPropagation(); toggle(rec); }}
+                  style={{ background:'rgba(14,184,255,0.15)', border:'none', borderRadius:'50%', width:'36px', height:'36px', flexShrink:0, cursor:'pointer', color:'#0EB8FF', fontSize:'16px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {isPlaying ? '⏹' : '▶'}
+                </button>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ margin:'0 0 2px', fontSize:'13px', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{rec.title || 'Recording'}</p>
+                  <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                    <span style={{ fontSize:'11px', color:'#8B8F9B' }}>{fmtTime(rec.created_at)}</span>
+                    {rec.duration > 0 && <span style={{ fontSize:'11px', color:'#8B8F9B' }}>{fmtDur(rec.duration)}</span>}
+                    {rec.size > 0 && <span style={{ fontSize:'11px', color:'#8B8F9B' }}>{fmtSize(rec.size)}</span>}
+                    {rec.transcript && <span style={{ fontSize:'9px', background:'rgba(6,132,189,0.2)', color:'#0EB8FF', padding:'1px 6px', borderRadius:'6px', fontWeight:600 }}>TXT</span>}
+                    {rec.ai_summary && <span style={{ fontSize:'9px', background:'rgba(139,92,246,0.2)', color:'#a78bfa', padding:'1px 6px', borderRadius:'6px', fontWeight:600 }}>AI</span>}
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                  <button onClick={(e) => deleteRec(rec.id, e)}
+                    style={{ background:'rgba(244,67,54,0.1)', border:'none', borderRadius:'8px', width:'28px', height:'28px', cursor:'pointer', color:'#f44336', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px' }}>
+                    🗑
+                  </button>
+                  <span style={{ color:'#3A3D45', fontSize:'12px' }}>{isExpanded ? '▲' : '▼'}</span>
+                </div>
+              </div>
+              {isExpanded && (rec.ai_summary || rec.transcript) && (
+                <div style={{ padding:'0 16px 16px' }}>
+                  {rec.ai_summary && (
+                    <div style={{ background:'rgba(139,92,246,0.1)', borderRadius:'12px', padding:'12px', marginBottom:'8px' }}>
+                      <p style={{ margin:'0 0 6px', fontSize:'10px', color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>AI Summary</p>
+                      <p style={{ margin:0, fontSize:'12px', color:'#c4b5fd', lineHeight:1.5, whiteSpace:'pre-line' }}>{rec.ai_summary}</p>
+                    </div>
+                  )}
+                  {rec.transcript && (
+                    <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:'12px', padding:'12px', maxHeight:'120px', overflowY:'auto' }}>
+                      <p style={{ margin:'0 0 6px', fontSize:'10px', color:'#8B8F9B', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>Transcript</p>
+                      <p style={{ margin:0, fontSize:'12px', color:'#9ca3af', lineHeight:1.5 }}>{rec.transcript}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -445,8 +528,112 @@ function ContactsView({ onCall, onMessage }) {
   );
 }
 
+// AudioDeviceSettings — mic/speaker selection + test
+function AudioDeviceSettings({ onBack }) {
+  const [mics, setMics] = useState([]);
+  const [speakers, setSpeakers] = useState([]);
+  const [selMic, setSelMic] = useState(localStorage.getItem('con_mic_id') || '');
+  const [selSpk, setSelSpk] = useState(localStorage.getItem('con_spk_id') || '');
+  const [micTesting, setMicTesting] = useState(false);
+  const [spkTesting, setSpkTesting] = useState(false);
+  const [micResult, setMicResult] = useState(''); // 'ok' | 'error'
+
+  useEffect(() => {
+    navigator.mediaDevices.enumerateDevices().then(devs => {
+      setMics(devs.filter(d => d.kind === 'audioinput'));
+      setSpeakers(devs.filter(d => d.kind === 'audiooutput'));
+    }).catch(() => {});
+  }, []);
+
+  const saveMic = (id) => { setSelMic(id); localStorage.setItem('con_mic_id', id); };
+  const saveSpk = (id) => { setSelSpk(id); localStorage.setItem('con_spk_id', id); };
+
+  const testMic = async () => {
+    setMicTesting(true); setMicResult('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: selMic ? { deviceId: selMic } : true });
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.play().catch(() => {});
+        audio.onended = () => URL.revokeObjectURL(url);
+        setMicTesting(false); setMicResult('ok');
+      };
+      recorder.start();
+      setTimeout(() => recorder.stop(), 3000);
+    } catch { setMicTesting(false); setMicResult('error'); }
+  };
+
+  const testSpeaker = () => {
+    setSpkTesting(true);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 880;
+    gain.gain.value = 0.3;
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + 0.5);
+    osc.onended = () => { ctx.close(); setSpkTesting(false); };
+  };
+
+  const sLabel = { fontSize:'11px', color:'#8B8F9B', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'6px' };
+  const sSelect = {
+    width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)',
+    borderRadius:'10px', padding:'8px 12px', color:'#fff', fontSize:'13px', outline:'none',
+  };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#17191C' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'16px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+        <button onClick={onBack} style={{ background:'none', border:'none', color:'#8B8F9B', cursor:'pointer', padding:'4px', display:'flex' }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <span style={{ color:'#fff', fontSize:'15px', fontWeight:600 }}>Audio Devices</span>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 16px', display:'flex', flexDirection:'column', gap:'24px' }}>
+        {/* Microphone */}
+        <div>
+          <p style={sLabel}>Microphone</p>
+          <select value={selMic} onChange={e => saveMic(e.target.value)} style={sSelect}>
+            <option value="">System default</option>
+            {mics.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || 'Mic ' + m.deviceId.slice(0,6)}</option>)}
+          </select>
+          <button onClick={testMic} disabled={micTesting}
+            style={{ marginTop:'10px', padding:'8px 16px', borderRadius:'10px', background:'rgba(14,184,255,0.1)', border:'1px solid rgba(14,184,255,0.2)', color:'#0EB8FF', fontSize:'12px', fontWeight:600, cursor:'pointer', opacity: micTesting ? 0.5 : 1 }}>
+            {micTesting ? 'Recording 3s… play back' : '🎙 Test mic (3s record + play)'}
+          </button>
+          {micResult === 'ok' && <p style={{ color:'#4CAF50', fontSize:'12px', marginTop:'6px' }}>Mic working — you should hear playback</p>}
+          {micResult === 'error' && <p style={{ color:'#F44336', fontSize:'12px', marginTop:'6px' }}>Mic access failed — check permissions</p>}
+        </div>
+        {/* Speaker */}
+        <div>
+          <p style={sLabel}>Speaker / Output</p>
+          <select value={selSpk} onChange={e => saveSpk(e.target.value)} style={sSelect}>
+            <option value="">System default</option>
+            {speakers.map(s => <option key={s.deviceId} value={s.deviceId}>{s.label || 'Speaker ' + s.deviceId.slice(0,6)}</option>)}
+          </select>
+          <button onClick={testSpeaker} disabled={spkTesting}
+            style={{ marginTop:'10px', padding:'8px 16px', borderRadius:'10px', background:'rgba(76,175,80,0.1)', border:'1px solid rgba(76,175,80,0.2)', color:'#4CAF50', fontSize:'12px', fontWeight:600, cursor:'pointer', opacity: spkTesting ? 0.5 : 1 }}>
+            {spkTesting ? 'Playing beep…' : '🔊 Test speaker (play beep)'}
+          </button>
+        </div>
+        <p style={{ fontSize:'11px', color:'#3A3D45', textAlign:'center' }}>Device selections are saved and applied to all calls</p>
+      </div>
+    </div>
+  );
+}
+
 // MoreSettings: vertical scrollable settings/profile list — matches real RC "More" tab
 function MoreSettings({ user, onLogout, onNavigate }) {
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
+
+  if (showAudioSettings) return <AudioDeviceSettings onBack={() => setShowAudioSettings(false)} />;
+
   const userInitials = getInitials(user?.name || user?.email);
   const userName = user?.name || user?.email || 'User';
   const userPhone = '+1 (587) 983-6164';
@@ -464,6 +651,7 @@ function MoreSettings({ user, onLogout, onNavigate }) {
     { id: 'voicemail-settings', label: 'Voicemail', icon: VoicemailIcon },
     { id: 'message', label: 'Text', icon: MessageIcon },
     { id: 'notifications', label: 'Notifications', icon: NotificationsIcon },
+    { id: 'audio-devices', label: 'Audio Devices', icon: HeadphonesIcon },
     { id: 'contacts-settings', label: 'Calendars and contacts', icon: ContactsBookIcon },
   ];
 
@@ -528,6 +716,7 @@ function MoreSettings({ user, onLogout, onNavigate }) {
           <button
             key={`${item.id}-${i}`}
             onClick={() => {
+              if (item.id === 'audio-devices') { setShowAudioSettings(true); return; }
               if (['message', 'contacts'].includes(item.id)) onNavigate && onNavigate(item.id);
             }}
             style={{ ...itemStyle }}

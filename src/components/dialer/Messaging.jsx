@@ -15,6 +15,8 @@ function fmtTime(ts) {
   return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
 }
 
+const EMOJI_LIST = ['😊','😂','👍','❤️','🙏','😍','🎉','💪','✅','🔥','👋','😢','🤔','💯','🚀'];
+
 const AVATAR_COLORS = ['#E53935','#8E24AA','#1E88E5','#00897B','#F4511E','#6D4C41','#3949AB','#039BE5'];
 function avatarColor(name) { let h = 0; for (const c of (name||'?')) h = (h * 31 + c.charCodeAt(0)) & 0xffff; return AVATAR_COLORS[h % AVATAR_COLORS.length]; }
 
@@ -31,9 +33,11 @@ export default function Messaging({ initialThread }) {
   const [showNew, setShowNew] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [error, setError] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
   const bottomRef = useRef(null);
   const pollRef = useRef(null);
   const lastMsgCountRef = useRef(0);
+  const inputRef = useRef(null);
 
   const refreshThreads = useCallback(() => {
     api.getSmsThreads()
@@ -127,7 +131,7 @@ export default function Messaging({ initialThread }) {
   if (activeThread) {
     const name = activeThread.contact_name || activeThread.name || activeThread.from_number || activeThread.number || "Unknown";
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#17191C' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#17191C', position: 'relative' }}>
         {/* Thread header */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2D35', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
           <button
@@ -202,23 +206,59 @@ export default function Messaging({ initialThread }) {
         {error && (
           <div style={{ padding: '8px 16px', background: '#FF4444', color: '#fff', fontSize: '13px', flexShrink: 0 }}>{error}</div>
         )}
+        {/* Emoji picker popover */}
+        {showEmoji && (
+          <div style={{ position: 'absolute', bottom: '64px', left: '16px', right: '16px', background: '#1E2025', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '12px', zIndex: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {EMOJI_LIST.map(em => (
+                <button key={em} onClick={() => { setInput(p => p + em); setShowEmoji(false); }}
+                  style={{ fontSize: '20px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', padding: '4px', lineHeight: 1 }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >{em}</button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Input row */}
-        <div style={{ padding: '12px', borderTop: '1px solid #2A2D35', display: 'flex', gap: '8px', flexShrink: 0 }}>
-          <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder="Type a message..."
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #2A2D35', display: 'flex', alignItems: 'flex-end', gap: '8px', flexShrink: 0, position: 'relative' }}>
+          <button
+            onClick={() => setShowEmoji(p => !p)}
             style={{
-              flex: 1, background: '#1E2025', border: '1px solid #2A2D35', borderRadius: '22px',
-              padding: '10px 16px', fontSize: '14px', color: '#FFFFFF', outline: 'none',
+              flexShrink: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: '10px', fontSize: '18px', background: showEmoji ? 'rgba(6,132,189,0.3)' : 'rgba(255,255,255,0.05)',
+              border: 'none', cursor: 'pointer', color: showEmoji ? '#0EB8FF' : '#8B8F9B',
             }}
-          />
+          >😊</button>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Message…"
+              rows={1}
+              style={{
+                width: '100%', background: '#1E2025', border: '1px solid #2A2D35', borderRadius: '18px',
+                padding: '10px 40px 10px 16px', fontSize: '14px', color: '#FFFFFF', outline: 'none',
+                resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+              }}
+            />
+            {input.length > 0 && (
+              <span style={{
+                position: 'absolute', bottom: '10px', right: '10px', fontSize: '10px',
+                color: input.length > 160 ? '#F44336' : '#555',
+                pointerEvents: 'none',
+              }}>
+                {input.length}/160{input.length > 160 ? ` (+${Math.ceil(input.length/160)-1})` : ''}
+              </span>
+            )}
+          </div>
           <button
             onClick={sendMessage}
             disabled={!input.trim() || sending}
             style={{
-              width: '40px', height: '40px', borderRadius: '50%', background: '#0684BD',
+              flexShrink: 0, width: '32px', height: '32px', borderRadius: '10px', background: '#0684BD',
               border: 'none', cursor: input.trim() && !sending ? 'pointer' : 'not-allowed',
               opacity: input.trim() && !sending ? 1 : 0.4,
               display: 'flex', alignItems: 'center', justifyContent: 'center',

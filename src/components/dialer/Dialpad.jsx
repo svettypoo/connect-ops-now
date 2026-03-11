@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PhoneIncoming, PhoneOutgoing, PhoneMissed } from "lucide-react";
 import api from "@/api/inboxAiClient";
 
@@ -66,6 +66,12 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
   const [recents, setRecents] = useState([]);
   const [matchedContact, setMatchedContact] = useState(null);
   const [contacts, setContacts] = useState([]);
+  const [dnd, setDnd] = useState(() => localStorage.getItem('con_dnd') === 'true');
+
+  useEffect(() => {
+    localStorage.setItem('con_dnd', dnd);
+    window._dnd = dnd;
+  }, [dnd]);
 
   useEffect(() => {
     api.getCallLogs().then(logs => {
@@ -118,6 +124,29 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', maxWidth: '360px', margin: '0 auto', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
+
+      {/* Status pill + DND toggle */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', marginBottom:'12px' }}>
+        <span style={{
+          display:'inline-flex', alignItems:'center', gap:'6px',
+          padding:'4px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:600,
+          background: dnd ? 'rgba(244,67,54,0.1)' : resolvedPhoneStatus === 'active' ? 'rgba(76,175,80,0.1)' : resolvedPhoneStatus === 'held' ? 'rgba(255,152,0,0.1)' : 'rgba(14,184,255,0.1)',
+          color: dnd ? '#F44336' : resolvedPhoneStatus === 'active' ? '#4CAF50' : resolvedPhoneStatus === 'held' ? '#FF9800' : '#0EB8FF',
+        }}>
+          <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:'currentColor', display:'inline-block' }} />
+          {dnd ? 'Do Not Disturb' : resolvedPhoneStatus === 'active' ? 'On Call' : resolvedPhoneStatus === 'held' ? 'On Hold' : (resolvedPhoneStatus === 'connecting' || resolvedPhoneStatus === 'reconnecting') ? 'Connecting…' : 'Ready'}
+        </span>
+        <button
+          onClick={() => setDnd(p => !p)}
+          style={{
+            background: dnd ? 'rgba(244,67,54,0.15)' : 'rgba(255,255,255,0.05)',
+            border: 'none', borderRadius:'10px', padding:'4px 10px',
+            color: dnd ? '#F44336' : '#8B8F9B', fontSize:'11px', fontWeight:600, cursor:'pointer',
+          }}
+        >
+          {dnd ? 'DND On' : 'DND'}
+        </button>
+      </div>
 
       {/* Caller ID match */}
       {matchedContact && (
