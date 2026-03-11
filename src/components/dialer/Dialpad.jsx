@@ -206,6 +206,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
         <button
           onClick={handleCall}
           disabled={!number.trim() || busy}
+          aria-label="Make Call"
           style={{
             width: '64px', height: '64px', borderRadius: '50%',
             background: (!number.trim() || busy) ? '#2A2D35' : '#4CAF50',
