@@ -44,10 +44,11 @@ export default function RCListPanel({ activeNav, selectedContact, setSelectedCon
         })) : []);
       } else if (activeNav === "recent") {
         const d = await api.getCallLogs();
-        setItems(Array.isArray(d) ? d.slice(0, 50).map(l => {
+        const logs = Array.isArray(d) ? d : (d?.call_logs || []);
+        setItems(logs.slice(0, 50).map(l => {
           const name = (l.direction==="inbound" ? l.from_name : l.to_name) || (l.direction==="inbound" ? l.from_number : l.to_number) || "?";
           return { id: l.id, name, sub: l.status === "missed" ? "Missed" : l.direction, time: l.started_at, status: l.status, _raw: l };
-        }) : []);
+        }));
       } else if (activeNav === "contacts") {
         const d = await api.getContacts();
         setItems(Array.isArray(d) ? d.map(c => ({
