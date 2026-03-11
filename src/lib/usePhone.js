@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import api from "@/api/inboxAiClient";
 import { startRingtone, stopRingtone } from "@/lib/useNotificationSettings";
+import { callEventEmitter } from "@/lib/pushNotifications";
 
 function getNotifSettings() {
   try {
@@ -174,6 +175,22 @@ export function usePhone() {
       clearInterval(keepAliveRef.current);
       try { clientRef.current?.disconnect(); } catch {}
     };
+  }, [initTelnyx]);
+
+  // ── FCM wake: reconnect Telnyx when app is opened from an incoming-call push ─
+  useEffect(() => {
+    const handler = async () => {
+      if (!mountedRef.current || !tokenRef.current) return;
+      // Only reconnect if we're not already connected
+      const st = clientRef.current?.connected ?? clientRef.current?.isConnected;
+      if (!st) {
+        console.log('[Phone] FCM wake — reconnecting Telnyx');
+        setStatus('connecting');
+        await initTelnyx(tokenRef.current);
+      }
+    };
+    callEventEmitter.addEventListener('incoming_call', handler);
+    return () => callEventEmitter.removeEventListener('incoming_call', handler);
   }, [initTelnyx]);
 
   const makeCall = useCallback((number, name) => {

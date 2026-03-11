@@ -6,6 +6,9 @@
 import { Capacitor } from '@capacitor/core';
 import api from '@/api/inboxAiClient';
 
+// Event bridge — usePhone listens to this to wake/reconnect on incoming call push
+export const callEventEmitter = new EventTarget();
+
 const VAPID_PUBLIC_KEY = 'BJWIfBkuXOz1k83sCsdCZx0UlhrcWAcB8QS9yqLi9AIxCuz5P9N7TWM21ytUlV_Ps-VgGIz-xBX7AZucjz22daY';
 
 function urlBase64ToUint8Array(base64String) {
@@ -37,14 +40,22 @@ async function initCapacitorPush() {
       console.warn('[FCM] Registration error:', err.error);
     });
 
-    // Foreground notification display
+    // Foreground: push arrived while app is open
     PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('[FCM] Push received:', notification.title);
+      const data = notification.data || {};
+      console.log('[FCM] Push received:', notification.title, data.type);
+      if (data.type === 'incoming_call') {
+        callEventEmitter.dispatchEvent(new CustomEvent('incoming_call', { detail: data }));
+      }
     });
 
-    // Tap on notification
+    // Background/killed: user tapped the notification to open the app
     PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      console.log('[FCM] Push tapped:', action.notification.title);
+      const data = action.notification.data || {};
+      console.log('[FCM] Push tapped:', action.notification.title, data.type);
+      if (data.type === 'incoming_call') {
+        callEventEmitter.dispatchEvent(new CustomEvent('incoming_call', { detail: data }));
+      }
     });
   } catch (e) {
     console.warn('[FCM] init error:', e.message);
