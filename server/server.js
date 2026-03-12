@@ -109,6 +109,7 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '..', 'dist')));
+app.use('/dl', express.static(path.join(__dirname, '..', 'dl')));
 
 // Serve mockup files from project root
 app.get('/mockup-v2', (req, res) => {
