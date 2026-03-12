@@ -20,10 +20,10 @@ ENV NODE_ENV=production
 # Copy built frontend
 COPY --from=builder /app/dist ./dist
 
-# Copy backend files
-COPY --from=deps /app/node_modules ./node_modules
-COPY server/ ./server/
-COPY package.json ./
+# Copy backend files (from builder which has all source)
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/server/ ./server/
+COPY --from=builder /app/package.json ./
 
 EXPOSE 3000
 ENV PORT=3000
