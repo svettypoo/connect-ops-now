@@ -44,13 +44,32 @@ export default function VideoCall({ contactName, meetingRoom }) {
         roomName: JAAS_APP_ID + "/" + room,
         parentNode: containerRef.current,
         jwt: token,
-        configOverwrite: { startWithAudioMuted: false, startWithVideoMuted: false },
-        interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ["microphone","camera","hangup","chat","tileview","fullscreen"] },
+        configOverwrite: {
+          startWithAudioMuted: false,
+          startWithVideoMuted: false,
+          toolbarButtons: [
+            "microphone", "camera", "desktop", "chat",
+            "participants-pane", "tileview", "hangup",
+            "fullscreen", "raisehand", "toggle-camera",
+          ],
+          disableDeepLinking: true,
+          prejoinPageEnabled: false,
+        },
+        interfaceConfigOverwrite: {
+          MOBILE_APP_PROMO: false,
+          HIDE_INVITE_MORE_HEADER: true,
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+        },
         userInfo: { displayName: contactName || "User" },
       });
       apiRef.current = api2;
+
       api2.addEventListener("videoConferenceJoined", () => { setStatus("active"); startTimer(); });
       api2.addEventListener("videoConferenceLeft", endCall);
+      api2.addEventListener("errorOccurred", (e) => {
+        console.error("Jitsi error:", e);
+        setError("Video error: " + (e?.error?.message || "unknown"));
+      });
     } catch (e) {
       setError("Failed to start video: " + e.message);
       setStatus("idle");
@@ -59,12 +78,15 @@ export default function VideoCall({ contactName, meetingRoom }) {
 
   const endCall = () => {
     clearInterval(timerRef.current);
-    apiRef.current?.dispose();
+    try { apiRef.current?.removeEventListener("videoConferenceJoined"); } catch {}
+    try { apiRef.current?.removeEventListener("videoConferenceLeft"); } catch {}
+    try { apiRef.current?.removeEventListener("errorOccurred"); } catch {}
+    try { apiRef.current?.dispose(); } catch {}
     apiRef.current = null;
     setStatus("idle");
   };
 
-  useEffect(() => () => { clearInterval(timerRef.current); apiRef.current?.dispose(); }, []);
+  useEffect(() => () => { clearInterval(timerRef.current); try { apiRef.current?.dispose(); } catch {} }, []);
 
   const fmt = (s) => String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
 
@@ -95,7 +117,7 @@ export default function VideoCall({ contactName, meetingRoom }) {
         </div>
       ) : (
         <div className="relative">
-          <div ref={containerRef} style={{ height: 420 }} />
+          <div ref={containerRef} style={{ height: 480, minHeight: 400 }} />
           {status === "loading" && (
             <div className="absolute inset-0 bg-[#0d0d1f] flex items-center justify-center">
               <div className="w-8 h-8 border-4 border-slate-600 border-t-[#0EB8FF] rounded-full animate-spin" />
