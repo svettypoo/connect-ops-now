@@ -3,8 +3,8 @@
 FROM node:22-slim AS deps
 WORKDIR /app
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci --legacy-peer-deps
 
 # Stage 2: Build frontend (Vite)
 FROM node:22-slim AS builder
