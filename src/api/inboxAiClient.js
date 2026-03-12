@@ -1,5 +1,5 @@
 // Inbox AI API client
-const BASE = import.meta.env.VITE_API_BASE || 'https://web-production-bb17f2.up.railway.app';
+const BASE = import.meta.env.VITE_API_BASE || '';
 
 async function request(method, path, body) {
   const opts = { method, credentials: 'include', headers: {} };

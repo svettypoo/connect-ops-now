@@ -1,7 +1,7 @@
 {
-  "name": "Connect Ops Now",
-  "short_name": "ConnectOps",
-  "description": "RingCentral-style business phone system",
+  "name": "S&T Phone",
+  "short_name": "S&T Phone",
+  "description": "S&T Properties phone system",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f23",

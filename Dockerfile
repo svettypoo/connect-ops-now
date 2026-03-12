@@ -1,26 +1,31 @@
-# Stage 1: Install dependencies (cached as its own layer until package.json changes)
-FROM node:20-alpine AS deps
+# Stage 1: Install ALL deps (frontend + backend, including native modules)
+FROM node:22-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Stage 2: Build
-FROM node:20-alpine AS builder
+# Stage 2: Build frontend (Vite)
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# Stage 3: Serve static output
-FROM node:20-alpine AS runner
+# Stage 3: Production runtime
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Copy built frontend
 COPY --from=builder /app/dist ./dist
 
-RUN npm install -g serve
+# Copy backend files
+COPY --from=deps /app/node_modules ./node_modules
+COPY server/ ./server/
+COPY package.json ./
 
 EXPOSE 3000
 ENV PORT=3000
 
-CMD ["sh", "-c", "serve dist -s -l ${PORT:-3000}"]
+CMD ["node", "server/server.js"]
