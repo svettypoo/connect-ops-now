@@ -107,6 +107,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
+// Serve mockup files from project root
+app.get('/mockup-v2', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'phone-mockup-v2.html'));
+});
+
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
 function requireAuth(req, res, next) {
