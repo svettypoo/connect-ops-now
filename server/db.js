@@ -232,6 +232,14 @@ const userOps = {
     return db.prepare(`SELECT * FROM users WHERE email = ?`).get(email.toLowerCase());
   },
 
+  createFromZoho(email, name) {
+    const id = uuidv4();
+    const color = randomColor();
+    db.prepare(`INSERT OR IGNORE INTO users (id, email, password_hash, name, avatar_color) VALUES (?,?,?,?,?)`)
+      .run(id, email.toLowerCase(), '', name, color);
+    return this.findByEmail(email);
+  },
+
   verify(email, password) {
     const user = this.findByEmail(email);
     if (!user) return null;

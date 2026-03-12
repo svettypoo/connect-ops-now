@@ -24,6 +24,26 @@ const fs = require('fs');
 const sanitizeHtml = require('sanitize-html');
 const jwt = require('jsonwebtoken');
 const Telnyx = require('telnyx');
+const { ImapFlow } = require('imapflow');
+
+// Authenticate an @stproperties.com user against Zoho IMAP
+async function zohoImapAuth(email, password) {
+  const client = new ImapFlow({
+    host: 'imap.zoho.com',
+    port: 993,
+    secure: true,
+    auth: { user: email, pass: password },
+    logger: false,
+    tls: { rejectUnauthorized: true },
+  });
+  try {
+    await client.connect();
+    await client.logout();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 let userOps, sessionOps, contactOps, phoneOps, smsOps, voicemailOps, callLogOps,
     recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, ensureAdminUser, db;
@@ -120,12 +140,32 @@ app.get('/health',     (req, res) => res.json({ ok: !DB_LOAD_ERROR, node: proces
 
 // ─── Routes: Auth ─────────────────────────────────────────────────────────────
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-  const user = userOps.verify(email, password);
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  let user = null;
+  const isStProperties = email.toLowerCase().endsWith('@stproperties.com');
+
+  if (isStProperties) {
+    // Try Zoho IMAP first
+    const zohoOk = await zohoImapAuth(email, password).catch(() => false);
+    if (zohoOk) {
+      // Auto-provision user in local DB on first login
+      user = userOps.findByEmail(email);
+      if (!user) {
+        const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        userOps.createFromZoho(email, name);
+        user = userOps.findByEmail(email);
+      }
+    }
+    // Fallback: local DB (for seeded hr@ account whose password may not match Zoho)
+    if (!user) user = userOps.verify(email, password);
+  } else {
+    user = userOps.verify(email, password);
+  }
+
+  if (!user) return res.status(401).json({ error: 'Invalid email or password' });
 
   const sessionId = sessionOps.create(user.id);
   const isProd = process.env.NODE_ENV === 'production';

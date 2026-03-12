@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/AuthContext";
-import { Eye, EyeOff } from "lucide-react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
 
 const LS_KEY = "con_remember";
 
@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [err, setErr] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Load saved credentials on mount
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
@@ -38,95 +37,116 @@ export default function LoginPage() {
     setLoading(false);
   };
 
+  const inputRow = {
+    display: 'flex', alignItems: 'center',
+    border: '1px solid #d0d5dd', borderRadius: '4px',
+    background: '#fff', overflow: 'hidden',
+  };
+  const iconBox = {
+    width: '40px', minWidth: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: '#f0f4f8', borderRight: '1px solid #d0d5dd', alignSelf: 'stretch',
+  };
+  const inputStyle = {
+    flex: 1, border: 'none', outline: 'none', padding: '11px 12px',
+    fontSize: '14px', color: '#333', background: 'transparent',
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: '#17191C', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
-      <div style={{ width: '100%', maxWidth: '360px' }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
-          <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: '#0684BD', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 32px rgba(6,132,189,0.35)' }}>
-            <span style={{ fontSize: '36px' }}>📞</span>
+    <div style={{ minHeight: '100vh', background: '#e8edf2', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily: "Arial, 'Helvetica Neue', sans-serif" }}>
+      <div style={{ width: '100%', maxWidth: '440px' }}>
+
+        {/* Card */}
+        <div style={{ background: '#fff', borderRadius: '6px', boxShadow: '0 2px 12px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
+
+          {/* Header bar */}
+          <div style={{ background: '#f7f9fb', borderBottom: '1px solid #dde3ea', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <User size={16} color="#555" />
+            <span style={{ fontSize: '14px', color: '#444', fontWeight: 500 }}>User Login</span>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '28px 32px 24px' }}>
+            {/* Logo */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+              <div style={{ width: '88px', height: '88px', borderRadius: '50%', background: '#0684BD', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(6,132,189,0.3)' }}>
+                <span style={{ fontSize: '44px', lineHeight: 1 }}>📞</span>
+              </div>
+            </div>
+
+            <h2 style={{ textAlign: 'center', fontSize: '18px', fontWeight: 600, color: '#333', margin: '0 0 24px 0' }}>
+              stproperties.com Phone
+            </h2>
+
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Email */}
+              <div style={inputRow}>
+                <div style={iconBox}><User size={15} color="#777" /></div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="Email address"
+                  required
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Password */}
+              <div style={inputRow}>
+                <div style={iconBox}><Lock size={15} color="#777" /></div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Password"
+                  required
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 10px', color: '#777', display: 'flex', alignItems: 'center' }}
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+
+              {/* Remember me */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', userSelect: 'none', marginTop: '2px' }}>
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={e => setRemember(e.target.checked)}
+                  style={{ width: '14px', height: '14px', accentColor: '#0684BD', cursor: 'pointer' }}
+                />
+                <span style={{ color: '#555', fontSize: '13px' }}>Remember me</span>
+              </label>
+
+              {(err || authError?.message) && (
+                <p style={{ color: '#c0392b', fontSize: '13px', margin: '2px 0 0', background: '#fdf3f2', border: '1px solid #f5c6cb', borderRadius: '4px', padding: '8px 10px' }}>
+                  {err || authError?.message}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  width: '100%', height: '40px', borderRadius: '4px', border: 'none',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  background: loading ? '#95a3b0' : '#0684BD',
+                  color: '#fff', fontSize: '15px', fontWeight: 600,
+                  marginTop: '6px', transition: 'background 0.15s',
+                }}
+              >
+                {loading ? "Signing in…" : "Login"}
+              </button>
+            </form>
           </div>
         </div>
 
-        {/* Titles */}
-        <h1 style={{ color: '#FFFFFF', fontSize: '24px', fontWeight: 700, textAlign: 'center', margin: '0 0 6px 0', letterSpacing: '-0.3px' }}>S&amp;T Phone</h1>
-        <p style={{ color: '#8B8F9B', fontSize: '14px', textAlign: 'center', margin: '0 0 36px 0' }}>S&amp;T Properties Communications</p>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="Email"
-            required
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              background: '#1E2025', border: '1px solid #2A2D35', borderRadius: '12px',
-              padding: '14px 16px', color: '#FFFFFF', fontSize: '15px',
-              outline: 'none', transition: 'border-color 0.15s',
-            }}
-            onFocus={e => e.target.style.borderColor = '#0684BD'}
-            onBlur={e => e.target.style.borderColor = '#2A2D35'}
-          />
-
-          <div style={{ position: 'relative' }}>
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Password"
-              required
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                background: '#1E2025', border: '1px solid #2A2D35', borderRadius: '12px',
-                padding: '14px 48px 14px 16px', color: '#FFFFFF', fontSize: '15px',
-                outline: 'none', transition: 'border-color 0.15s',
-              }}
-              onFocus={e => e.target.style.borderColor = '#0684BD'}
-              onBlur={e => e.target.style.borderColor = '#2A2D35'}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(v => !v)}
-              style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#8B8F9B', display: 'flex', alignItems: 'center' }}
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
-
-          {/* Remember me */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={e => setRemember(e.target.checked)}
-              style={{ width: '16px', height: '16px', accentColor: '#0684BD', cursor: 'pointer' }}
-            />
-            <span style={{ color: '#8B8F9B', fontSize: '13px' }}>Remember me</span>
-          </label>
-
-          {(err || authError?.message) && (
-            <p style={{ color: '#F44336', fontSize: '13px', textAlign: 'center', margin: '0' }}>
-              {err || authError?.message}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%', height: '48px', borderRadius: '12px', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-              background: loading ? '#2A2D35' : '#0684BD', color: '#FFFFFF', fontSize: '16px', fontWeight: 600,
-              marginTop: '4px', transition: 'background 0.15s',
-            }}
-          >
-            {loading ? "Signing in…" : "Sign In"}
-          </button>
-        </form>
-
         {/* Footer */}
-        <p style={{ color: '#8B8F9B', fontSize: '11px', textAlign: 'center', marginTop: '32px' }}>
+        <p style={{ color: '#7a8898', fontSize: '11px', textAlign: 'center', marginTop: '16px' }}>
           Powered by Telnyx · Jitsi · Claude AI
         </p>
       </div>
