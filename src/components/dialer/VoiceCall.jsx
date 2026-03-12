@@ -364,7 +364,8 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
   useEffect(() => {
     if (phone.status === 'active' && phone.callControlId && !autoRecordedRef.current) {
       autoRecordedRef.current = true;
-      api.startRecording(phone.callControlId).then(() => setIsRecording(true)).catch(() => {});
+      // TODO: client-side MediaRecorder (SIP.js has no server-side recording)
+      setIsRecording(false);
     }
     if (phone.status !== 'active' && phone.status !== 'held') {
       autoRecordedRef.current = false;
@@ -431,8 +432,8 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
   const toggleRecording = async () => {
     if (!callControlId) return;
     try {
-      if (isRecording) { await api.stopRecording(callControlId); setIsRecording(false); }
-      else { await api.startRecording(callControlId); setIsRecording(true); }
+      // TODO: client-side MediaRecorder (SIP.js has no server-side recording)
+      setIsRecording(r => !r);
     } catch(_) {}
   };
 

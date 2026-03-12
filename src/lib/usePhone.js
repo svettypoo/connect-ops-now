@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
+import { UserAgent, Registerer, RegistererState, Inviter, SessionState } from "sip.js";
 import api from "@/api/inboxAiClient";
 import { startRingtone, stopRingtone } from "@/lib/useNotificationSettings";
 import { callEventEmitter } from "@/lib/pushNotifications";
@@ -11,19 +12,15 @@ function getNotifSettings() {
   } catch { return {}; }
 }
 
-// Check mic permission state without triggering a dialog
 async function checkMicPermission() {
   try {
     const result = await navigator.permissions.query({ name: 'microphone' });
-    return result.state; // 'granted' | 'denied' | 'prompt'
+    return result.state;
   } catch {
-    return 'prompt'; // browser doesn't support permissions API
+    return 'prompt';
   }
 }
 
-// On Android, verify mic access before trying to init Telnyx.
-// getUserMedia triggers the Android runtime permission dialog AND grants
-// the WebView's RESOURCE_AUDIO_CAPTURE so WebRTC can actually use the mic.
 async function ensureMicPermission() {
   if (!navigator.mediaDevices?.getUserMedia) return false;
   try {
@@ -47,16 +44,16 @@ export function usePhone() {
   const [phoneNumber, setPhoneNumber] = useState(null);
   const [callControlId, setCallControlId] = useState(null);
   const [micDenied, setMicDenied]   = useState(false);
-  const [micStatus, setMicStatus]   = useState('prompt'); // 'granted'|'denied'|'prompt'|'error'
+  const [micStatus, setMicStatus]   = useState('prompt');
 
-  const clientRef     = useRef(null);
-  const callRef       = useRef(null);
+  const uaRef         = useRef(null);
+  const registererRef = useRef(null);
+  const sessionRef    = useRef(null);
   const timerRef      = useRef(null);
   const startTimeRef  = useRef(null);
-  const keepAliveRef  = useRef(null);
-  const tokenRef      = useRef(null);
   const mountedRef    = useRef(true);
-  const remoteAudioRef = useRef(null); // hidden <audio> for remote call audio
+  const remoteAudioRef = useRef(null);
+  const sipConfigRef  = useRef(null);
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
@@ -67,33 +64,12 @@ export function usePhone() {
   };
   const stopTimer = () => { clearInterval(timerRef.current); };
 
-  // ── Core init (called on mount + on reconnect) ──────────────────────────────
-  const initTelnyx = useCallback(async (token) => {
-    if (!mountedRef.current) return;
-
-    let TelnyxRTC;
-    try {
-      const mod = await import("@telnyx/webrtc");
-      TelnyxRTC = mod.TelnyxRTC;
-    } catch {
-      TelnyxRTC = window?.TelnyxWebRTC?.TelnyxRTC;
-    }
-    if (!TelnyxRTC || !mountedRef.current) return;
-
-    // Tear down any previous client
-    if (clientRef.current) {
-      try { clientRef.current.disconnect(); } catch {}
-      clientRef.current = null;
-    }
-    clearInterval(keepAliveRef.current);
-
-    // Ensure a hidden audio element exists BEFORE constructing TelnyxRTC
-    // so we can pass its ID as remoteElement — SDK auto-attaches remote stream
+  const ensureAudioElement = () => {
     if (!remoteAudioRef.current) {
-      let el = document.getElementById('telnyx-remote-audio');
+      let el = document.getElementById('sip-remote-audio');
       if (!el) {
         el = document.createElement('audio');
-        el.id = 'telnyx-remote-audio';
+        el.id = 'sip-remote-audio';
         el.autoplay = true;
         el.setAttribute('playsinline', '');
         el.style.display = 'none';
@@ -101,107 +77,148 @@ export function usePhone() {
       }
       remoteAudioRef.current = el;
     }
+    return remoteAudioRef.current;
+  };
 
-    const client = new TelnyxRTC({
-      login_token: token,
-      // Tell the SDK which audio element to pipe remote audio into
-      remoteElement: remoteAudioRef.current,
-    });
-    clientRef.current = client;
+  const attachRemoteAudio = (session) => {
+    const audioEl = ensureAudioElement();
+    const pc = session.sessionDescriptionHandler?.peerConnection;
+    if (!pc) return;
+    const receivers = pc.getReceivers();
+    if (receivers.length > 0) {
+      const remoteStream = new MediaStream();
+      receivers.forEach(r => { if (r.track) remoteStream.addTrack(r.track); });
+      audioEl.srcObject = remoteStream;
+      audioEl.play().catch(() => {});
+      console.log('[Phone] Remote audio attached');
+    }
+  };
 
-    client.on("telnyx.ready", () => {
+  const setupSessionRef = useRef(null);
+  setupSessionRef.current = (session) => {
+    session.stateChange.addListener((state) => {
       if (!mountedRef.current) return;
-      setStatus("ready");
-      // Keep-alive ping every 25s to prevent WebSocket idle timeout on mobile
-      keepAliveRef.current = setInterval(() => {
-        try { client.webSocket?.send?.('{"jsonrpc":"2.0","method":"ping","id":1}'); } catch {}
-      }, 25000);
-    });
-
-    client.on("telnyx.error", (err) => {
-      console.warn("[Phone] telnyx.error:", err);
-      if (mountedRef.current) setStatus("idle");
-    });
-
-    client.on("telnyx.rtc.mediaError", (err) => {
-      console.warn("[Phone] telnyx.rtc.mediaError:", err);
-      if (mountedRef.current) {
-        setMicStatus('denied');
-        setMicDenied(true);
-        setStatus('idle');
+      switch (state) {
+        case SessionState.Establishing:
+          break;
+        case SessionState.Established:
+          stopRingtone();
+          setInboundCall(null);
+          setStatus("active");
+          startTimer();
+          attachRemoteAudio(session);
+          break;
+        case SessionState.Terminating:
+        case SessionState.Terminated:
+          stopRingtone();
+          sessionRef.current = null;
+          setInboundCall(null);
+          setCallControlId(null);
+          setStatus("ready");
+          stopTimer();
+          setElapsed(0);
+          setIsMuted(false);
+          setIsOnHold(false);
+          setActiveName("");
+          setActiveNumber("");
+          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+          break;
       }
     });
+  };
 
-    client.on("telnyx.socket.close", () => {
-      clearInterval(keepAliveRef.current);
-      if (!mountedRef.current) return;
-      setStatus("reconnecting");
-      // Auto-reconnect after 3s
-      setTimeout(() => {
-        if (mountedRef.current && tokenRef.current) initTelnyx(tokenRef.current);
-      }, 3000);
-    });
+  // ── Core init ──────────────────────────────────────────────────────────────
+  const initSip = useCallback(async (config) => {
+    if (!mountedRef.current) return;
 
-    client.on("telnyx.notification", (notif) => {
-      if (!mountedRef.current || notif.type !== "callUpdate") return;
-      const call = notif.call;
-      const st = call.state;
+    // Tear down previous UA
+    if (uaRef.current) {
+      try { await uaRef.current.stop(); } catch {}
+      uaRef.current = null;
+      registererRef.current = null;
+    }
 
-      if (st === "ringing" && !callRef.current) {
-        // Inbound call
-        callRef.current = call;
-        const name = call.options?.remoteCallerName || call.options?.remoteCallerNumber || "Unknown";
-        setInboundCall({ name, number: call.options?.remoteCallerNumber || "" });
-        setCallControlId(call.id || call.options?.call_control_id || null);
-        setStatus("ringing");
-        startRingtone({ ringOnCall: true, ringtone: "classic", ringVolume: 80, vibrateOnCall: true, ...getNotifSettings() });
-        if (Notification?.permission === "granted") {
-          new Notification("Incoming Call", { body: name, icon: "/favicon.ico", tag: "incoming-call", renotify: false });
-        }
-      } else if (st === "ringing" && callRef.current) {
-        // Outbound call — remote is ringing, keep status as "calling" (already set)
-        setStatus("calling");
-      } else if (st === "active") {
-        stopRingtone();
-        setInboundCall(null);
-        setCallControlId(call.id || call.options?.call_control_id || null);
-        setStatus("active");
-        startTimer();
-        // Attach remote audio stream — try multiple paths the SDK may expose
-        try {
-          const stream =
-            call.remoteStream ||
-            call.options?.remoteStream ||
-            call.peer?.getRemoteStreams?.()?.[0] ||
-            call.peer?.remoteStream ||
-            call.mediaStream;
-          const audioEl = remoteAudioRef.current || document.getElementById('telnyx-remote-audio');
-          if (stream && audioEl) {
-            audioEl.srcObject = stream;
-            audioEl.play().catch(() => {});
-            console.log('[Phone] Remote audio stream attached');
-          } else {
-            console.warn('[Phone] No remote stream found at active state', { stream, audioEl });
+    ensureAudioElement();
+
+    const uri = UserAgent.makeURI(`sip:${config.sip_user}@${config.sip_domain}`);
+    if (!uri) {
+      console.error('[Phone] Invalid SIP URI');
+      setStatus('idle');
+      return;
+    }
+
+    const ua = new UserAgent({
+      uri,
+      transportOptions: {
+        server: config.wss_server,
+        traceSip: false,
+      },
+      authorizationUsername: config.sip_user,
+      authorizationPassword: config.sip_password,
+      displayName: config.sip_user,
+      sessionDescriptionHandlerFactoryOptions: {
+        peerConnectionConfiguration: {
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        },
+      },
+      delegate: {
+        onInvite: (invitation) => {
+          if (!mountedRef.current) return;
+          sessionRef.current = invitation;
+          const from = invitation.remoteIdentity?.uri?.user || 'Unknown';
+          const displayName = invitation.remoteIdentity?.displayName || from;
+          setInboundCall({ name: displayName, number: from });
+          setCallControlId(invitation.id || null);
+          setStatus("ringing");
+          startRingtone({ ringOnCall: true, ringtone: "classic", ringVolume: 80, vibrateOnCall: true, ...getNotifSettings() });
+          if (Notification?.permission === "granted") {
+            new Notification("Incoming Call", { body: displayName, icon: "/favicon.ico", tag: "incoming-call", renotify: false });
           }
-        } catch (e) { console.warn('[Phone] remoteStream attach failed:', e.message); }
-      } else if (st === "done" || st === "destroy") {
-        stopRingtone();
-        callRef.current = null;
-        setInboundCall(null);
-        setCallControlId(null);
+          setupSessionRef.current(invitation);
+        },
+      },
+    });
+    uaRef.current = ua;
+
+    ua.transport.onDisconnect = (error) => {
+      if (!mountedRef.current) return;
+      if (error) {
+        console.warn('[Phone] Transport disconnected:', error.message);
+        setStatus("reconnecting");
+        setTimeout(() => {
+          if (mountedRef.current && sipConfigRef.current) initSip(sipConfigRef.current);
+        }, 3000);
+      }
+    };
+
+    try {
+      await ua.start();
+    } catch (e) {
+      console.error('[Phone] UA start failed:', e.message);
+      setStatus('idle');
+      return;
+    }
+
+    const registerer = new Registerer(ua, { expires: 300 });
+    registererRef.current = registerer;
+
+    registerer.stateChange.addListener((state) => {
+      if (!mountedRef.current) return;
+      if (state === RegistererState.Registered) {
+        console.log('[Phone] SIP registered');
         setStatus("ready");
-        stopTimer();
-        setElapsed(0);
-        setIsMuted(false);
-        setIsOnHold(false);
-        setActiveName("");
-        setActiveNumber("");
-        // Clear remote audio stream
-        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; }
+      } else if (state === RegistererState.Unregistered) {
+        console.log('[Phone] SIP unregistered');
+        if (!sessionRef.current) setStatus("idle");
       }
     });
 
-    client.connect();
+    try {
+      await registerer.register();
+    } catch (e) {
+      console.warn('[Phone] Registration failed:', e.message);
+      setStatus('idle');
+    }
   }, []);
 
   // ── Mount ───────────────────────────────────────────────────────────────────
@@ -209,7 +226,6 @@ export function usePhone() {
     mountedRef.current = true;
     (async () => {
       try {
-        // Check mic permission upfront — show banner before Telnyx init on web
         if (!Capacitor.isNativePlatform()) {
           const permState = await checkMicPermission();
           if (mountedRef.current) setMicStatus(permState);
@@ -220,8 +236,6 @@ export function usePhone() {
           }
         }
 
-        // On Android, request mic access before Telnyx so the WebView's
-        // RESOURCE_AUDIO_CAPTURE is pre-authorized when WebRTC needs it.
         if (Capacitor.isNativePlatform()) {
           const ok = await ensureMicPermission();
           if (!ok) {
@@ -232,34 +246,32 @@ export function usePhone() {
           }
         }
 
-        const data = await api.getPhoneToken();
-        if (!data?.token || !mountedRef.current) return;
-        tokenRef.current = data.token;
-        setPhoneNumber(data.phone_number);
+        const config = await api.getSipConfig();
+        if (!config?.sip_user || !mountedRef.current) return;
+        sipConfigRef.current = config;
+        setPhoneNumber(config.phone_number);
         setStatus("connecting");
-        await initTelnyx(data.token);
+        await initSip(config);
       } catch (e) {
-        console.warn("Telnyx init:", e.message);
+        console.warn("SIP init:", e.message);
         if (mountedRef.current) setStatus("idle");
       }
     })();
 
-    // Visibility change: reconnect when tab comes back into focus
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && mountedRef.current && tokenRef.current) {
-        const st = clientRef.current?.connected ?? clientRef.current?.isConnected;
-        if (!st) {
-          console.log('[Phone] visibility visible — reconnecting');
+      if (document.visibilityState === 'visible' && mountedRef.current && sipConfigRef.current) {
+        const connected = uaRef.current?.transport?.isConnected?.();
+        if (!connected) {
+          console.log('[Phone] visibility visible — reconnecting SIP');
           setStatus('connecting');
-          initTelnyx(tokenRef.current).catch(() => {});
+          initSip(sipConfigRef.current).catch(() => {});
         }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Device change: re-attach remote audio if devices change during a call
     const handleDeviceChange = async () => {
-      if (!remoteAudioRef.current || !callRef.current) return;
+      if (!remoteAudioRef.current || !sessionRef.current) return;
       const savedSpk = localStorage.getItem('con_spk_id');
       if (savedSpk && typeof remoteAudioRef.current.setSinkId === 'function') {
         remoteAudioRef.current.setSinkId(savedSpk).catch(() => {});
@@ -272,34 +284,35 @@ export function usePhone() {
     return () => {
       mountedRef.current = false;
       stopTimer();
-      clearInterval(keepAliveRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (navigator.mediaDevices) {
         navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
       }
-      try { clientRef.current?.disconnect(); } catch {}
+      try {
+        registererRef.current?.unregister();
+        uaRef.current?.stop();
+      } catch {}
     };
-  }, [initTelnyx]);
+  }, [initSip]);
 
-  // ── FCM wake: reconnect Telnyx when app is opened from an incoming-call push ─
+  // ── FCM wake ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = async () => {
-      if (!mountedRef.current || !tokenRef.current) return;
-      // Only reconnect if we're not already connected
-      const st = clientRef.current?.connected ?? clientRef.current?.isConnected;
-      if (!st) {
-        console.log('[Phone] FCM wake — reconnecting Telnyx');
+      if (!mountedRef.current || !sipConfigRef.current) return;
+      const connected = uaRef.current?.transport?.isConnected?.();
+      if (!connected) {
+        console.log('[Phone] FCM wake — reconnecting SIP');
         setStatus('connecting');
-        await initTelnyx(tokenRef.current);
+        await initSip(sipConfigRef.current);
       }
     };
     callEventEmitter.addEventListener('incoming_call', handler);
     return () => callEventEmitter.removeEventListener('incoming_call', handler);
-  }, [initTelnyx]);
+  }, [initSip]);
 
   const makeCall = useCallback(async (number, name) => {
-    if (!clientRef.current) return;
-    // Pre-flight mic check — if permission is still 'prompt', trigger the dialog now
+    if (!uaRef.current) return;
+
     if (!Capacitor.isNativePlatform()) {
       const permState = await checkMicPermission();
       if (permState === 'prompt') {
@@ -310,32 +323,70 @@ export function usePhone() {
         setMicStatus('denied'); setMicDenied(true); return;
       }
     }
-    // Normalise to E.164 — prepend +1 if it looks like a 10-digit North American number
+
+    // Normalise to E.164
     let dest = number.replace(/\D/g, '');
     if (dest.length === 10) dest = '1' + dest;
     if (!dest.startsWith('+')) dest = '+' + dest;
-    const call = clientRef.current.newCall({ destinationNumber: dest, callerNumber: phoneNumber || "" });
-    callRef.current = call;
-    setCallControlId(call.id || null);
+
+    const targetURI = UserAgent.makeURI(`sip:${dest}@${sipConfigRef.current.sip_domain}`);
+    if (!targetURI) { console.error('[Phone] Invalid target URI'); return; }
+
+    const inviter = new Inviter(uaRef.current, targetURI, {
+      sessionDescriptionHandlerOptions: {
+        constraints: { audio: true, video: false },
+      },
+    });
+
+    sessionRef.current = inviter;
+    setCallControlId(inviter.id || null);
     setActiveNumber(number);
     setActiveName(name || number);
-    setStatus("calling"); // "calling" = dialing out, not yet active
+    setStatus("calling");
+
+    setupSessionRef.current(inviter);
+
+    try {
+      await inviter.invite();
+    } catch (e) {
+      console.error('[Phone] Invite failed:', e.message);
+      sessionRef.current = null;
+      setStatus("ready");
+    }
   }, [phoneNumber]);
 
   const answerCall = useCallback(() => {
     stopRingtone();
-    callRef.current?.answer();
-    setStatus("active");
+    if (!sessionRef.current) return;
+    sessionRef.current.accept({
+      sessionDescriptionHandlerOptions: {
+        constraints: { audio: true, video: false },
+      },
+    });
     setActiveName(inboundCall?.name || "");
     setActiveNumber(inboundCall?.number || "");
     setInboundCall(null);
-    startTimer();
   }, [inboundCall]);
 
   const hangup = useCallback(() => {
     stopRingtone();
-    callRef.current?.hangup();
-    callRef.current = null;
+    const session = sessionRef.current;
+    if (session) {
+      switch (session.state) {
+        case SessionState.Initial:
+        case SessionState.Establishing:
+          if (typeof session.cancel === 'function') session.cancel();
+          else if (typeof session.reject === 'function') session.reject();
+          break;
+        case SessionState.Established:
+          session.bye();
+          break;
+        default:
+          if (typeof session.reject === 'function') session.reject();
+          break;
+      }
+    }
+    sessionRef.current = null;
     stopTimer();
     setStatus("ready");
     setElapsed(0);
@@ -345,23 +396,74 @@ export function usePhone() {
     setActiveNumber("");
     setInboundCall(null);
     setCallControlId(null);
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
   }, []);
 
   const toggleMute = useCallback(() => {
-    if (!callRef.current) return;
-    isMuted ? callRef.current.unmuteAudio() : callRef.current.muteAudio();
+    const session = sessionRef.current;
+    if (!session) return;
+    const pc = session.sessionDescriptionHandler?.peerConnection;
+    if (!pc) return;
+    pc.getSenders().forEach(s => {
+      if (s.track && s.track.kind === 'audio') {
+        s.track.enabled = isMuted; // if muted → enable, if unmuted → disable
+      }
+    });
     setIsMuted(m => !m);
   }, [isMuted]);
 
-  const toggleHold = useCallback(() => {
-    if (!callRef.current) return;
-    isOnHold ? callRef.current.unhold() : callRef.current.hold();
+  const toggleHold = useCallback(async () => {
+    const session = sessionRef.current;
+    if (!session || session.state !== SessionState.Established) return;
+
+    if (isOnHold) {
+      const options = {
+        sessionDescriptionHandlerModifiers: [
+          (description) => {
+            description.sdp = description.sdp.replace(/a=inactive/g, 'a=sendrecv');
+            return description;
+          }
+        ],
+      };
+      await session.invite(options).catch(() => {});
+    } else {
+      const options = {
+        sessionDescriptionHandlerModifiers: [
+          (description) => {
+            description.sdp = description.sdp.replace(/a=sendrecv/g, 'a=inactive');
+            return description;
+          }
+        ],
+      };
+      await session.invite(options).catch(() => {});
+    }
     setIsOnHold(h => !h);
     setStatus(prev => prev === "held" ? "active" : "held");
   }, [isOnHold]);
 
-  const sendDtmf   = useCallback((digit) => callRef.current?.dtmf(digit), []);
-  const blindTransfer = useCallback((dest) => { callRef.current?.transfer(dest); hangup(); }, [hangup]);
+  const sendDtmf = useCallback((digit) => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.info({
+      requestOptions: {
+        body: {
+          contentDisposition: 'render',
+          contentType: 'application/dtmf-relay',
+          content: `Signal=${digit}\r\nDuration=160`,
+        },
+      },
+    }).catch(() => {});
+  }, []);
+
+  const blindTransfer = useCallback((dest) => {
+    const session = sessionRef.current;
+    if (!session) return;
+    const targetURI = UserAgent.makeURI(`sip:${dest}@${sipConfigRef.current?.sip_domain || 'stproperties.com'}`);
+    if (targetURI) {
+      session.refer(targetURI).catch(() => {});
+    }
+    hangup();
+  }, [hangup]);
 
   const fmtElapsed = () => {
     const m = Math.floor(elapsed / 60), s = elapsed % 60;

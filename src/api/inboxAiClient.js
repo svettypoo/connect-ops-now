@@ -20,7 +20,7 @@ export const api = {
   login: (email, password) => request('POST', '/api/auth/login', { email, password }),
   logout: () => request('POST', '/api/auth/logout'),
   me: () => request('GET', '/api/auth/me'),
-  getPhoneToken: () => request('GET', '/api/phone/token'),
+  getSipConfig: () => request('GET', '/api/phone/sip-config'),
   getPhoneMe: () => request('GET', '/api/phone/me'),
   getCallLogs: (filter) => request('GET', '/api/call-logs' + (filter ? '?filter=' + filter : '')),
   deleteCallLog: (id) => request('DELETE', '/api/call-logs/' + id),
