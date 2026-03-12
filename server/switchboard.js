@@ -237,7 +237,7 @@ async function handleWebhook(event) {
     // Start bidirectional media streaming
     const r = await telnyxPost(`/calls/${ccid}/actions/streaming_start`, {
       stream_url: `wss://phone.stproperties.com/ws/telnyx-stream/${ccid}`,
-      stream_track: 'inbound_track', // Start with inbound (what we hear); outbound adds latency
+      stream_track: 'both_tracks',
       enable_dialogflow: false,
     }).catch(e => ({ status: 500, body: e.message }));
     console.log('[Switchboard] streaming_start status:', r.status);

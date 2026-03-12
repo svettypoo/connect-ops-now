@@ -337,7 +337,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   const [showTranscript, setShowTranscript] = useState(false);
   const [sessionId] = useState(() => 'voice-' + Date.now());
   const [transcript, setTranscript] = useState([]);
-  const [speakerOn, setSpeakerOn] = useState(false);
+  const [isDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
   const [aiChips, setAiChips] = useState(null); // { tasks, email_draft, summary }
   const [aiLoading, setAiLoading] = useState(false);
   const [dismissedChips, setDismissedChips] = useState([]);
@@ -418,26 +418,6 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
         if (data?.tasks?.length || data?.email_draft) setAiChips(data);
       }).catch(() => {}).finally(() => setAiLoading(false));
     }
-  };
-
-  const toggleSpeaker = async () => {
-    const next = !speakerOn;
-    setSpeakerOn(next);
-    try {
-      // Route all <audio> elements to speaker (or back to default)
-      const audioEls = Array.from(document.querySelectorAll('audio'));
-      if (next && audioEls.length && typeof audioEls[0].setSinkId === 'function') {
-        // Find a non-default output device (speaker/headset preference)
-        const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
-        const speakers = devices.filter(d => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
-        const sinkId = speakers[0]?.deviceId || '';
-        for (const el of audioEls) await el.setSinkId(sinkId).catch(() => {});
-      } else {
-        for (const el of audioEls) {
-          if (typeof el.setSinkId === 'function') await el.setSinkId('default').catch(() => {});
-        }
-      }
-    } catch (_) {}
   };
 
   const toggleRecording = () => { phone.toggleRecording(); };
@@ -586,8 +566,8 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
           </div>
         )}
 
-        {/* 6-button grid: Mute / Keypad / Speaker — Hold / Transfer / Record */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px 24px', width: '100%', maxWidth: '300px', marginBottom: '40px' }}>
+        {/* 6-button grid: Mute / Keypad / [Output on desktop] — Hold / Transfer / Record */}
+        <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: '20px 24px', width: '100%', maxWidth: isDesktop ? '300px' : '220px', marginBottom: '40px' }}>
           <ActionBtn
             icon={<MicIcon muted={phone.isMuted} size={22} />}
             label={phone.isMuted ? 'Unmute' : 'Mute'}
@@ -602,12 +582,33 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
             active={showDtmf}
             onClick={() => setShowDtmf(p => !p)}
           />
-          <ActionBtn
-            icon={<SpeakerIcon on={speakerOn} size={22} />}
-            label="Speaker"
-            active={speakerOn}
-            onClick={toggleSpeaker}
-          />
+          {isDesktop && phone.outputDevices?.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '64px', height: '64px', borderRadius: '50%',
+                background: '#0f1628', border: '1px solid #1a2744',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#c8d6e5',
+              }}>
+                <SpeakerIcon on={true} size={22} />
+              </div>
+              <select
+                value={phone.outputDeviceId || ''}
+                onChange={e => phone.setOutputDevice?.(e.target.value)}
+                style={{
+                  background: '#0f1628', border: '1px solid #1a2744', borderRadius: '8px',
+                  color: '#c8d6e5', fontSize: '10px', padding: '2px 4px',
+                  width: '80px', cursor: 'pointer', outline: 'none', textAlign: 'center',
+                }}
+              >
+                {phone.outputDevices.map(d => (
+                  <option key={d.deviceId} value={d.deviceId}>{d.label || 'Output ' + d.deviceId.slice(0, 6)}</option>
+                ))}
+              </select>
+            </div>
+          ) : isDesktop ? (
+            <div /> /* spacer on desktop with no devices */
+          ) : null}
           <ActionBtn
             icon={<HoldIcon size={22} />}
             label={phone.isOnHold ? 'Resume' : 'Hold'}
