@@ -76,18 +76,27 @@ export function usePhone() {
     }
     clearInterval(keepAliveRef.current);
 
-    const client = new TelnyxRTC({ login_token: token });
-    clientRef.current = client;
-
-    // Ensure a hidden audio element exists to play the remote call stream
+    // Ensure a hidden audio element exists BEFORE constructing TelnyxRTC
+    // so we can pass its ID as remoteElement — SDK auto-attaches remote stream
     if (!remoteAudioRef.current) {
-      const el = document.createElement('audio');
-      el.autoplay = true;
-      el.id = 'telnyx-remote-audio';
-      el.style.display = 'none';
-      document.body.appendChild(el);
+      let el = document.getElementById('telnyx-remote-audio');
+      if (!el) {
+        el = document.createElement('audio');
+        el.id = 'telnyx-remote-audio';
+        el.autoplay = true;
+        el.setAttribute('playsinline', '');
+        el.style.display = 'none';
+        document.body.appendChild(el);
+      }
       remoteAudioRef.current = el;
     }
+
+    const client = new TelnyxRTC({
+      login_token: token,
+      // Tell the SDK which audio element to pipe remote audio into
+      remoteElement: remoteAudioRef.current,
+    });
+    clientRef.current = client;
 
     client.on("telnyx.ready", () => {
       if (!mountedRef.current) return;
@@ -138,12 +147,21 @@ export function usePhone() {
         setCallControlId(call.id || call.options?.call_control_id || null);
         setStatus("active");
         startTimer();
-        // Attach remote audio stream so caller can be heard
+        // Attach remote audio stream — try multiple paths the SDK may expose
         try {
-          const stream = call.remoteStream || call.options?.remoteStream;
-          if (stream && remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = stream;
-            remoteAudioRef.current.play().catch(() => {});
+          const stream =
+            call.remoteStream ||
+            call.options?.remoteStream ||
+            call.peer?.getRemoteStreams?.()?.[0] ||
+            call.peer?.remoteStream ||
+            call.mediaStream;
+          const audioEl = remoteAudioRef.current || document.getElementById('telnyx-remote-audio');
+          if (stream && audioEl) {
+            audioEl.srcObject = stream;
+            audioEl.play().catch(() => {});
+            console.log('[Phone] Remote audio stream attached');
+          } else {
+            console.warn('[Phone] No remote stream found at active state', { stream, audioEl });
           }
         } catch (e) { console.warn('[Phone] remoteStream attach failed:', e.message); }
       } else if (st === "done" || st === "destroy") {
