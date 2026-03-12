@@ -175,7 +175,8 @@ app.post('/api/auth/login', async (req, res) => {
     maxAge: 30 * 24 * 60 * 60 * 1000,
     sameSite: isProd ? 'none' : 'lax',
   });
-  res.json({ user: { id: user.id, email: user.email, name: user.name, avatar_color: user.avatar_color } });
+  // Return session token in body for Capacitor/APK builds (cross-origin cookies don't persist)
+  res.json({ user: { id: user.id, email: user.email, name: user.name, avatar_color: user.avatar_color }, session: sessionId });
 });
 
 app.post('/api/auth/logout', requireAuth, (req, res) => {

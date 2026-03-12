@@ -123,7 +123,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', maxWidth: '360px', margin: '0 auto', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 16px', maxWidth: '360px', margin: '0 auto', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif", overflowY: 'auto', height: '100%' }}>
 
       {/* Status pill + DND toggle */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', marginBottom:'12px' }}>
@@ -202,10 +202,10 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
             key={key}
             onClick={() => pressKey(key)}
             style={{
-              aspectRatio: '1 / 1', borderRadius: '50%', background: '#1E2025', border: '1px solid #2A2D35',
+              width: '72px', height: '72px', maxWidth: '100%', borderRadius: '50%', background: '#1E2025', border: '1px solid #2A2D35',
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               gap: '1px', cursor: 'pointer', transition: 'background 0.1s',
-              outline: 'none',
+              outline: 'none', margin: '0 auto',
             }}
             onMouseEnter={e => e.currentTarget.style.background = '#2A2D35'}
             onMouseLeave={e => e.currentTarget.style.background = '#1E2025'}

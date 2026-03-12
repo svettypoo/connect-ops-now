@@ -2,10 +2,20 @@
 // On web (same-origin), always use '' so requests hit the same host.
 // Only use VITE_API_BASE in Capacitor/APK builds (no window.location.host match).
 const isCapacitor = typeof window !== 'undefined' && window.Capacitor;
-const BASE = isCapacitor ? (import.meta.env.VITE_API_BASE || '') : '';
+const BASE = isCapacitor ? (import.meta.env.VITE_API_BASE || 'https://phone.stproperties.com') : '';
+
+// Session token storage for Capacitor (cross-origin cookies don't work in WebView)
+function getSessionToken() { try { return localStorage.getItem('con_session_token'); } catch { return null; } }
+function setSessionToken(token) { try { if (token) localStorage.setItem('con_session_token', token); } catch {} }
+function clearSessionToken() { try { localStorage.removeItem('con_session_token'); } catch {} }
 
 async function request(method, path, body) {
   const opts = { method, credentials: 'include', headers: {} };
+  // In Capacitor, send session token via header since cookies are cross-origin
+  if (isCapacitor) {
+    const token = getSessionToken();
+    if (token) opts.headers['x-session'] = token;
+  }
   if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const res = await fetch(BASE + path, opts);
   if (!res.ok) {
@@ -13,12 +23,17 @@ async function request(method, path, body) {
     throw new Error(err.error || res.statusText);
   }
   const ct = res.headers.get('content-type') || '';
-  return ct.includes('application/json') ? res.json() : res.text();
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  // Store session token from login response (for Capacitor)
+  if (typeof data === 'object' && data?.session && path === '/api/auth/login') {
+    setSessionToken(data.session);
+  }
+  return data;
 }
 
 export const api = {
   login: (email, password) => request('POST', '/api/auth/login', { email, password }),
-  logout: () => request('POST', '/api/auth/logout'),
+  logout: () => { clearSessionToken(); return request('POST', '/api/auth/logout'); },
   me: () => request('GET', '/api/auth/me'),
   getSipConfig: () => request('GET', '/api/phone/sip-config'),
   getPhoneMe: () => request('GET', '/api/phone/me'),

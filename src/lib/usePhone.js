@@ -5,6 +5,10 @@ import api from "@/api/inboxAiClient";
 import { startRingtone, stopRingtone } from "@/lib/useNotificationSettings";
 import { callEventEmitter } from "@/lib/pushNotifications";
 
+const API_BASE = Capacitor.isNativePlatform()
+  ? (import.meta.env.VITE_API_BASE || 'https://phone.stproperties.com')
+  : '';
+
 function getNotifSettings() {
   try {
     const raw = localStorage.getItem("con_notif_settings");
@@ -545,9 +549,15 @@ export function usePhone() {
           formData.append('from_number', phoneNumber || '');
           formData.append('to_number', activeNumber || '');
           formData.append('duration', String(elapsed));
-          const resp = await fetch('/api/phone/upload-recording', {
+          const headers = {};
+          if (Capacitor.isNativePlatform()) {
+            const token = localStorage.getItem('con_session_token');
+            if (token) headers['x-session'] = token;
+          }
+          const resp = await fetch(API_BASE + '/api/phone/upload-recording', {
             method: 'POST',
             credentials: 'include',
+            headers,
             body: formData,
           });
           const data = await resp.json();
