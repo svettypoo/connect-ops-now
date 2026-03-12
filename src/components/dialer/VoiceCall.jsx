@@ -635,6 +635,12 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
       <p style={{ color: '#8B8F9B', fontSize: '14px' }}>
         {phone.status === 'reconnecting' ? 'Reconnecting…' : phone.status === 'connecting' ? 'Connecting…' : 'Initializing phone…'}
       </p>
+      <button
+        onClick={() => window.location.reload()}
+        style={{ marginTop: '8px', background: 'none', border: '1px solid #2A2D35', borderRadius: '8px', color: '#8B8F9B', padding: '6px 18px', fontSize: '13px', cursor: 'pointer' }}
+      >
+        Retry
+      </button>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

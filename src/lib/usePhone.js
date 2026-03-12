@@ -45,6 +45,7 @@ export function usePhone() {
   const keepAliveRef  = useRef(null);
   const tokenRef      = useRef(null);
   const mountedRef    = useRef(true);
+  const remoteAudioRef = useRef(null); // hidden <audio> for remote call audio
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
@@ -77,6 +78,16 @@ export function usePhone() {
 
     const client = new TelnyxRTC({ login_token: token });
     clientRef.current = client;
+
+    // Ensure a hidden audio element exists to play the remote call stream
+    if (!remoteAudioRef.current) {
+      const el = document.createElement('audio');
+      el.autoplay = true;
+      el.id = 'telnyx-remote-audio';
+      el.style.display = 'none';
+      document.body.appendChild(el);
+      remoteAudioRef.current = el;
+    }
 
     client.on("telnyx.ready", () => {
       if (!mountedRef.current) return;
@@ -123,6 +134,14 @@ export function usePhone() {
         setCallControlId(call.id || call.options?.call_control_id || null);
         setStatus("active");
         startTimer();
+        // Attach remote audio stream so caller can be heard
+        try {
+          const stream = call.remoteStream || call.options?.remoteStream;
+          if (stream && remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = stream;
+            remoteAudioRef.current.play().catch(() => {});
+          }
+        } catch (e) { console.warn('[Phone] remoteStream attach failed:', e.message); }
       } else if (st === "done" || st === "destroy") {
         stopRingtone();
         callRef.current = null;
@@ -135,6 +154,8 @@ export function usePhone() {
         setIsOnHold(false);
         setActiveName("");
         setActiveNumber("");
+        // Clear remote audio stream
+        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; }
       }
     });
 
