@@ -115,6 +115,9 @@ app.use('/dl', express.static(path.join(__dirname, '..', 'dl')));
 app.get('/mockup-v2', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'phone-mockup-v2.html'));
 });
+app.get('/architecture', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'architecture.html'));
+});
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 

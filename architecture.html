@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S&T Properties — Technology Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
+    min-width: 1200px;
+    overflow-x: auto;
+  }
+
+  /* Stars canvas */
+  #stars-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .page-wrapper {
+    position: relative;
+    z-index: 1;
+    padding: 0 0 60px 0;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 48px 40px 32px;
+    position: relative;
+  }
+  .header-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .header-logo svg {
+    width: 52px; height: 52px;
+  }
+  .header h1 {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #f5c542 0%, #e6a817 50%, #f5c542 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header .subtitle {
+    font-size: 15px;
+    color: #94a3b8;
+    margin-top: 6px;
+    font-weight: 400;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    padding: 16px 40px;
+    margin: 0 auto 32px;
+    max-width: 900px;
+  }
+  .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #94a3b8;
+  }
+  .stat-item .stat-num {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f5c542;
+  }
+  .stat-item .stat-label {
+    font-size: 13px;
+    color: #64748b;
+  }
+
+  /* Category section */
+  .category-section {
+    margin: 0 auto 40px;
+    max-width: 1400px;
+    padding: 0 40px;
+  }
+  .category-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-left: 4px;
+  }
+  .category-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .category-icon svg {
+    width: 20px; height: 20px;
+  }
+  .category-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .category-header .cat-count {
+    font-size: 12px;
+    color: #64748b;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 10px;
+    border-radius: 20px;
+  }
+
+  /* Category colors */
+  .cat-comms .category-icon { background: rgba(59, 130, 246, 0.15); }
+  .cat-comms .category-icon svg { color: #3b82f6; }
+  .cat-comms h2 { color: #60a5fa; }
+
+  .cat-property .category-icon { background: rgba(34, 197, 94, 0.15); }
+  .cat-property .category-icon svg { color: #22c55e; }
+  .cat-property h2 { color: #4ade80; }
+
+  .cat-knowledge .category-icon { background: rgba(168, 85, 247, 0.15); }
+  .cat-knowledge .category-icon svg { color: #a855f7; }
+  .cat-knowledge h2 { color: #c084fc; }
+
+  .cat-platform .category-icon { background: rgba(249, 115, 22, 0.15); }
+  .cat-platform .category-icon svg { color: #f97316; }
+  .cat-platform h2 { color: #fb923c; }
+
+  /* Cards grid */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  /* App card */
+  .app-card {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 0;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .app-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 14px 14px 0 0;
+  }
+  .app-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .app-card.glow {
+    border-color: rgba(245, 197, 66, 0.5) !important;
+    box-shadow: 0 0 24px rgba(245, 197, 66, 0.15) !important;
+  }
+
+  /* Card top border colors */
+  .app-card[data-cat="comms"]::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+  .app-card[data-cat="comms"]:hover { box-shadow: 0 8px 32px rgba(59, 130, 246, 0.2); }
+
+  .app-card[data-cat="property"]::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  .app-card[data-cat="property"]:hover { box-shadow: 0 8px 32px rgba(34, 197, 94, 0.2); }
+
+  .app-card[data-cat="knowledge"]::before { background: linear-gradient(90deg, #a855f7, #c084fc); }
+  .app-card[data-cat="knowledge"]:hover { box-shadow: 0 8px 32px rgba(168, 85, 247, 0.2); }
+
+  .app-card[data-cat="platform"]::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+  .app-card[data-cat="platform"]:hover { box-shadow: 0 8px 32px rgba(249, 115, 22, 0.2); }
+
+  .card-body {
+    padding: 20px 20px 16px;
+  }
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .card-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.2px;
+  }
+  .card-status {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+  .status-live { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+  .status-dev { background: #eab308; box-shadow: 0 0 8px rgba(234,179,8,0.4); }
+  .status-planned { background: #64748b; }
+
+  .card-url {
+    font-size: 12px;
+    color: #60a5fa;
+    text-decoration: none;
+    display: block;
+    margin-bottom: 12px;
+    transition: color 0.2s;
+  }
+  .card-url:hover { color: #93c5fd; }
+
+  .card-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 0;
+  }
+  .stack-tag {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    color: #94a3b8;
+    border: 1px solid rgba(255,255,255,0.04);
+    white-space: nowrap;
+  }
+
+  /* Expanded details */
+  .card-details {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s;
+    padding: 0 20px;
+    border-top: 1px solid transparent;
+  }
+  .app-card.expanded .card-details {
+    max-height: 300px;
+    padding: 14px 20px 18px;
+    border-top-color: rgba(255,255,255,0.06);
+  }
+  .detail-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .detail-label {
+    color: #64748b;
+    min-width: 70px;
+    flex-shrink: 0;
+    font-weight: 500;
+  }
+  .detail-value {
+    color: #cbd5e1;
+    line-height: 1.5;
+  }
+  .detail-value a {
+    color: #60a5fa;
+    text-decoration: none;
+  }
+  .detail-value a:hover { text-decoration: underline; }
+
+  .connection-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.12);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    display: inline-block;
+    margin: 2px 2px 2px 0;
+  }
+
+  /* Infrastructure bar */
+  .infra-section {
+    margin: 48px auto 0;
+    max-width: 1400px;
+    padding: 0 40px;
+  }
+  .infra-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-left: 4px;
+  }
+  .infra-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #94a3b8;
+    letter-spacing: -0.3px;
+  }
+  .infra-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.05);
+  }
+  .infra-icon svg {
+    width: 20px; height: 20px;
+    color: #64748b;
+  }
+
+  .infra-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+
+  .infra-card {
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+  }
+  .infra-card:hover {
+    border-color: rgba(255,255,255,0.12);
+    transform: translateY(-2px);
+  }
+  .infra-card.active {
+    border-color: rgba(245, 197, 66, 0.4);
+    box-shadow: 0 0 20px rgba(245, 197, 66, 0.1);
+    background: rgba(245, 197, 66, 0.03);
+  }
+
+  .infra-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .infra-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .infra-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+  .infra-desc {
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+  .infra-users {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .infra-user-tag {
+    font-size: 9px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    color: #94a3b8;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+
+  /* SVG connection overlay */
+  #connection-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #connection-overlay.visible {
+    opacity: 1;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 40px 40px 20px;
+    color: #334155;
+    font-size: 12px;
+  }
+
+  /* Expand indicator */
+  .expand-indicator {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    width: 20px; height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.3;
+    transition: opacity 0.2s, transform 0.3s;
+  }
+  .app-card:hover .expand-indicator { opacity: 0.6; }
+  .app-card.expanded .expand-indicator { transform: rotate(180deg); opacity: 0.5; }
+  .expand-indicator svg {
+    width: 14px; height: 14px;
+    color: #94a3b8;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #0a0e1a; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #334155; }
+</style>
+</head>
+<body>
+
+<canvas id="stars-canvas"></canvas>
+
+<div class="page-wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">
+      <svg viewBox="0 0 52 52" fill="none">
+        <rect width="52" height="52" rx="12" fill="url(#logoGrad)"/>
+        <defs><linearGradient id="logoGrad" x1="0" y1="0" x2="52" y2="52"><stop stop-color="#f5c542"/><stop offset="1" stop-color="#e6a817"/></linearGradient></defs>
+        <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#0a0e1a" font-family="Inter,sans-serif" font-weight="800" font-size="18">S&T</text>
+      </svg>
+      <h1>S&T Properties &mdash; Technology Architecture</h1>
+    </div>
+    <div class="subtitle">Full-stack infrastructure powering hospitality, communications, and AI operations</div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-num">14</span>
+      <span class="stat-label">apps</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">9</span>
+      <span class="stat-label">live domains</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">8</span>
+      <span class="stat-label">shared services</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">1</span>
+      <span class="stat-label">Supabase project</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">4</span>
+      <span class="stat-label">Railway projects</span>
+    </div>
+  </div>
+
+  <!-- ====== COMMUNICATIONS HUB ====== -->
+  <div class="category-section cat-comms">
+    <div class="category-header">
+      <div class="category-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </div>
+      <h2>Communications Hub</h2>
+      <span class="cat-count">3 apps</span>
+    </div>
+    <div class="cards-grid">
+
+      <!-- Inbox AI -->
+      <div class="app-card" data-cat="comms" data-app="inbox-ai" data-infra="telnyx,resend,claude,jaas,deepgram,railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Inbox AI</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://inbox.stproperties.com" target="_blank" class="card-url">inbox.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">Node.js</span>
+            <span class="stack-tag">Express</span>
+            <span class="stack-tag">SQLite</span>
+            <span class="stack-tag">Claude AI</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">AI email client + phone + SMS + voicemail + calendar + meetings</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/inbox-ai" target="_blank">svettypoo/inbox-ai</a></span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Telnyx</span>
+            <span class="connection-tag">Resend</span>
+            <span class="connection-tag">Zoho IMAP</span>
+            <span class="connection-tag">JaaS</span>
+            <span class="connection-tag">Deepgram</span>
+          </span></div>
+          <div class="detail-row"><span class="detail-label">Key files</span><span class="detail-value">server.js, ai.js, mailer.js, phone-module.js, db.js</span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- Connect Ops Now -->
+      <div class="app-card" data-cat="comms" data-app="connect-ops" data-infra="railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Connect Ops Now</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://phone.stproperties.com" target="_blank" class="card-url">phone.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">React</span>
+            <span class="stack-tag">Vite</span>
+            <span class="stack-tag">Tailwind</span>
+            <span class="stack-tag">shadcn/ui</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">RingCentral-clone business phone system (voice, SMS, video, voicemail)</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/connect-ops-now" target="_blank">svettypoo/connect-ops-now</a></span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Inbox AI (backend)</span>
+          </span></div>
+          <div class="detail-row"><span class="detail-label">Key files</span><span class="detail-value">src/lib/usePhone.js, src/api/inboxAiClient.js, src/pages/Dialer.jsx</span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- Mailcow -->
+      <div class="app-card" data-cat="comms" data-app="mailcow" data-infra="cloudflare">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Mailcow</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://mail.stproperties.com" target="_blank" class="card-url">mail.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">Docker</span>
+            <span class="stack-tag">Postfix</span>
+            <span class="stack-tag">Dovecot</span>
+            <span class="stack-tag">SOGo</span>
+            <span class="stack-tag">Hetzner</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Self-hosted email server for 60 employees + AI middleware + N8N + monitoring</span></div>
+          <div class="detail-row"><span class="detail-label">Server</span><span class="detail-value">Hetzner CPX31 &mdash; 178.156.202.118</span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Cloudflare DNS</span>
+            <span class="connection-tag">Claude AI</span>
+            <span class="connection-tag">Brevo (relay)</span>
+          </span></div>
+          <div class="detail-row"><span class="detail-label">Domains</span><span class="detail-value">stproperties.com, stproperties.org, higuest.com</span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ====== PROPERTY OPERATIONS ====== -->
+  <div class="category-section cat-property">
+    <div class="category-header">
+      <div class="category-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <h2>Property Operations</h2>
+      <span class="cat-count">6 apps</span>
+    </div>
+    <div class="cards-grid">
+
+      <!-- Concierge App -->
+      <div class="app-card" data-cat="property" data-app="concierge" data-infra="supabase,resend,claude,railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Concierge App</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://concierge.stproperties.com" target="_blank" class="card-url">concierge.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">Next.js</span>
+            <span class="stack-tag">Supabase</span>
+            <span class="stack-tag">Stripe</span>
+            <span class="stack-tag">PayPal</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Hotel concierge ordering system with menu, payments, order management</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/concierge-app" target="_blank">svettypoo/concierge-app</a></span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Supabase</span>
+            <span class="connection-tag">Stripe</span>
+            <span class="connection-tag">PayPal</span>
+            <span class="connection-tag">Resend</span>
+          </span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- Front Desk Kiosk -->
+      <div class="app-card" data-cat="property" data-app="frontdesk-kiosk" data-infra="supabase,railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Front Desk Kiosk</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://frontdesk.stproperties.com" target="_blank" class="card-url">frontdesk.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">React</span>
+            <span class="stack-tag">Vite</span>
+            <span class="stack-tag">Supabase</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Guest-facing hotel kiosk &mdash; video call, maintenance, room service, chatbot, concierge</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/frontdesk-rockies" target="_blank">svettypoo/frontdesk-rockies</a></span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Front Desk Admin (shared DB)</span>
+          </span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- Front Desk Admin -->
+      <div class="app-card" data-cat="property" data-app="frontdesk-admin" data-infra="supabase,telnyx,jaas,claude,railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Front Desk Admin</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://frontdeskadmin.stproperties.com" target="_blank" class="card-url">frontdeskadmin.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">Next.js</span>
+            <span class="stack-tag">Supabase</span>
+            <span class="stack-tag">Telnyx SMS</span>
+            <span class="stack-tag">JaaS</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Staff admin portal &mdash; dashboards for maintenance, room service, housekeeping, chatbot, video calls</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/frontdesk-rockies-admin" target="_blank">svettypoo/frontdesk-rockies-admin</a></span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Front Desk Kiosk (shared DB)</span>
+            <span class="connection-tag">Telnyx</span>
+            <span class="connection-tag">JaaS</span>
+          </span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- Parking App -->
+      <div class="app-card" data-cat="property" data-app="parking" data-infra="supabase,resend,cloudflare">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Parking App</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://parking.stproperties.com" target="_blank" class="card-url">parking.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">Next.js</span>
+            <span class="stack-tag">Supabase</span>
+            <span class="stack-tag">Vercel</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Resort parking management &mdash; occupancy grid, guest vehicle registration, LPR enforcement</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/parking-app" target="_blank">svettypoo/parking-app</a></span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">LPR Local (plate API)</span>
+            <span class="connection-tag">Supabase</span>
+            <span class="connection-tag">Resend</span>
+          </span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- LPR Local -->
+      <div class="app-card" data-cat="property" data-app="lpr" data-infra="claude">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">LPR Local</span>
+            <span class="card-status status-dev" title="Local Dev"></span>
+          </div>
+          <span class="card-url" style="cursor:default; color:#64748b;">localhost:3099</span>
+          <div class="card-stack">
+            <span class="stack-tag">Node.js</span>
+            <span class="stack-tag">Python</span>
+            <span class="stack-tag">YOLO</span>
+            <span class="stack-tag">EasyOCR</span>
+            <span class="stack-tag">Claude Vision</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">AI license plate recognition &mdash; YOLO vehicle detection + EasyOCR + Claude Vision</span></div>
+          <div class="detail-row"><span class="detail-label">Pipeline</span><span class="detail-value">FFmpeg frames &rarr; YOLO &rarr; EasyOCR crop &rarr; Claude Vision &rarr; SQLite</span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Parking App (plate API)</span>
+            <span class="connection-tag">Claude Vision</span>
+          </span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- Cleanover 2.0 -->
+      <div class="app-card" data-cat="property" data-app="cleanover">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Cleanover 2.0</span>
+            <span class="card-status status-dev" title="In Development"></span>
+          </div>
+          <span class="card-url" style="cursor:default; color:#64748b;">local dev</span>
+          <div class="card-stack">
+            <span class="stack-tag">NestJS</span>
+            <span class="stack-tag">GraphQL</span>
+            <span class="stack-tag">Prisma</span>
+            <span class="stack-tag">Next.js</span>
+            <span class="stack-tag">PostgreSQL</span>
+            <span class="stack-tag">Redis</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Multi-tenant cleaning/property management SaaS (80+ Prisma models)</span></div>
+          <div class="detail-row"><span class="detail-label">Auth</span><span class="detail-value">Auth0 (JWT) + phone OTP (Twilio)</span></div>
+          <div class="detail-row"><span class="detail-label">Modules</span><span class="detail-value">Properties, Jobs, Tickets, Invoices, Rates, Stays, Teams, Queues</span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ====== KNOWLEDGE & COLLABORATION ====== -->
+  <div class="category-section cat-knowledge">
+    <div class="category-header">
+      <div class="category-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      <h2>Knowledge & Collaboration</h2>
+      <span class="cat-count">2 apps</span>
+    </div>
+    <div class="cards-grid">
+
+      <!-- Atlas -->
+      <div class="app-card" data-cat="knowledge" data-app="atlas" data-infra="supabase,claude,railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Atlas</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://atlas.stproperties.com" target="_blank" class="card-url">atlas.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">Next.js</span>
+            <span class="stack-tag">BlockNote</span>
+            <span class="stack-tag">Supabase</span>
+            <span class="stack-tag">dnd-kit</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Notion-like knowledge base & policy wiki with block editor and cross-app references</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/atlas" target="_blank">svettypoo/atlas</a></span></div>
+          <div class="detail-row"><span class="detail-label">Cross-refs</span><span class="detail-value">8 Supabase tables + 3 Inbox AI sources</span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- BirthdayBoard -->
+      <div class="app-card" data-cat="knowledge" data-app="birthdayboard" data-infra="supabase,resend,claude,railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">BirthdayBoard</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://birthday.stproperties.com" target="_blank" class="card-url">birthday.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">Next.js</span>
+            <span class="stack-tag">Supabase</span>
+            <span class="stack-tag">Resend</span>
+            <span class="stack-tag">Gemini</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Team celebration cards with AI-generated covers, gifts, and signing</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/birthdayboard" target="_blank">svettypoo/birthdayboard</a></span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Supabase</span>
+            <span class="connection-tag">Resend</span>
+            <span class="connection-tag">Gemini (image gen)</span>
+          </span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ====== AI & PLATFORM ====== -->
+  <div class="category-section cat-platform">
+    <div class="category-header">
+      <div class="category-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      </div>
+      <h2>AI & Platform</h2>
+      <span class="cat-count">3 apps</span>
+    </div>
+    <div class="cards-grid">
+
+      <!-- Svet's Dream -->
+      <div class="app-card" data-cat="platform" data-app="dream" data-infra="supabase,claude,railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Svet's Dream</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://dream.stproperties.com" target="_blank" class="card-url">dream.stproperties.com</a>
+          <div class="card-stack">
+            <span class="stack-tag">Next.js</span>
+            <span class="stack-tag">Supabase</span>
+            <span class="stack-tag">Railway Exec</span>
+            <span class="stack-tag">Playwright</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">AI agent orchestration &mdash; multi-agent orgs, persistent execution, browser automation, workspace backup</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/svets-dream" target="_blank">svettypoo/svets-dream</a></span></div>
+          <div class="detail-row"><span class="detail-label">Exec Server</span><span class="detail-value"><a href="https://svets-dream-production.up.railway.app" target="_blank">Railway execution server</a> (bash, npm, git, playwright)</span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- Forge App -->
+      <div class="app-card" data-cat="platform" data-app="forge" data-infra="railway">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Forge App</span>
+            <span class="card-status status-live" title="Live"></span>
+          </div>
+          <a href="https://forge-app-production.up.railway.app" target="_blank" class="card-url">forge-app-production.up.railway.app</a>
+          <div class="card-stack">
+            <span class="stack-tag">Next.js</span>
+            <span class="stack-tag">52 blocks</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">App builder UI &mdash; pick blocks, configure, assemble Next.js apps in 60 seconds</span></div>
+          <div class="detail-row"><span class="detail-label">Repo</span><span class="detail-value"><a href="https://github.com/svettypoo/forge-app" target="_blank">svettypoo/forge-app</a></span></div>
+          <div class="detail-row"><span class="detail-label">Connects to</span><span class="detail-value">
+            <span class="connection-tag">Svet's Dream (engine proxy)</span>
+          </span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- Svet Browser -->
+      <div class="app-card" data-cat="platform" data-app="browser">
+        <div class="card-body">
+          <div class="card-top">
+            <span class="card-name">Svet Browser</span>
+            <span class="card-status status-dev" title="Built / Packaging"></span>
+          </div>
+          <span class="card-url" style="cursor:default; color:#64748b;">custom Firefox fork</span>
+          <div class="card-stack">
+            <span class="stack-tag">Gecko / Firefox 136</span>
+            <span class="stack-tag">NSIS</span>
+            <span class="stack-tag">Privacy-first</span>
+            <span class="stack-tag">AI-native</span>
+          </div>
+        </div>
+        <div class="card-details">
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value">Custom Firefox fork &mdash; privacy-first, AI-native browser</span></div>
+          <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">Built, NSIS installer packaging complete</span></div>
+        </div>
+        <div class="expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ====== SHARED INFRASTRUCTURE ====== -->
+  <div class="infra-section">
+    <div class="infra-header">
+      <div class="infra-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      </div>
+      <h2>Shared Infrastructure</h2>
+    </div>
+    <div class="infra-grid">
+
+      <!-- Supabase -->
+      <div class="infra-card" data-infra-id="supabase">
+        <div class="infra-top">
+          <span class="infra-dot" style="background:#3ecf8e;box-shadow:0 0 6px rgba(62,207,142,0.5)"></span>
+          <span class="infra-name">Supabase</span>
+        </div>
+        <div class="infra-desc">Shared PostgreSQL + Auth + Storage (project: xocfduqugghailalzlqy)</div>
+        <div class="infra-users">
+          <span class="infra-user-tag">BirthdayBoard</span>
+          <span class="infra-user-tag">Concierge</span>
+          <span class="infra-user-tag">Front Desk (x2)</span>
+          <span class="infra-user-tag">Parking</span>
+          <span class="infra-user-tag">Atlas</span>
+          <span class="infra-user-tag">Dream</span>
+        </div>
+      </div>
+
+      <!-- Railway -->
+      <div class="infra-card" data-infra-id="railway">
+        <div class="infra-top">
+          <span class="infra-dot" style="background:#9333ea;box-shadow:0 0 6px rgba(147,51,234,0.5)"></span>
+          <span class="infra-name">Railway</span>
+        </div>
+        <div class="infra-desc">Hosting platform &mdash; 4 projects: rare-curiosity, cozy-happiness, respectful-comfort</div>
+        <div class="infra-users">
+          <span class="infra-user-tag">Inbox AI</span>
+          <span class="infra-user-tag">Connect Ops</span>
+          <span class="infra-user-tag">BirthdayBoard</span>
+          <span class="infra-user-tag">Concierge</span>
+          <span class="infra-user-tag">Front Desk (x2)</span>
+          <span class="infra-user-tag">Atlas</span>
+          <span class="infra-user-tag">Dream</span>
+          <span class="infra-user-tag">Forge</span>
+        </div>
+      </div>
+
+      <!-- Cloudflare -->
+      <div class="infra-card" data-infra-id="cloudflare">
+        <div class="infra-top">
+          <span class="infra-dot" style="background:#f48120;box-shadow:0 0 6px rgba(244,129,32,0.5)"></span>
+          <span class="infra-name">Cloudflare</span>
+        </div>
+        <div class="infra-desc">DNS for stproperties.com (9 active subdomains) + 6 additional zones</div>
+        <div class="infra-users">
+          <span class="infra-user-tag">All deployed apps</span>
+          <span class="infra-user-tag">Mailcow</span>
+        </div>
+      </div>
+
+      <!-- Telnyx -->
+      <div class="infra-card" data-infra-id="telnyx">
+        <div class="infra-top">
+          <span class="infra-dot" style="background:#00c08b;box-shadow:0 0 6px rgba(0,192,139,0.5)"></span>
+          <span class="infra-name">Telnyx</span>
+        </div>
+        <div class="infra-desc">Phone +15878643090, SMS, WebRTC, Call Control (paid account)</div>
+        <div class="infra-users">
+          <span class="infra-user-tag">Inbox AI</span>
+          <span class="infra-user-tag">Connect Ops Now</span>
+          <span class="infra-user-tag">Front Desk Admin</span>
+        </div>
+      </div>
+
+      <!-- Resend -->
+      <div class="infra-card" data-infra-id="resend">
+        <div class="infra-top">
+          <span class="infra-dot" style="background:#e2e8f0;box-shadow:0 0 6px rgba(226,232,240,0.3)"></span>
+          <span class="infra-name">Resend</span>
+        </div>
+        <div class="infra-desc">Transactional email (noreply@inboxai-mail.dedyn.io)</div>
+        <div class="infra-users">
+          <span class="infra-user-tag">BirthdayBoard</span>
+          <span class="infra-user-tag">Concierge</span>
+          <span class="infra-user-tag">Inbox AI</span>
+          <span class="infra-user-tag">Parking</span>
+        </div>
+      </div>
+
+      <!-- Claude AI -->
+      <div class="infra-card" data-infra-id="claude">
+        <div class="infra-top">
+          <span class="infra-dot" style="background:#d4a574;box-shadow:0 0 6px rgba(212,165,116,0.5)"></span>
+          <span class="infra-name">Claude AI</span>
+        </div>
+        <div class="infra-desc">Opus 4.6 / Sonnet 4.6 / Haiku 4.5 &mdash; reasoning, chat, vision, code</div>
+        <div class="infra-users">
+          <span class="infra-user-tag">Inbox AI</span>
+          <span class="infra-user-tag">Concierge</span>
+          <span class="infra-user-tag">BirthdayBoard</span>
+          <span class="infra-user-tag">Dream</span>
+          <span class="infra-user-tag">Atlas</span>
+          <span class="infra-user-tag">Front Desk Admin</span>
+          <span class="infra-user-tag">LPR</span>
+        </div>
+      </div>
+
+      <!-- JaaS -->
+      <div class="infra-card" data-infra-id="jaas">
+        <div class="infra-top">
+          <span class="infra-dot" style="background:#2979ff;box-shadow:0 0 6px rgba(41,121,255,0.5)"></span>
+          <span class="infra-name">JaaS (Jitsi)</span>
+        </div>
+        <div class="infra-desc">Video conferencing &mdash; Dev plan (25 MAU, free)</div>
+        <div class="infra-users">
+          <span class="infra-user-tag">Inbox AI</span>
+          <span class="infra-user-tag">Front Desk Admin</span>
+        </div>
+      </div>
+
+      <!-- Deepgram -->
+      <div class="infra-card" data-infra-id="deepgram">
+        <div class="infra-top">
+          <span class="infra-dot" style="background:#13ef93;box-shadow:0 0 6px rgba(19,239,147,0.5)"></span>
+          <span class="infra-name">Deepgram</span>
+        </div>
+        <div class="infra-desc">Speech-to-text transcription for voicemail and recordings</div>
+        <div class="infra-users">
+          <span class="infra-user-tag">Inbox AI</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer">
+    S&T Properties Technology Architecture &mdash; Updated March 2026
+  </div>
+
+</div>
+
+<script>
+// ===== Stars Canvas =====
+(function() {
+  const canvas = document.getElementById('stars-canvas');
+  const ctx = canvas.getContext('2d');
+  let stars = [];
+  const STAR_COUNT = 200;
+
+  function resize() {
+    canvas.width = document.documentElement.scrollWidth;
+    canvas.height = document.documentElement.scrollHeight;
+  }
+
+  function init() {
+    resize();
+    stars = [];
+    for (let i = 0; i < STAR_COUNT; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 1.5 + 0.3,
+        a: Math.random() * 0.6 + 0.1,
+        da: (Math.random() - 0.5) * 0.005
+      });
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of stars) {
+      s.a += s.da;
+      if (s.a > 0.7 || s.a < 0.05) s.da *= -1;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(148, 163, 184, ${s.a})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  init();
+  draw();
+  window.addEventListener('resize', () => { resize(); });
+})();
+
+// ===== Card expand/collapse =====
+document.querySelectorAll('.app-card').forEach(card => {
+  card.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') return;
+    card.classList.toggle('expanded');
+  });
+});
+
+// ===== Infrastructure hover highlight =====
+const infraCards = document.querySelectorAll('.infra-card');
+const appCards = document.querySelectorAll('.app-card');
+
+infraCards.forEach(ic => {
+  const infraId = ic.dataset.infraId;
+
+  ic.addEventListener('mouseenter', () => {
+    ic.classList.add('active');
+    appCards.forEach(ac => {
+      const deps = (ac.dataset.infra || '').split(',');
+      if (deps.includes(infraId)) {
+        ac.classList.add('glow');
+      }
+    });
+  });
+
+  ic.addEventListener('mouseleave', () => {
+    ic.classList.remove('active');
+    appCards.forEach(ac => ac.classList.remove('glow'));
+  });
+});
+</script>
+
+</body>
+</html>
