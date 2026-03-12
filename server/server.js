@@ -519,21 +519,21 @@ app.get('/api/phone/token', requireAuth, (req, res) => {
   res.redirect('/api/phone/sip-config');
 });
 
-// SIP.js config — returns direct Telnyx SIP credentials (no Kamailio)
-const TELNYX_SIP_CREDS = {
-  svet:  { user: 'stphonesvet',  pass: 'StPhone2026svet'  },
-  hr:    { user: 'stphonehr',    pass: 'StPhone2026hr'    },
-  info:  { user: 'stphoneinfo',  pass: 'StPhone2026info'  },
+// SIP.js config — Kamailio WSS proxy bridges WebSocket→SIP→Telnyx
+const SIP_CREDS = {
+  svet: { user: 'svet', pass: 'Partycard123' },
+  hr:   { user: 'hr',   pass: 'Partycard123' },
+  info: { user: 'info', pass: 'Partycard123' },
 };
-const TELNYX_SIP_DOMAIN = 'sip.telnyx.com';
-const TELNYX_WSS_SERVER = 'wss://sip.telnyx.com';
+const SIP_DOMAIN = process.env.SIP_DOMAIN || 'stproperties.com';
+const SIP_WSS    = process.env.SIP_WSS_SERVER || 'wss://sip.stproperties.com:8443';
 
 app.get('/api/phone/sip-config', requireAuth, (req, res) => {
   try {
     const email = req.user.email || '';
     let key = email.split('@')[0] || 'hr';
-    if (!TELNYX_SIP_CREDS[key]) key = 'hr';
-    const cred = TELNYX_SIP_CREDS[key];
+    if (!SIP_CREDS[key]) key = 'hr';
+    const cred = SIP_CREDS[key];
 
     let dbCred = phoneOps.get(req.user.user_id);
     if (!dbCred) {
@@ -547,8 +547,8 @@ app.get('/api/phone/sip-config', requireAuth, (req, res) => {
     res.json({
       sip_user: cred.user,
       sip_password: cred.pass,
-      sip_domain: TELNYX_SIP_DOMAIN,
-      wss_server: TELNYX_WSS_SERVER,
+      sip_domain: SIP_DOMAIN,
+      wss_server: SIP_WSS,
       phone_number: dbCred.phone_number || process.env.TELNYX_FROM_NUMBER || '+15878643090',
     });
   } catch (e) {
