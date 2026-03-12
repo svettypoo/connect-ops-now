@@ -26,6 +26,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/server/ ./server/
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/phone-mockup*.html ./
+COPY --from=builder /app/dl ./dl
 
 EXPOSE 3000
 ENV PORT=3000
