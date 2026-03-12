@@ -218,19 +218,8 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
         ))}
       </div>
 
-      {/* Call button row: Notes on (left) + Call button (center) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '300px', position: 'relative', marginBottom: '8px' }}>
-        {/* Notes on button — left-aligned */}
-        <button
-          style={{
-            position: 'absolute', left: 0,
-            background: '#1A3A3A', border: 'none', borderRadius: '20px',
-            padding: '8px 14px', color: '#0EE2C4', fontSize: '12px',
-            fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-          }}
-        >
-          Notes on
-        </button>
+      {/* Call button row: call button centered, notes below */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '300px', marginBottom: '8px' }}>
         {/* Green call button — centered */}
         <button
           onClick={handleCall}
@@ -249,6 +238,16 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
           <PhoneCallIcon />
           <span style={{position:'absolute',width:'1px',height:'1px',overflow:'hidden',clip:'rect(0,0,0,0)',whiteSpace:'nowrap'}}>Make Call</span>
         </button>
+      </div>
+
+      {/* Notes indicator — below call button, centered */}
+      <div style={{ marginBottom: '8px' }}>
+        <span style={{
+          background: '#1A3A3A', borderRadius: '20px',
+          padding: '5px 14px', color: '#0EE2C4', fontSize: '12px', fontWeight: 600,
+        }}>
+          Notes on
+        </span>
       </div>
 
       {busy && (

@@ -442,7 +442,7 @@ function PhoneScreen({ phone, user, onDial, onCallBack, vmUnread }) {
       }}>
         <span style={{ fontSize: '13px', color: '#6b84a8' }}>
           My caller ID:{' '}
-          <span style={{ color: '#FFFFFF' }}>{phone?.phoneNumber || '+1 (587) 983-6164'}</span>
+          <span style={{ color: '#FFFFFF' }}>{phone?.phoneNumber || '+1 (587) 864-3090'}</span>
           <span style={{ color: '#3b82f6', marginLeft: '4px' }}>&#9660;</span>
         </span>
       </div>

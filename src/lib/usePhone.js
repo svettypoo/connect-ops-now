@@ -282,7 +282,14 @@ export function usePhone() {
         await initSip(config);
       } catch (e) {
         console.warn("SIP init:", e.message);
-        if (mountedRef.current) setStatus("idle");
+        if (!mountedRef.current) return;
+        // Session expired or not logged in — clear stored token and reload to login
+        if (e.message?.includes('401') || e.message?.includes('Not authenticated') || e.message?.includes('Session expired')) {
+          localStorage.removeItem('con_session_token');
+          window.location.reload();
+          return;
+        }
+        setStatus("idle");
       }
     })();
 
