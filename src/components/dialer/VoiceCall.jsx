@@ -752,6 +752,12 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
       <p style={{ color: '#6b84a8', fontSize: '14px' }}>
         {phone.status === 'reconnecting' ? 'Reconnecting…' : phone.status === 'connecting' ? 'Connecting to network…' : 'Initializing phone…'}
       </p>
+      {phone.lastError && (
+        <p style={{ color: '#FF5252', fontSize: '12px', maxWidth: '280px', textAlign: 'center', padding: '0 16px' }}>
+          {phone.lastError}
+        </p>
+      )}
+      <p style={{ color: '#1a2744', fontSize: '11px' }}>v2-telnyx</p>
       <button
         onClick={() => window.location.reload()}
         style={{ marginTop: '8px', background: 'none', border: '1px solid #1a2744', borderRadius: '8px', color: '#6b84a8', padding: '6px 18px', fontSize: '13px', cursor: 'pointer' }}

@@ -50,6 +50,7 @@ export function usePhone() {
   const [micDenied, setMicDenied]     = useState(false);
   const [micStatus, setMicStatus]     = useState('prompt');
   const [isRecording, setIsRecording] = useState(false);
+  const [lastError, setLastError] = useState(null);
 
   const clientRef     = useRef(null);
   const callRef       = useRef(null);
@@ -135,7 +136,9 @@ export function usePhone() {
 
     client.on('telnyx.error', (err) => {
       if (!mountedRef.current) return;
-      console.error('[Phone] Telnyx error:', err);
+      const msg = err?.message || JSON.stringify(err);
+      console.error('[Phone] Telnyx error:', msg);
+      setLastError('Telnyx: ' + msg);
       setStatus('idle');
       // Token expired — reconnect with fresh token
       setTimeout(async () => {
@@ -216,6 +219,7 @@ export function usePhone() {
       await client.connect();
     } catch (e) {
       console.error('[Phone] TelnyxRTC connect failed:', e.message);
+      setLastError('Connect failed: ' + e.message);
       setStatus('idle');
     }
   }, []);
@@ -259,6 +263,7 @@ export function usePhone() {
           window.location.reload();
           return;
         }
+        setLastError('Init: ' + e.message);
         setStatus('idle');
       }
     })();
@@ -524,7 +529,7 @@ export function usePhone() {
   return {
     status, activeName, activeNumber, elapsed, fmtElapsed,
     isMuted, isOnHold, inboundCall, phoneNumber, callControlId, micDenied, micStatus,
-    isRecording, startRecording, stopRecording, toggleRecording,
+    isRecording, startRecording, stopRecording, toggleRecording, lastError,
     makeCall, answerCall, hangup, toggleMute, toggleHold, sendDtmf, blindTransfer,
   };
 }
