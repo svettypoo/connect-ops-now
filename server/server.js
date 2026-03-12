@@ -29,12 +29,12 @@ const { ImapFlow } = require('imapflow');
 // Authenticate an @stproperties.com user against Zoho IMAP
 async function zohoImapAuth(email, password) {
   const client = new ImapFlow({
-    host: 'imap.zoho.com',
+    host: 'mail.stproperties.com',
     port: 993,
     secure: true,
     auth: { user: email, pass: password },
     logger: false,
-    tls: { rejectUnauthorized: true },
+    tls: { rejectUnauthorized: false },
   });
   try {
     await client.connect();
