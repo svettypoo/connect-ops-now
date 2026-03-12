@@ -35,6 +35,16 @@ function playDtmf(key) {
   } catch (e) {}
 }
 
+function formatPhoneDisplay(raw) {
+  const d = raw.replace(/\D/g, '');
+  if (d.length === 0) return '';
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `(${d.slice(0,3)}) ${d.slice(3)}`;
+  if (d.length <= 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  if (d.length === 11 && d[0] === '1') return `+1 (${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;
+  return '+' + d;
+}
+
 function fmtTime(ts) {
   if (!ts) return "";
   const d = new Date(ts), diff = Date.now() - d;
@@ -173,10 +183,11 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
         ) : (
           <>
             <span style={{
-              fontSize: '34px', fontWeight: 300, color: '#FFFFFF',
-              letterSpacing: '3px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
+              fontSize: number.replace(/\D/g,'').length > 10 ? '26px' : '34px',
+              fontWeight: 300, color: '#FFFFFF',
+              letterSpacing: '1px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
             }}>
-              {number}
+              {formatPhoneDisplay(number)}
             </span>
             <button
               onClick={backspace}

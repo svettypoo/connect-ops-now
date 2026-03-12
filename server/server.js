@@ -391,6 +391,29 @@ app.get('/api/call-logs', requireAuth, (req, res) => {
   res.json({ call_logs: callLogOps.list(phoneUserId, { filter, limit: parseInt(limit) || 50 }) });
 });
 
+// Client-side call log creation (WebRTC calls — no server-side webhook for credential connections)
+app.post('/api/call-logs', requireAuth, (req, res) => {
+  if (!callLogOps) return res.status(503).json({ error: 'DB not ready' });
+  const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
+  const { direction, from_number, to_number, from_name, to_name, status, duration, started_at, ended_at, transcript } = req.body;
+  const log = callLogOps.create({
+    user_id: phoneUserId,
+    direction: direction || 'outbound',
+    from_number: from_number || '',
+    to_number: to_number || '',
+    from_name: from_name || '',
+    to_name: to_name || '',
+    status: status || 'ended',
+    started_at: started_at || new Date().toISOString(),
+  });
+  const updates = {};
+  if (duration !== undefined) updates.duration = duration;
+  if (ended_at) updates.ended_at = ended_at;
+  if (transcript) updates.transcript = transcript;
+  if (Object.keys(updates).length) callLogOps.update(log.id, updates);
+  res.json(log);
+});
+
 app.delete('/api/call-logs/:id', requireAuth, (req, res) => {
   const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
   db.prepare('DELETE FROM call_logs WHERE id=? AND user_id=?').run(req.params.id, phoneUserId);

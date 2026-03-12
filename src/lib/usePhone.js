@@ -3,6 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { TelnyxRTC } from "@telnyx/webrtc";
 import { startRingtone, stopRingtone } from "@/lib/useNotificationSettings";
 import { callEventEmitter } from "@/lib/pushNotifications";
+import api from "@/api/inboxAiClient";
 
 // ─── Mic permission helpers ───────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ export function usePhone() {
 
   const clientRef       = useRef(null);
   const callRef         = useRef(null);   // active TelnyxRTC Call object
+  const callMetaRef     = useRef(null);   // { direction, from, to, name, startedAt } for logging
   const remoteAudioRef  = useRef(null);   // HTMLAudioElement for remote audio
   const analyserMicRef  = useRef(null);   // AnalyserNode for mic levels
   const analyserRemRef  = useRef(null);   // AnalyserNode for remote levels
@@ -204,6 +206,7 @@ export function usePhone() {
       callRef.current = call;
       const from = call.options?.remoteCallerNumber || call.options?.callerNumber || 'Unknown';
       const name = call.options?.remoteCallerName || from;
+      callMetaRef.current = { direction: 'inbound', from, to: '+15878643090', name, startedAt: new Date().toISOString() };
       setInboundCall({ name, number: from });
       setStatus('ringing');
       startRingtone({ ringOnCall: true, ringtone: 'classic', ringVolume: 80, vibrateOnCall: true });
@@ -248,6 +251,26 @@ export function usePhone() {
 
     if (state === 'hangup' || state === 'destroy' || state === 'purge') {
       stopRingtone();
+      // Log the completed call
+      const meta = callMetaRef.current;
+      if (meta && meta.startedAt) {
+        const endedAt = new Date().toISOString();
+        const duration = Math.round((new Date(endedAt) - new Date(meta.startedAt)) / 1000);
+        const wasAnswered = duration > 2; // if < 2s, it was missed/unanswered
+        api.createCallLog({
+          direction: meta.direction,
+          from_number: meta.from,
+          to_number: meta.to,
+          from_name: meta.direction === 'inbound' ? meta.name : 'Me',
+          to_name: meta.direction === 'outbound' ? meta.name : 'Me',
+          status: wasAnswered ? 'ended' : (meta.direction === 'inbound' ? 'missed' : 'no-answer'),
+          duration: wasAnswered ? duration : 0,
+          started_at: meta.startedAt,
+          ended_at: endedAt,
+          transcript: meta._transcript || null,
+        }).catch(() => {});
+        callMetaRef.current = null;
+      }
       setStatus('ready');
       resetCallState();
       return;
@@ -424,6 +447,7 @@ export function usePhone() {
     setActiveNumber(number);
     setActiveName(name || number);
     setStatus('calling');
+    callMetaRef.current = { direction: 'outbound', from: '+15878643090', to: dest, name: name || number, startedAt: new Date().toISOString() };
 
     try {
       const call = client.newCall({
@@ -461,8 +485,10 @@ export function usePhone() {
     }, 500);
   }, [inboundCall, outputDeviceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hangup = useCallback(() => {
+  const hangup = useCallback((transcript) => {
     stopRingtone();
+    // Attach transcript to meta so it gets logged on hangup
+    if (transcript && callMetaRef.current) callMetaRef.current._transcript = transcript;
     const call = callRef.current;
     if (call) { try { call.hangup(); } catch {} }
     setStatus('ready');

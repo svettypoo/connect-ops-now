@@ -471,7 +471,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
     const capturedDuration = phone.elapsed;
     const capturedName = phone.activeName || dialName || '';
     const capturedNumber = phone.activeNumber || dialTo || '';
-    phone.hangup();
+    phone.hangup(transcript.length > 0 ? transcript.join(' ') : null);
     (onCallEnd || onHangup)?.();
     // Fire AI insights after hangup if we have a transcript
     if (capturedTranscript.trim() && capturedDuration > 10) {

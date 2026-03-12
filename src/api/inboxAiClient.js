@@ -38,6 +38,7 @@ export const api = {
   getSipConfig: () => request('GET', '/api/phone/sip-config'),
   getPhoneMe: () => request('GET', '/api/phone/me'),
   getCallLogs: (filter) => request('GET', '/api/call-logs' + (filter ? '?filter=' + filter : '')),
+  createCallLog: (data) => request('POST', '/api/call-logs', data),
   deleteCallLog: (id) => request('DELETE', '/api/call-logs/' + id),
   getVoicemails: () => request('GET', '/api/voicemails'),
   markVoicemailRead: (id) => request('PATCH', '/api/voicemails/' + id + '/read'),
