@@ -1,67 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
+import { TelnyxRTC } from "@telnyx/webrtc";
 import { startRingtone, stopRingtone } from "@/lib/useNotificationSettings";
 import { callEventEmitter } from "@/lib/pushNotifications";
-
-// ─── G.711 μ-law codec (8 kHz telephone audio) ───────────────────────────────
-
-function decodeMulaw(bytes) {
-  const out = new Float32Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) {
-    const ulaw = (~bytes[i]) & 0xff;
-    const sign = ulaw & 0x80 ? -1 : 1;
-    const exp  = (ulaw >> 4) & 0x07;
-    const mant = (ulaw & 0x0f) + 16;
-    out[i] = sign * (mant << (exp + 2)) / 32768.0;
-  }
-  return out;
-}
-
-function encodeMulaw(float32) {
-  const CLIP = 32635, BIAS = 0x84;
-  const out = new Uint8Array(float32.length);
-  for (let i = 0; i < float32.length; i++) {
-    let s = Math.round(float32[i] * 32767);
-    let sign = 0;
-    if (s < 0) { sign = 0x80; s = -s; }
-    if (s > CLIP) s = CLIP;
-    s += BIAS;
-    const expV = s > 0 ? Math.max(0, Math.min(7, 31 - Math.clz32(s) - 6)) : 0;
-    const mant = (s >> (expV + 2)) & 0x0f;
-    out[i] = (~(sign | (expV << 4) | mant)) & 0xff;
-  }
-  return out;
-}
-
-// Downsample Float32 array from srcRate to 8000 using simple averaging
-function downsampleTo8k(float32, srcRate) {
-  if (srcRate === 8000) return float32;
-  const ratio = srcRate / 8000;
-  const outLen = Math.floor(float32.length / ratio);
-  const out = new Float32Array(outLen);
-  for (let i = 0; i < outLen; i++) {
-    const start = Math.floor(i * ratio);
-    const end   = Math.floor((i + 1) * ratio);
-    let sum = 0;
-    for (let j = start; j < end && j < float32.length; j++) sum += float32[j];
-    out[i] = sum / (end - start);
-  }
-  return out;
-}
-
-// ─── WebSocket URL helper ─────────────────────────────────────────────────────
-
-function getWsBase() {
-  if (Capacitor.isNativePlatform()) return 'wss://phone.stproperties.com';
-  const loc = window.location;
-  return (loc.protocol === 'https:' ? 'wss://' : 'ws://') + loc.host;
-}
-
-function getSessionToken() {
-  return localStorage.getItem('con_session_token')
-    || document.cookie.match(/session=([^;]+)/)?.[1]
-    || null;
-}
 
 // ─── Mic permission helpers ───────────────────────────────────────────────────
 
@@ -79,6 +20,11 @@ async function ensureMicPermission() {
   } catch { return false; }
 }
 
+function getServerBase() {
+  if (Capacitor.isNativePlatform()) return 'https://phone.stproperties.com';
+  return '';
+}
+
 // ─── usePhone hook ────────────────────────────────────────────────────────────
 
 export function usePhone() {
@@ -89,34 +35,34 @@ export function usePhone() {
   const [isMuted,       setIsMuted]       = useState(false);
   const [isOnHold,      setIsOnHold]      = useState(false);
   const [inboundCall,   setInboundCall]   = useState(null);
-  const [phoneNumber,   setPhoneNumber]   = useState('+15878643090');
-  const [callControlId, setCallControlId] = useState(null);
+  const [phoneNumber]                     = useState('+15878643090');
   const [micDenied,     setMicDenied]     = useState(false);
   const [micStatus,     setMicStatus]     = useState('prompt');
-  const [isRecording,   setIsRecording]   = useState(false);
   const [lastError,     setLastError]     = useState(null);
   const [outputDevices,  setOutputDevices]  = useState([]);
   const [outputDeviceId, setOutputDeviceId] = useState('default');
   const [inputDevices,   setInputDevices]   = useState([]);
   const [inputDeviceId,  setInputDeviceId]  = useState('default');
 
-  const wsRef           = useRef(null);
-  const audioCtxRef     = useRef(null);  // Shared AudioContext (created on user gesture)
-  const audioDestRef    = useRef(null);  // MediaStreamDestinationNode for playback
-  const audioElRef      = useRef(null);  // HTMLAudioElement (for setSinkId)
-  const nextPlayRef     = useRef(0);
-  const micStreamRef    = useRef(null);
-  const micProcRef      = useRef(null);
-  const isMutedRef      = useRef(false);
-  const inputDeviceIdRef= useRef('default');
+  const clientRef       = useRef(null);
+  const callRef         = useRef(null);   // active TelnyxRTC Call object
+  const remoteAudioRef  = useRef(null);   // HTMLAudioElement for remote audio
+  const analyserMicRef  = useRef(null);   // AnalyserNode for mic levels
+  const analyserRemRef  = useRef(null);   // AnalyserNode for remote levels
+  const audioCtxRef     = useRef(null);   // AudioContext for level analysis
   const timerRef        = useRef(null);
   const startTimeRef    = useRef(null);
   const mountedRef      = useRef(true);
-  const micLevelRef     = useRef(0);    // 0-1, updated by mic onaudioprocess
-  const remoteLevelRef  = useRef(0);   // 0-1, updated by playAudioChunk
+  const isMutedRef      = useRef(false);
+  const inputDeviceIdRef = useRef('default');
 
-  // Keep isMutedRef in sync (used inside ScriptProcessor callback)
+  // Level refs (read by AudioLevels component via requestAnimationFrame)
+  const micLevelRef    = useRef(0);
+  const remoteLevelRef = useRef(0);
+
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
+  // ── Timer ────────────────────────────────────────────────────────────────────
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
@@ -126,246 +72,280 @@ export function usePhone() {
   };
   const stopTimer = () => clearInterval(timerRef.current);
 
-  // ── Audio playback setup ─────────────────────────────────────────────────────
-  // MUST be called during a user-gesture so AudioContext starts in running state.
+  // ── Remote audio element ─────────────────────────────────────────────────────
 
-  function setupAudioCtx() {
-    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-      audioCtxRef.current.resume().catch(() => {});
-      return;
-    }
-    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-    const dest = ctx.createMediaStreamDestination();
-    audioCtxRef.current  = ctx;
-    audioDestRef.current = dest;
-    nextPlayRef.current  = 0;
-
-    // HTMLAudioElement lets us call setSinkId for output device selection
-    let el = document.getElementById('sb-playback-audio');
+  function getOrCreateRemoteAudio() {
+    let el = document.getElementById('telnyx-remote-audio');
     if (!el) {
       el = document.createElement('audio');
-      el.id = 'sb-playback-audio';
+      el.id = 'telnyx-remote-audio';
       el.autoplay = true;
       el.style.display = 'none';
       document.body.appendChild(el);
     }
-    el.srcObject = dest.stream;
-    audioElRef.current = el;
-    el.play().catch(() => {});
-  }
-
-  function playAudioChunk(base64Payload) {
-    if (!base64Payload || !audioCtxRef.current || !audioDestRef.current) return;
-    const ctx = audioCtxRef.current;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    try {
-      const raw   = atob(base64Payload);
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      const pcm    = decodeMulaw(bytes);
-      // Track remote audio level (RMS)
-      let sum = 0;
-      for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i];
-      remoteLevelRef.current = Math.min(1, Math.sqrt(sum / pcm.length) * 8);
-      const buffer = ctx.createBuffer(1, pcm.length, 8000);
-      buffer.copyToChannel(pcm, 0);
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.connect(audioDestRef.current); // → HTMLAudioElement (not ctx.destination to avoid double-output)
-      const now = ctx.currentTime;
-      if (nextPlayRef.current < now + 0.02) nextPlayRef.current = now + 0.08; // 80ms initial buffer
-      src.start(nextPlayRef.current);
-      nextPlayRef.current += buffer.duration;
-    } catch (e) {
-      console.warn('[Phone] playAudioChunk error:', e.message);
-    }
+    remoteAudioRef.current = el;
+    return el;
   }
 
   // ── Output device selection ───────────────────────────────────────────────────
 
-  async function refreshOutputDevices() {
+  async function refreshDevices() {
     if (!navigator.mediaDevices?.enumerateDevices) return;
     try {
       const all = await navigator.mediaDevices.enumerateDevices();
       const outputs = all
         .filter(d => d.kind === 'audiooutput')
-        .map(d => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` }));
-      if (mountedRef.current) setOutputDevices(outputs);
+        .map(d => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0,6)}` }));
       const inputs = all
         .filter(d => d.kind === 'audioinput')
-        .map(d => ({ deviceId: d.deviceId, label: d.label || `Microphone ${d.deviceId.slice(0, 6)}` }));
-      if (mountedRef.current) setInputDevices(inputs);
+        .map(d => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0,6)}` }));
+      if (mountedRef.current) { setOutputDevices(outputs); setInputDevices(inputs); }
     } catch {}
   }
 
   const setOutputDevice = useCallback(async (deviceId) => {
     setOutputDeviceId(deviceId);
-    const el = audioElRef.current;
+    const el = remoteAudioRef.current;
     if (el && typeof el.setSinkId === 'function') {
       await el.setSinkId(deviceId).catch(() => {});
     }
   }, []);
 
-  // ── Mic capture ───────────────────────────────────────────────────────────────
-
-  async function startMicCapture(deviceId) {
-    if (micProcRef.current) stopMicCapture(); // restart if already running (device change)
-    // Use the shared AudioContext created during user gesture — guaranteed running
-    const ctx = audioCtxRef.current;
-    if (!ctx || ctx.state === 'closed') { console.warn('[Phone] AudioContext not ready for mic'); return; }
-    try {
-      const audioConstraints = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-      const dev = deviceId || inputDeviceIdRef.current;
-      if (dev && dev !== 'default') audioConstraints.deviceId = { exact: dev };
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
-      micStreamRef.current = stream;
-
-      const src  = ctx.createMediaStreamSource(stream);
-      const proc = ctx.createScriptProcessor(1024, 1, 1);
-
-      // Silent gain — keeps ScriptProcessor alive without routing mic to speakers
-      const silentGain = ctx.createGain();
-      silentGain.gain.value = 0;
-      proc.connect(silentGain);
-      silentGain.connect(ctx.destination);
-      src.connect(proc);
-
-      proc.onaudioprocess = e => {
-        const float32 = e.inputBuffer.getChannelData(0);
-        // Track mic level (RMS)
-        let sum = 0;
-        for (let i = 0; i < float32.length; i++) sum += float32[i] * float32[i];
-        micLevelRef.current = Math.min(1, Math.sqrt(sum / float32.length) * 6);
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-        if (isMutedRef.current) return;
-        const downsampled = downsampleTo8k(float32, ctx.sampleRate);
-        const mulaw       = encodeMulaw(downsampled);
-        const base64      = btoa(String.fromCharCode(...mulaw));
-        wsRef.current.send(JSON.stringify({ type: 'audio', payload: base64 }));
-      };
-
-      micProcRef.current = proc;
-      console.log('[Phone] Mic capture started at', ctx.sampleRate, 'Hz, device:', dev || 'default');
-    } catch (e) {
-      console.error('[Phone] Mic capture failed:', e.message);
-    }
-  }
-
-  function stopMicCapture() {
-    if (micProcRef.current) { try { micProcRef.current.disconnect(); } catch {} micProcRef.current = null; }
-    if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
-    micLevelRef.current = 0;
-  }
-
   const setInputDevice = useCallback(async (deviceId) => {
     inputDeviceIdRef.current = deviceId;
     setInputDeviceId(deviceId);
-    if (micProcRef.current) await startMicCapture(deviceId); // restart with new device
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // If there's an active call, re-apply the mic device
+    const call = callRef.current;
+    if (call && call.state === 'active') {
+      call.setAudioInDevice(deviceId).catch(() => {});
+    }
+  }, []);
+
+  // ── Level meters ─────────────────────────────────────────────────────────────
+
+  function setupLevelMeters(remoteStream, localStream) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+
+      if (remoteStream) {
+        const src = ctx.createMediaStreamSource(remoteStream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        src.connect(analyser);
+        analyserRemRef.current = analyser;
+      }
+
+      if (localStream) {
+        const src = ctx.createMediaStreamSource(localStream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        src.connect(analyser);
+        analyserMicRef.current = analyser;
+      }
+
+      const buf = new Uint8Array(32);
+      const tick = () => {
+        if (!mountedRef.current) return;
+        if (analyserMicRef.current) {
+          analyserMicRef.current.getByteTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+          micLevelRef.current = Math.min(1, Math.sqrt(sum / buf.length) * 6);
+        }
+        if (analyserRemRef.current) {
+          analyserRemRef.current.getByteTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+          remoteLevelRef.current = Math.min(1, Math.sqrt(sum / buf.length) * 8);
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } catch (e) {
+      console.warn('[Phone] Level meter setup failed:', e.message);
+    }
+  }
+
+  function teardownLevelMeters() {
+    analyserMicRef.current = null;
+    analyserRemRef.current = null;
+    micLevelRef.current = 0;
+    remoteLevelRef.current = 0;
+    if (audioCtxRef.current) {
+      try { audioCtxRef.current.close(); } catch {}
+      audioCtxRef.current = null;
+    }
+  }
 
   // ── Reset call state ─────────────────────────────────────────────────────────
 
-  const resetCallState = () => {
+  const resetCallState = useCallback(() => {
     stopTimer();
-    stopMicCapture();
+    teardownLevelMeters();
+    callRef.current = null;
     setElapsed(0);
     setIsMuted(false);
     setIsOnHold(false);
     setActiveName('');
     setActiveNumber('');
     setInboundCall(null);
-    setCallControlId(null);
-    nextPlayRef.current = 0;
-  };
-
-  // ── WebSocket connection ──────────────────────────────────────────────────────
-
-  const connectWs = useCallback(() => {
-    if (!mountedRef.current) return;
-
-    const token = getSessionToken();
-    const url   = `${getWsBase()}/ws/phone${token ? '?session=' + encodeURIComponent(token) : ''}`;
-    console.log('[Phone] Connecting switchboard WS');
-
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      if (!mountedRef.current) return;
-      console.log('[Phone] Switchboard WS connected');
-      setStatus('ready');
-      setLastError(null);
-      refreshOutputDevices();
-    };
-
-    ws.onclose = e => {
-      if (!mountedRef.current) return;
-      console.log('[Phone] Switchboard WS closed:', e.code);
-      setStatus('idle');
-      resetCallState();
-      if (e.code !== 4999) setTimeout(() => { if (mountedRef.current) connectWs(); }, 3000);
-    };
-
-    ws.onerror = () => console.error('[Phone] Switchboard WS error');
-
-    ws.onmessage = async e => {
-      if (!mountedRef.current) return;
-      let msg;
-      try { msg = JSON.parse(e.data); } catch { return; }
-
-      if (msg.type === 'audio') {
-        // Only play inbound track (what remote party says)
-        if (!msg.track || msg.track === 'inbound') playAudioChunk(msg.payload);
-        return;
-      }
-
-      if (msg.type === 'calling') {
-        setStatus('calling');
-        if (msg.callControlId) setCallControlId(msg.callControlId);
-        return;
-      }
-
-      if (msg.type === 'ringing') {
-        setInboundCall({ name: msg.name || msg.from, number: msg.from });
-        setCallControlId(msg.callControlId || null);
-        setStatus('ringing');
-        startRingtone({ ringOnCall: true, ringtone: 'classic', ringVolume: 80, vibrateOnCall: true });
-        if (Notification?.permission === 'granted') {
-          new Notification('Incoming Call', { body: msg.name || msg.from, icon: '/favicon.ico', tag: 'incoming-call', renotify: false });
-        }
-        return;
-      }
-
-      if (msg.type === 'active') {
-        stopRingtone();
-        setInboundCall(null);
-        setStatus('active');
-        startTimer();
-        // AudioContext was set up during makeCall/answerCall (user gesture) — just resume
-        if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume().catch(() => {});
-        await startMicCapture();
-        // Apply stored output device
-        if (outputDeviceId !== 'default' && audioElRef.current && typeof audioElRef.current.setSinkId === 'function') {
-          audioElRef.current.setSinkId(outputDeviceId).catch(() => {});
-        }
-        return;
-      }
-
-      if (msg.type === 'hangup') {
-        stopRingtone();
-        setStatus('ready');
-        resetCallState();
-        return;
-      }
-
-      if (msg.type === 'error') {
-        setLastError(msg.message || 'Switchboard error');
-        setStatus('ready');
-        resetCallState();
-        return;
-      }
-    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Handle call state updates from SDK ───────────────────────────────────────
+
+  const handleCallUpdate = useCallback((call) => {
+    const state = call.state;
+    const dir   = call.direction; // 'inbound' or 'outbound'
+
+    console.log('[Phone] Call state:', state, 'dir:', dir);
+
+    if (state === 'ringing' && dir === 'inbound') {
+      callRef.current = call;
+      const from = call.options?.remoteCallerNumber || call.options?.callerNumber || 'Unknown';
+      const name = call.options?.remoteCallerName || from;
+      setInboundCall({ name, number: from });
+      setStatus('ringing');
+      startRingtone({ ringOnCall: true, ringtone: 'classic', ringVolume: 80, vibrateOnCall: true });
+      if (Notification?.permission === 'granted') {
+        new Notification('Incoming Call', { body: name, icon: '/favicon.ico', tag: 'incoming-call', renotify: false });
+      }
+      return;
+    }
+
+    if ((state === 'trying' || state === 'requesting' || (state === 'ringing' && dir === 'outbound'))) {
+      callRef.current = call;
+      setStatus('calling');
+      return;
+    }
+
+    if (state === 'active') {
+      stopRingtone();
+      setInboundCall(null);
+      setStatus('active');
+      startTimer();
+      // Wire up level meters to the call's audio streams
+      // Give the SDK a moment to attach streams
+      setTimeout(() => {
+        if (callRef.current) {
+          setupLevelMeters(callRef.current.remoteStream, callRef.current.localStream);
+        }
+      }, 500);
+      return;
+    }
+
+    if (state === 'held') {
+      setStatus('held');
+      setIsOnHold(true);
+      return;
+    }
+
+    if (state === 'active' && isOnHold) {
+      setStatus('active');
+      setIsOnHold(false);
+      return;
+    }
+
+    if (state === 'hangup' || state === 'destroy' || state === 'purge') {
+      stopRingtone();
+      setStatus('ready');
+      resetCallState();
+      return;
+    }
+  }, [isOnHold, resetCallState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Connect to Telnyx WebRTC ──────────────────────────────────────────────────
+
+  const connectWebRTC = useCallback(async () => {
+    if (!mountedRef.current) return;
+    if (clientRef.current) {
+      try { clientRef.current.disconnect(); } catch {}
+      clientRef.current = null;
+    }
+
+    setStatus('connecting');
+
+    // Fetch login token from server
+    let token;
+    try {
+      const base = getServerBase();
+      const headers = { 'Content-Type': 'application/json' };
+      const sessionToken = localStorage.getItem('con_session_token')
+        || document.cookie.match(/session=([^;]+)/)?.[1];
+      if (sessionToken) headers['x-session'] = sessionToken;
+      const resp = await fetch(`${base}/api/phone/webrtc-token`, { headers, credentials: 'include' });
+      if (!resp.ok) throw new Error(`Token fetch failed: ${resp.status}`);
+      const data = await resp.json();
+      token = data.token;
+    } catch (e) {
+      console.error('[Phone] Failed to get WebRTC token:', e.message);
+      if (mountedRef.current) {
+        setLastError('Could not connect to phone service');
+        setStatus('idle');
+      }
+      return;
+    }
+
+    const remoteEl = getOrCreateRemoteAudio();
+    refreshDevices();
+
+    const client = new TelnyxRTC({
+      login_token: token,
+      // Audio constraints
+      audio: {
+        deviceId: inputDeviceIdRef.current !== 'default' ? inputDeviceIdRef.current : undefined,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: false,
+      ringFile: '',  // suppress SDK default ringtone
+    });
+
+    client.remoteElement = remoteEl;
+
+    client.on('telnyx.socket.open', () => {
+      console.log('[Phone] Telnyx WebRTC connected');
+    });
+
+    client.on('telnyx.ready', () => {
+      console.log('[Phone] Telnyx registered — ready');
+      if (mountedRef.current) { setStatus('ready'); setLastError(null); }
+    });
+
+    client.on('telnyx.socket.close', () => {
+      console.log('[Phone] Telnyx WebRTC disconnected');
+      if (mountedRef.current) {
+        setStatus('idle');
+        resetCallState();
+        // Reconnect after delay
+        setTimeout(() => { if (mountedRef.current) connectWebRTC(); }, 5000);
+      }
+    });
+
+    client.on('telnyx.socket.error', (err) => {
+      console.error('[Phone] Telnyx WebRTC error:', err);
+      if (mountedRef.current) setLastError('Connection error');
+    });
+
+    client.on('telnyx.error', (err) => {
+      console.error('[Phone] Telnyx error:', err);
+      if (mountedRef.current) {
+        setLastError(err?.message || 'Phone registration failed');
+        setStatus('idle');
+      }
+    });
+
+    client.on('telnyx.notification', (notification) => {
+      if (!mountedRef.current) return;
+      if (notification.type === 'callUpdate') {
+        handleCallUpdate(notification.call);
+      }
+    });
+
+    clientRef.current = client;
+    client.connect();
+  }, [handleCallUpdate, resetCallState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mount ─────────────────────────────────────────────────────────────────────
 
@@ -383,51 +363,51 @@ export function usePhone() {
         if (!ok) { setMicDenied(true); setMicStatus('denied'); setStatus('idle'); return; }
         setMicStatus('granted');
       }
-      setStatus('connecting');
-      connectWs();
+      connectWebRTC();
     })();
 
     const onVisible = () => {
       if (document.visibilityState === 'visible' && mountedRef.current) {
-        const ws = wsRef.current;
-        if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) connectWs();
+        const c = clientRef.current;
+        if (!c || !c.connected) connectWebRTC();
       }
     };
     document.addEventListener('visibilitychange', onVisible);
 
     if (navigator.mediaDevices) {
-      navigator.mediaDevices.addEventListener('devicechange', refreshOutputDevices);
+      navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
     }
 
     return () => {
       mountedRef.current = false;
       stopTimer();
-      stopMicCapture();
+      teardownLevelMeters();
       document.removeEventListener('visibilitychange', onVisible);
-      if (navigator.mediaDevices) navigator.mediaDevices.removeEventListener('devicechange', refreshOutputDevices);
-      if (wsRef.current) wsRef.current.close(4999, 'unmount');
-      // Clean up audio element
-      const el = document.getElementById('sb-playback-audio');
-      if (el) { el.srcObject = null; }
-      if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch {} audioCtxRef.current = null; audioDestRef.current = null; }
+      if (navigator.mediaDevices) navigator.mediaDevices.removeEventListener('devicechange', refreshDevices);
+      if (clientRef.current) {
+        try { clientRef.current.disconnect(); } catch {}
+        clientRef.current = null;
+      }
+      const el = document.getElementById('telnyx-remote-audio');
+      if (el) { el.srcObject = null; el.remove(); }
     };
-  }, [connectWs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [connectWebRTC]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // FCM push wake
   useEffect(() => {
     const handler = () => {
-      const ws = wsRef.current;
-      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) connectWs();
+      const c = clientRef.current;
+      if (!c || !c.connected) connectWebRTC();
     };
     callEventEmitter.addEventListener('incoming_call', handler);
     return () => callEventEmitter.removeEventListener('incoming_call', handler);
-  }, [connectWs]);
+  }, [connectWebRTC]);
 
   // ── Call controls ─────────────────────────────────────────────────────────────
 
   const makeCall = useCallback(async (number, name) => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) { setLastError('Not connected to switchboard'); return; }
+    const client = clientRef.current;
+    if (!client) { setLastError('Not connected'); return; }
 
     if (!Capacitor.isNativePlatform()) {
       const perm = await checkMicPermission();
@@ -437,9 +417,6 @@ export function usePhone() {
       } else if (perm === 'denied') { setMicStatus('denied'); setMicDenied(true); return; }
     }
 
-    // Set up AudioContext NOW — during user gesture — so it starts in 'running' state
-    setupAudioCtx();
-
     let dest = number.replace(/\D/g, '');
     if (dest.length === 10) dest = '1' + dest;
     if (!dest.startsWith('+')) dest = '+' + dest;
@@ -447,54 +424,87 @@ export function usePhone() {
     setActiveNumber(number);
     setActiveName(name || number);
     setStatus('calling');
-    ws.send(JSON.stringify({ type: 'call', to: dest, name: name || number }));
+
+    try {
+      const call = client.newCall({
+        destinationNumber: dest,
+        callerNumber: '+15878643090',
+        audio: true,
+        video: false,
+        remoteElement: getOrCreateRemoteAudio(),
+      });
+      callRef.current = call;
+    } catch (e) {
+      setLastError(e.message || 'Call failed');
+      setStatus('ready');
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const answerCall = useCallback(() => {
     stopRingtone();
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    // Set up AudioContext during user gesture (user tapped Answer)
-    setupAudioCtx();
+    const call = callRef.current;
+    if (!call) return;
     setActiveName(inboundCall?.name || '');
     setActiveNumber(inboundCall?.number || '');
     setInboundCall(null);
-    ws.send(JSON.stringify({ type: 'answer' }));
-  }, [inboundCall]); // eslint-disable-line react-hooks/exhaustive-deps
+    call.answer({
+      audio: true,
+      video: false,
+      remoteElement: getOrCreateRemoteAudio(),
+    });
+    // Apply saved output device after a short delay
+    setTimeout(() => {
+      const el = remoteAudioRef.current;
+      if (el && outputDeviceId !== 'default' && typeof el.setSinkId === 'function') {
+        el.setSinkId(outputDeviceId).catch(() => {});
+      }
+    }, 500);
+  }, [inboundCall, outputDeviceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hangup = useCallback(() => {
     stopRingtone();
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'hangup' }));
+    const call = callRef.current;
+    if (call) { try { call.hangup(); } catch {} }
     setStatus('ready');
     resetCallState();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resetCallState]);
 
-  const toggleMute = useCallback(() => setIsMuted(m => !m), []);
+  const toggleMute = useCallback(() => {
+    const call = callRef.current;
+    if (call) {
+      if (isMutedRef.current) call.unmute({ audio: true });
+      else call.mute({ audio: true });
+    }
+    setIsMuted(m => !m);
+  }, []);
 
   const toggleHold = useCallback(() => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const call = callRef.current;
+    if (!call) return;
     if (isOnHold) {
-      ws.send(JSON.stringify({ type: 'unhold' }));
-      setIsOnHold(false); setStatus('active');
+      call.unhold();
+      setIsOnHold(false);
+      setStatus('active');
     } else {
-      ws.send(JSON.stringify({ type: 'hold' }));
-      setIsOnHold(true); setStatus('held');
+      call.hold();
+      setIsOnHold(true);
+      setStatus('held');
     }
   }, [isOnHold]);
 
   const sendDtmf = useCallback((digit) => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'dtmf', digit }));
+    const call = callRef.current;
+    if (call) call.dtmf(String(digit));
   }, []);
 
   const blindTransfer = useCallback(() => hangup(), [hangup]);
 
-  // Recording not available in switchboard mode
+  // Recording not used in WebRTC mode (Call Control recording requires server-side)
   const startRecording  = useCallback(() => {}, []);
   const stopRecording   = useCallback(async () => null, []);
   const toggleRecording = useCallback(() => {}, []);
+  const [isRecording]   = useState(false);
+  const [callControlId] = useState(null);
 
   const fmtElapsed = () => {
     const m = Math.floor(elapsed / 60), s = elapsed % 60;

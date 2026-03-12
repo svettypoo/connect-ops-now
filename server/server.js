@@ -24,10 +24,7 @@ const path = require('path');
 const fs = require('fs');
 const sanitizeHtml = require('sanitize-html');
 const jwt = require('jsonwebtoken');
-const WebSocket = require('ws');
-const Telnyx = require('telnyx');
 const { ImapFlow } = require('imapflow');
-const switchboard = require('./switchboard');
 
 // Authenticate an @stproperties.com user against Zoho IMAP
 async function zohoImapAuth(email, password) {
@@ -520,15 +517,9 @@ app.get('/api/stats', requireAuth, (req, res) => {
 
 // ─── Routes: Telnyx Phone ─────────────────────────────────────────────────────
 
-function getTelnyxClient() {
-  const key = process.env.TELNYX_API_KEY;
-  if (!key) throw new Error('TELNYX_API_KEY not set in .env');
-  return new Telnyx(key);
-}
-
-// Legacy Telnyx token endpoint — kept for backward compat but unused
+// Legacy token redirect — kept for backward compat
 app.get('/api/phone/token', requireAuth, (req, res) => {
-  res.redirect('/api/phone/sip-config');
+  res.redirect('/api/phone/webrtc-token');
 });
 
 // Telnyx WebRTC — telephony_credential IDs (linked to credential connections)
@@ -783,13 +774,27 @@ async function speakAndWait(ccid, text, voice = VOICES.female, timeout = 30000) 
   });
 }
 
-// ─── Switchboard webhook (dedicated endpoint for switchboard calls) ───────────
+// ─── WebRTC login token (browser fetches this to connect @telnyx/webrtc SDK) ──
 
-app.post('/api/phone/switchboard-webhook', express.json(), async (req, res) => {
-  res.sendStatus(200);
-  const event = req.body?.data;
-  if (!event) return;
-  await switchboard.handleWebhook(event).catch(e => console.error('[Switchboard webhook error]', e.message));
+const TELNYX_CREDENTIAL_ID = process.env.TELNYX_CREDENTIAL_ID || '297f636e-c371-4687-a2eb-e089cec567da';
+
+app.get('/api/phone/webrtc-token', requireAuth, async (req, res) => {
+  try {
+    const apiKey = process.env.TELNYX_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'TELNYX_API_KEY not set' });
+    const response = await fetch(
+      `https://api.telnyx.com/v2/telephony_credentials/${TELNYX_CREDENTIAL_ID}/token`,
+      { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` } }
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(502).json({ error: `Telnyx error ${response.status}`, detail: text.slice(0, 200) });
+    }
+    const token = await response.text(); // Telnyx returns raw JWT, not JSON
+    res.json({ token: token.trim() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ─── Telnyx webhook (Call Control) ───────────────────────────────────────────
@@ -1651,48 +1656,9 @@ if (ensureAdminUser) ensureAdminUser();
 
 const httpServer = http.createServer(app);
 
-// ── WebSocket upgrade routing ─────────────────────────────────────────────────
-const wss = new WebSocket.Server({ noServer: true });
+// ── WebSocket upgrade routing (destroy unrecognized upgrades) ─────────────────
 
-httpServer.on('upgrade', (req, socket, head) => {
-  const url = req.url || '';
-
-  // Telnyx streaming WebSocket: /ws/telnyx-stream/{callControlId}
-  if (url.startsWith('/ws/telnyx-stream/')) {
-    const ccid = url.split('/ws/telnyx-stream/')[1]?.split('?')[0];
-    wss.handleUpgrade(req, socket, head, ws => {
-      switchboard.handleTelnyxStream(ws, ccid);
-    });
-    return;
-  }
-
-  // Browser phone WebSocket: /ws/phone  (requires session auth)
-  if (url.startsWith('/ws/phone')) {
-    const params = new URLSearchParams(url.split('?')[1] || '');
-    // Auth: session from query param or cookie header
-    const cookie = req.headers.cookie || '';
-    const cookieSession = cookie.match(/session=([^;]+)/)?.[1];
-    const headerSession = req.headers['x-session'];
-    const querySession  = params.get('session');
-    const token = cookieSession || headerSession || querySession;
-
-    if (!token || !sessionOps) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-    const session = sessionOps.get(token);
-    if (!session) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-    wss.handleUpgrade(req, socket, head, ws => {
-      switchboard.handleBrowserSocket(ws, token); // use session token as ID
-    });
-    return;
-  }
-
+httpServer.on('upgrade', (req, socket) => {
   socket.destroy();
 });
 
@@ -1700,7 +1666,7 @@ httpServer.listen(PORT, () => {
   console.log(`\n================================================`);
   console.log(`  S&T Phone running at http://localhost:${PORT}`);
   console.log(`  AI features: ${ai.isConfigured() ? 'ENABLED' : 'DISABLED (add ANTHROPIC_API_KEY)'}`);
-  console.log(`  Switchboard WebSocket: /ws/phone`);
+  console.log(`  WebRTC token endpoint: /api/phone/webrtc-token`);
   console.log(`================================================\n`);
 });
 
