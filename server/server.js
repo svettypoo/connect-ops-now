@@ -519,35 +519,37 @@ app.get('/api/phone/token', requireAuth, (req, res) => {
   res.redirect('/api/phone/sip-config');
 });
 
-// SIP.js config — returns Kamailio credentials for the logged-in user
+// SIP.js config — returns direct Telnyx SIP credentials (no Kamailio)
+const TELNYX_SIP_CREDS = {
+  svet:  { user: 'stphonesvet',  pass: 'StPhone2026svet'  },
+  hr:    { user: 'stphonehr',    pass: 'StPhone2026hr'    },
+  info:  { user: 'stphoneinfo',  pass: 'StPhone2026info'  },
+};
+const TELNYX_SIP_DOMAIN = 'sip.telnyx.com';
+const TELNYX_WSS_SERVER = 'wss://sip.telnyx.com';
+
 app.get('/api/phone/sip-config', requireAuth, (req, res) => {
   try {
     const email = req.user.email || '';
-    // Map user email to Kamailio SIP account
-    const SIP_DOMAIN = 'stproperties.com';
-    const WSS_SERVER = 'wss://sip.stproperties.com:8443';
-    // Extract local part of email as SIP user (hr@stproperties.com → hr)
-    let sipUser = email.split('@')[0] || 'hr';
-    // Only allow known SIP accounts; default to hr
-    const knownUsers = ['svet', 'hr', 'info'];
-    if (!knownUsers.includes(sipUser)) sipUser = 'hr';
-    const sipPassword = 'Partycard123';
+    let key = email.split('@')[0] || 'hr';
+    if (!TELNYX_SIP_CREDS[key]) key = 'hr';
+    const cred = TELNYX_SIP_CREDS[key];
 
-    let cred = phoneOps.get(req.user.user_id);
-    if (!cred) {
-      cred = phoneOps.upsert(req.user.user_id, {
+    let dbCred = phoneOps.get(req.user.user_id);
+    if (!dbCred) {
+      dbCred = phoneOps.upsert(req.user.user_id, {
         telnyx_cred_id: null,
-        telnyx_sip_user: sipUser,
+        telnyx_sip_user: cred.user,
         phone_number: process.env.TELNYX_FROM_NUMBER || '+15878643090',
       });
     }
 
     res.json({
-      sip_user: sipUser,
-      sip_password: sipPassword,
-      sip_domain: SIP_DOMAIN,
-      wss_server: WSS_SERVER,
-      phone_number: cred.phone_number || process.env.TELNYX_FROM_NUMBER || '+15878643090',
+      sip_user: cred.user,
+      sip_password: cred.pass,
+      sip_domain: TELNYX_SIP_DOMAIN,
+      wss_server: TELNYX_WSS_SERVER,
+      phone_number: dbCred.phone_number || process.env.TELNYX_FROM_NUMBER || '+15878643090',
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
