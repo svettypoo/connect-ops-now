@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
-import { UserAgent, Registerer, RegistererState, Inviter, SessionState } from "sip.js";
+import { TelnyxRTC } from "@telnyx/webrtc";
 import api from "@/api/inboxAiClient";
 import { startRingtone, stopRingtone } from "@/lib/useNotificationSettings";
 import { callEventEmitter } from "@/lib/pushNotifications";
@@ -38,31 +38,29 @@ async function ensureMicPermission() {
 }
 
 export function usePhone() {
-  const [status, setStatus]         = useState("idle");
-  const [activeName, setActiveName] = useState("");
+  const [status, setStatus]           = useState("idle");
+  const [activeName, setActiveName]   = useState("");
   const [activeNumber, setActiveNumber] = useState("");
-  const [elapsed, setElapsed]       = useState(0);
-  const [isMuted, setIsMuted]       = useState(false);
-  const [isOnHold, setIsOnHold]     = useState(false);
+  const [elapsed, setElapsed]         = useState(0);
+  const [isMuted, setIsMuted]         = useState(false);
+  const [isOnHold, setIsOnHold]       = useState(false);
   const [inboundCall, setInboundCall] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState(null);
   const [callControlId, setCallControlId] = useState(null);
-  const [micDenied, setMicDenied]   = useState(false);
-  const [micStatus, setMicStatus]   = useState('prompt');
-
+  const [micDenied, setMicDenied]     = useState(false);
+  const [micStatus, setMicStatus]     = useState('prompt');
   const [isRecording, setIsRecording] = useState(false);
 
-  const uaRef         = useRef(null);
-  const registererRef = useRef(null);
-  const sessionRef    = useRef(null);
+  const clientRef     = useRef(null);
+  const callRef       = useRef(null);
   const timerRef      = useRef(null);
   const startTimeRef  = useRef(null);
   const mountedRef    = useRef(true);
   const remoteAudioRef = useRef(null);
-  const sipConfigRef  = useRef(null);
-  const recorderRef   = useRef(null);   // MediaRecorder
-  const recChunksRef  = useRef([]);     // recorded chunks
-  const recContextRef = useRef(null);   // AudioContext for mixing
+  const configRef     = useRef(null);
+  const recorderRef   = useRef(null);
+  const recChunksRef  = useRef([]);
+  const recContextRef = useRef(null);
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
@@ -89,162 +87,135 @@ export function usePhone() {
     return remoteAudioRef.current;
   };
 
-  const attachRemoteAudio = (session) => {
+  const attachRemoteAudio = (call) => {
     const audioEl = ensureAudioElement();
-    const pc = session.sessionDescriptionHandler?.peerConnection;
-    if (!pc) return;
-    const receivers = pc.getReceivers();
-    if (receivers.length > 0) {
-      const remoteStream = new MediaStream();
-      receivers.forEach(r => { if (r.track) remoteStream.addTrack(r.track); });
-      audioEl.srcObject = remoteStream;
+    if (call.remoteStream) {
+      audioEl.srcObject = call.remoteStream;
       audioEl.play().catch(() => {});
       console.log('[Phone] Remote audio attached');
     }
   };
 
-  const setupSessionRef = useRef(null);
-  setupSessionRef.current = (session) => {
-    session.stateChange.addListener((state) => {
-      if (!mountedRef.current) return;
-      switch (state) {
-        case SessionState.Establishing:
-          break;
-        case SessionState.Established:
-          stopRingtone();
-          setInboundCall(null);
-          setStatus("active");
-          startTimer();
-          attachRemoteAudio(session);
-          break;
-        case SessionState.Terminating:
-        case SessionState.Terminated:
-          stopRingtone();
-          // Stop recording if active
-          if (recorderRef.current) {
-            try { recorderRef.current.stop(); } catch {}
-            recorderRef.current = null;
-            setIsRecording(false);
-          }
-          sessionRef.current = null;
-          setInboundCall(null);
-          setCallControlId(null);
-          setStatus("ready");
-          stopTimer();
-          setElapsed(0);
-          setIsMuted(false);
-          setIsOnHold(false);
-          setActiveName("");
-          setActiveNumber("");
-          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-          break;
-      }
-    });
+  const resetCallState = () => {
+    callRef.current = null;
+    stopTimer();
+    setElapsed(0);
+    setIsMuted(false);
+    setIsOnHold(false);
+    setActiveName("");
+    setActiveNumber("");
+    setInboundCall(null);
+    setCallControlId(null);
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
   };
 
   // ── Core init ──────────────────────────────────────────────────────────────
-  const initSip = useCallback(async (config) => {
+  const initTelnyx = useCallback(async (config) => {
     if (!mountedRef.current) return;
 
-    // Tear down previous UA
-    if (uaRef.current) {
-      try { await uaRef.current.stop(); } catch {}
-      uaRef.current = null;
-      registererRef.current = null;
+    // Tear down existing client
+    if (clientRef.current) {
+      try { clientRef.current.disconnect(); } catch {}
+      clientRef.current = null;
     }
 
     ensureAudioElement();
 
-    const uri = UserAgent.makeURI(`sip:${config.sip_user}@${config.sip_domain}`);
-    if (!uri) {
-      console.error('[Phone] Invalid SIP URI');
-      setStatus('idle');
-      return;
-    }
-
-    const ua = new UserAgent({
-      uri,
-      transportOptions: {
-        server: config.wss_server,
-        traceSip: false,
-      },
-      authorizationUsername: config.sip_user,
-      authorizationPassword: config.sip_password,
-      displayName: config.sip_user,
-      sessionDescriptionHandlerFactoryOptions: {
-        peerConnectionConfiguration: {
-          iceServers: [
-            { urls: 'stun:stun.telnyx.com:3478' },
-            { urls: 'stun:stun.l.google.com:19302' },
-            {
-              urls: 'turn:turn.telnyx.com:3478',
-              username: 'telnyx',
-              credential: 'telnyx',
-            },
-            {
-              urls: 'turns:turn.telnyx.com:5349',
-              username: 'telnyx',
-              credential: 'telnyx',
-            },
-          ],
-        },
-      },
-      delegate: {
-        onInvite: (invitation) => {
-          if (!mountedRef.current) return;
-          sessionRef.current = invitation;
-          const from = invitation.remoteIdentity?.uri?.user || 'Unknown';
-          const displayName = invitation.remoteIdentity?.displayName || from;
-          setInboundCall({ name: displayName, number: from });
-          setCallControlId(invitation.id || null);
-          setStatus("ringing");
-          startRingtone({ ringOnCall: true, ringtone: "classic", ringVolume: 80, vibrateOnCall: true, ...getNotifSettings() });
-          if (Notification?.permission === "granted") {
-            new Notification("Incoming Call", { body: displayName, icon: "/favicon.ico", tag: "incoming-call", renotify: false });
-          }
-          setupSessionRef.current(invitation);
-        },
-      },
-    });
-    uaRef.current = ua;
-
-    ua.transport.onDisconnect = (error) => {
-      if (!mountedRef.current) return;
-      if (error) {
-        console.warn('[Phone] Transport disconnected:', error.message);
-        setStatus("reconnecting");
-        setTimeout(() => {
-          if (mountedRef.current && sipConfigRef.current) initSip(sipConfigRef.current);
-        }, 3000);
-      }
-    };
-
-    try {
-      await ua.start();
-    } catch (e) {
-      console.error('[Phone] UA start failed:', e.message);
-      setStatus('idle');
-      return;
-    }
-
-    const registerer = new Registerer(ua, { expires: 3600 });
-    registererRef.current = registerer;
-
-    registerer.stateChange.addListener((state) => {
-      if (!mountedRef.current) return;
-      if (state === RegistererState.Registered) {
-        console.log('[Phone] SIP registered');
-        setStatus("ready");
-      } else if (state === RegistererState.Unregistered) {
-        console.log('[Phone] SIP unregistered');
-        if (!sessionRef.current) setStatus("idle");
-      }
+    const client = new TelnyxRTC({
+      login_token: config.login_token,
     });
 
+    clientRef.current = client;
+
+    client.on('telnyx.ready', () => {
+      if (!mountedRef.current) return;
+      console.log('[Phone] Telnyx WebRTC ready');
+      setStatus('ready');
+    });
+
+    client.on('telnyx.error', (err) => {
+      if (!mountedRef.current) return;
+      console.error('[Phone] Telnyx error:', err);
+      setStatus('idle');
+      // Token expired — reconnect with fresh token
+      setTimeout(async () => {
+        if (!mountedRef.current) return;
+        try {
+          const newConfig = await api.getSipConfig();
+          if (!newConfig?.login_token || !mountedRef.current) return;
+          configRef.current = newConfig;
+          setPhoneNumber(newConfig.phone_number);
+          setStatus('connecting');
+          await initTelnyx(newConfig);
+        } catch {}
+      }, 5000);
+    });
+
+    client.on('telnyx.notification', (notification) => {
+      if (!mountedRef.current) return;
+      if (notification.type !== 'callUpdate') return;
+
+      const call = notification.call;
+      const state = call.state;
+      const direction = call.direction; // 'inbound' | 'outbound'
+
+      console.log('[Phone] call update:', direction, state);
+
+      callRef.current = call;
+
+      if (state === 'ringing' && direction === 'inbound') {
+        // Inbound call arriving
+        const from = call.options?.remoteCallerNumber || call.options?.destinationNumber || 'Unknown';
+        const name = call.options?.remoteCallerName || from;
+        setInboundCall({ name, number: from });
+        setCallControlId(call.id || null);
+        setStatus('ringing');
+        startRingtone({ ringOnCall: true, ringtone: 'classic', ringVolume: 80, vibrateOnCall: true, ...getNotifSettings() });
+        if (Notification?.permission === 'granted') {
+          new Notification('Incoming Call', { body: name, icon: '/favicon.ico', tag: 'incoming-call', renotify: false });
+        }
+        return;
+      }
+
+      if (state === 'active') {
+        stopRingtone();
+        setInboundCall(null);
+        setStatus('active');
+        startTimer();
+        attachRemoteAudio(call);
+        return;
+      }
+
+      if (state === 'held') {
+        setIsOnHold(true);
+        setStatus('held');
+        return;
+      }
+
+      if (state === 'hangup' || state === 'destroy' || state === 'purge') {
+        stopRingtone();
+        // Stop recording if active
+        if (recorderRef.current) {
+          try { recorderRef.current.stop(); } catch {}
+          recorderRef.current = null;
+          setIsRecording(false);
+        }
+        setStatus('ready');
+        resetCallState();
+        return;
+      }
+
+      // Outbound ringing state (early/requesting/new)
+      if (direction === 'outbound' && (state === 'new' || state === 'requesting' || state === 'early')) {
+        setStatus('calling');
+        return;
+      }
+    });
+
     try {
-      await registerer.register();
+      await client.connect();
     } catch (e) {
-      console.warn('[Phone] Registration failed:', e.message);
+      console.error('[Phone] TelnyxRTC connect failed:', e.message);
       setStatus('idle');
     }
   }, []);
@@ -269,44 +240,48 @@ export function usePhone() {
           if (!ok) {
             setMicDenied(true);
             setMicStatus('denied');
-            setStatus("idle");
+            setStatus('idle');
             return;
           }
         }
 
         const config = await api.getSipConfig();
-        if (!config?.sip_user || !mountedRef.current) return;
-        sipConfigRef.current = config;
+        if (!config?.login_token || !mountedRef.current) return;
+        configRef.current = config;
         setPhoneNumber(config.phone_number);
-        setStatus("connecting");
-        await initSip(config);
+        setStatus('connecting');
+        await initTelnyx(config);
       } catch (e) {
-        console.warn("SIP init:", e.message);
+        console.warn('[Phone] init error:', e.message);
         if (!mountedRef.current) return;
-        // Session expired or not logged in — clear stored token and reload to login
         if (e.message?.includes('401') || e.message?.includes('Not authenticated') || e.message?.includes('Session expired')) {
           localStorage.removeItem('con_session_token');
           window.location.reload();
           return;
         }
-        setStatus("idle");
+        setStatus('idle');
       }
     })();
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && mountedRef.current && sipConfigRef.current) {
-        const connected = uaRef.current?.transport?.isConnected?.();
-        if (!connected) {
-          console.log('[Phone] visibility visible — reconnecting SIP');
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && mountedRef.current && configRef.current) {
+        const client = clientRef.current;
+        if (!client || !client.connected) {
+          console.log('[Phone] visibility visible — reconnecting Telnyx');
           setStatus('connecting');
-          initSip(sipConfigRef.current).catch(() => {});
+          try {
+            const newConfig = await api.getSipConfig();
+            if (!newConfig?.login_token || !mountedRef.current) return;
+            configRef.current = newConfig;
+            await initTelnyx(newConfig);
+          } catch {}
         }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const handleDeviceChange = async () => {
-      if (!remoteAudioRef.current || !sessionRef.current) return;
+      if (!remoteAudioRef.current || !callRef.current) return;
       const savedSpk = localStorage.getItem('con_spk_id');
       if (savedSpk && typeof remoteAudioRef.current.setSinkId === 'function') {
         remoteAudioRef.current.setSinkId(savedSpk).catch(() => {});
@@ -323,30 +298,32 @@ export function usePhone() {
       if (navigator.mediaDevices) {
         navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
       }
-      try {
-        registererRef.current?.unregister();
-        uaRef.current?.stop();
-      } catch {}
+      try { clientRef.current?.disconnect(); } catch {}
     };
-  }, [initSip]);
+  }, [initTelnyx]);
 
   // ── FCM wake ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = async () => {
-      if (!mountedRef.current || !sipConfigRef.current) return;
-      const connected = uaRef.current?.transport?.isConnected?.();
-      if (!connected) {
-        console.log('[Phone] FCM wake — reconnecting SIP');
+      if (!mountedRef.current) return;
+      const client = clientRef.current;
+      if (!client || !client.connected) {
+        console.log('[Phone] FCM wake — reconnecting Telnyx');
         setStatus('connecting');
-        await initSip(sipConfigRef.current);
+        try {
+          const newConfig = await api.getSipConfig();
+          if (!newConfig?.login_token || !mountedRef.current) return;
+          configRef.current = newConfig;
+          await initTelnyx(newConfig);
+        } catch {}
       }
     };
     callEventEmitter.addEventListener('incoming_call', handler);
     return () => callEventEmitter.removeEventListener('incoming_call', handler);
-  }, [initSip]);
+  }, [initTelnyx]);
 
   const makeCall = useCallback(async (number, name) => {
-    if (!uaRef.current) return;
+    if (!clientRef.current) return;
 
     if (!Capacitor.isNativePlatform()) {
       const permState = await checkMicPermission();
@@ -359,174 +336,114 @@ export function usePhone() {
       }
     }
 
-    // Normalise to E.164
+    // Normalize to E.164
     let dest = number.replace(/\D/g, '');
     if (dest.length === 10) dest = '1' + dest;
     if (!dest.startsWith('+')) dest = '+' + dest;
 
-    const targetURI = UserAgent.makeURI(`sip:${dest}@${sipConfigRef.current.sip_domain}`);
-    if (!targetURI) { console.error('[Phone] Invalid target URI'); return; }
-
-    const inviter = new Inviter(uaRef.current, targetURI, {
-      sessionDescriptionHandlerOptions: {
-        constraints: { audio: true, video: false },
-      },
-    });
-
-    sessionRef.current = inviter;
-    setCallControlId(inviter.id || null);
     setActiveNumber(number);
     setActiveName(name || number);
-    setStatus("calling");
-
-    setupSessionRef.current(inviter);
+    setStatus('calling');
 
     try {
-      await inviter.invite();
+      const call = clientRef.current.newCall({
+        destinationNumber: dest,
+        callerNumber: configRef.current?.phone_number || '+15878643090',
+        audio: true,
+        video: false,
+      });
+      callRef.current = call;
+      setCallControlId(call.id || null);
     } catch (e) {
-      console.error('[Phone] Invite failed:', e.message);
-      sessionRef.current = null;
-      setStatus("ready");
+      console.error('[Phone] newCall failed:', e.message);
+      setStatus('ready');
     }
   }, [phoneNumber]);
 
   const answerCall = useCallback(() => {
     stopRingtone();
-    if (!sessionRef.current) return;
-    sessionRef.current.accept({
-      sessionDescriptionHandlerOptions: {
-        constraints: { audio: true, video: false },
-      },
-    });
-    setActiveName(inboundCall?.name || "");
-    setActiveNumber(inboundCall?.number || "");
+    const call = callRef.current;
+    if (!call) return;
+    setActiveName(inboundCall?.name || '');
+    setActiveNumber(inboundCall?.number || '');
     setInboundCall(null);
+    try {
+      call.answer({ audio: true, video: false });
+    } catch (e) {
+      console.error('[Phone] answer failed:', e.message);
+    }
   }, [inboundCall]);
 
   const hangup = useCallback(() => {
     stopRingtone();
-    const session = sessionRef.current;
-    if (session) {
-      switch (session.state) {
-        case SessionState.Initial:
-        case SessionState.Establishing:
-          if (typeof session.cancel === 'function') session.cancel();
-          else if (typeof session.reject === 'function') session.reject();
-          break;
-        case SessionState.Established:
-          session.bye();
-          break;
-        default:
-          if (typeof session.reject === 'function') session.reject();
-          break;
-      }
+    const call = callRef.current;
+    if (call) {
+      try { call.hangup(); } catch {}
     }
-    sessionRef.current = null;
-    stopTimer();
-    setStatus("ready");
-    setElapsed(0);
-    setIsMuted(false);
-    setIsOnHold(false);
-    setActiveName("");
-    setActiveNumber("");
-    setInboundCall(null);
-    setCallControlId(null);
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+    // Stop recording if active
+    if (recorderRef.current) {
+      try { recorderRef.current.stop(); } catch {}
+      recorderRef.current = null;
+      setIsRecording(false);
+    }
+    setStatus('ready');
+    resetCallState();
   }, []);
 
   const toggleMute = useCallback(() => {
-    const session = sessionRef.current;
-    if (!session) return;
-    const pc = session.sessionDescriptionHandler?.peerConnection;
-    if (!pc) return;
-    pc.getSenders().forEach(s => {
-      if (s.track && s.track.kind === 'audio') {
-        s.track.enabled = isMuted; // if muted → enable, if unmuted → disable
-      }
-    });
+    const call = callRef.current;
+    if (!call) return;
+    if (isMuted) {
+      call.unmuteAudio();
+    } else {
+      call.muteAudio();
+    }
     setIsMuted(m => !m);
   }, [isMuted]);
 
-  const toggleHold = useCallback(async () => {
-    const session = sessionRef.current;
-    if (!session || session.state !== SessionState.Established) return;
-
+  const toggleHold = useCallback(() => {
+    const call = callRef.current;
+    if (!call) return;
     if (isOnHold) {
-      const options = {
-        sessionDescriptionHandlerModifiers: [
-          (description) => {
-            description.sdp = description.sdp.replace(/a=inactive/g, 'a=sendrecv');
-            return description;
-          }
-        ],
-      };
-      await session.invite(options).catch(() => {});
+      call.unhold();
+      setIsOnHold(false);
+      setStatus('active');
     } else {
-      const options = {
-        sessionDescriptionHandlerModifiers: [
-          (description) => {
-            description.sdp = description.sdp.replace(/a=sendrecv/g, 'a=inactive');
-            return description;
-          }
-        ],
-      };
-      await session.invite(options).catch(() => {});
+      call.hold();
+      setIsOnHold(true);
+      setStatus('held');
     }
-    setIsOnHold(h => !h);
-    setStatus(prev => prev === "held" ? "active" : "held");
   }, [isOnHold]);
 
   const sendDtmf = useCallback((digit) => {
-    const session = sessionRef.current;
-    if (!session) return;
-    session.info({
-      requestOptions: {
-        body: {
-          contentDisposition: 'render',
-          contentType: 'application/dtmf-relay',
-          content: `Signal=${digit}\r\nDuration=160`,
-        },
-      },
-    }).catch(() => {});
+    const call = callRef.current;
+    if (!call) return;
+    try { call.dtmf(digit); } catch {}
   }, []);
 
   const blindTransfer = useCallback((dest) => {
-    const session = sessionRef.current;
-    if (!session) return;
-    const targetURI = UserAgent.makeURI(`sip:${dest}@${sipConfigRef.current?.sip_domain || 'stproperties.com'}`);
-    if (targetURI) {
-      session.refer(targetURI).catch(() => {});
-    }
+    // Telnyx WebRTC SDK doesn't support direct SIP REFER — hang up after transfer
+    // For full transfer, use Telnyx Call Control API via server
     hangup();
   }, [hangup]);
 
-  // ── Recording (client-side MediaRecorder) ──────────────────────────────────
+  // ── Recording (client-side via remoteStream + localStream) ─────────────────
   const startRecording = useCallback(() => {
-    const session = sessionRef.current;
-    if (!session || recorderRef.current) return;
-    const pc = session.sessionDescriptionHandler?.peerConnection;
-    if (!pc) return;
+    const call = callRef.current;
+    if (!call || recorderRef.current) return;
 
     try {
       const ctx = new AudioContext();
       recContextRef.current = ctx;
       const dest = ctx.createMediaStreamDestination();
 
-      // Remote audio (from peer)
-      const receivers = pc.getReceivers();
-      if (receivers.length > 0) {
-        const remoteStream = new MediaStream();
-        receivers.forEach(r => { if (r.track) remoteStream.addTrack(r.track); });
-        const remoteSrc = ctx.createMediaStreamSource(remoteStream);
+      if (call.remoteStream) {
+        const remoteSrc = ctx.createMediaStreamSource(call.remoteStream);
         remoteSrc.connect(dest);
       }
 
-      // Local audio (mic)
-      const senders = pc.getSenders();
-      const localTracks = senders.filter(s => s.track && s.track.kind === 'audio').map(s => s.track);
-      if (localTracks.length > 0) {
-        const localStream = new MediaStream(localTracks);
-        const localSrc = ctx.createMediaStreamSource(localStream);
+      if (call.localStream) {
+        const localSrc = ctx.createMediaStreamSource(call.localStream);
         localSrc.connect(dest);
       }
 
@@ -535,7 +452,7 @@ export function usePhone() {
         ? 'audio/webm;codecs=opus' : 'audio/webm';
       const recorder = new MediaRecorder(dest.stream, { mimeType });
       recorder.ondataavailable = (e) => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
-      recorder.start(1000); // 1s chunks
+      recorder.start(1000);
       recorderRef.current = recorder;
       setIsRecording(true);
       console.log('[Phone] Recording started');
@@ -559,9 +476,8 @@ export function usePhone() {
         const blob = new Blob(recChunksRef.current, { type: recorder.mimeType });
         recChunksRef.current = [];
         console.log('[Phone] Recording stopped, blob size:', blob.size);
-        if (blob.size < 1000) { resolve(null); return; } // too small = silence
+        if (blob.size < 1000) { resolve(null); return; }
 
-        // Upload to server
         try {
           const formData = new FormData();
           const filename = `call_${Date.now()}.webm`;

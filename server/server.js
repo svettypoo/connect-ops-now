@@ -519,39 +519,61 @@ app.get('/api/phone/token', requireAuth, (req, res) => {
   res.redirect('/api/phone/sip-config');
 });
 
-// SIP.js config — Kamailio WSS proxy bridges WebSocket→SIP→Telnyx
-const SIP_CREDS = {
-  svet: { user: 'svet', pass: 'Partycard123' },
-  hr:   { user: 'hr',   pass: 'Partycard123' },
-  info: { user: 'info', pass: 'Partycard123' },
+// Telnyx WebRTC — telephony_credential IDs (linked to credential connections)
+// These generate short-lived JWT tokens for the @telnyx/webrtc SDK (no Kamailio needed)
+const TELNYX_CRED_IDS = {
+  svet: '2344c5e0-f419-4532-8450-939564b59895',
+  hr:   '702038e2-7c6c-4c9b-8239-cbf2e390f78a',
+  info: '086f1b0c-acce-46d4-a3af-dfa4902836a6',
 };
-const SIP_DOMAIN = process.env.SIP_DOMAIN || 'stproperties.com';
-const SIP_WSS    = process.env.SIP_WSS_SERVER || 'wss://sip.stproperties.com:8443';
+const TELNYX_API_KEY = process.env.TELNYX_API_KEY;
 
-app.get('/api/phone/sip-config', requireAuth, (req, res) => {
+async function getTelnyxWebRtcToken(credId) {
+  const https = require('https');
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: 'api.telnyx.com',
+      path: `/v2/telephony_credentials/${credId}/token`,
+      method: 'POST',
+      headers: { Authorization: `Bearer ${TELNYX_API_KEY}`, 'Content-Length': 0 },
+    };
+    const req = https.request(opts, (r) => {
+      let body = '';
+      r.on('data', d => body += d);
+      r.on('end', () => {
+        if (r.statusCode === 201) resolve(body.trim().replace(/^"|"$/g, ''));
+        else reject(new Error(`Telnyx token failed: ${r.statusCode} ${body}`));
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+app.get('/api/phone/sip-config', requireAuth, async (req, res) => {
   try {
     const email = req.user.email || '';
     let key = email.split('@')[0] || 'hr';
-    if (!SIP_CREDS[key]) key = 'hr';
-    const cred = SIP_CREDS[key];
+    if (!TELNYX_CRED_IDS[key]) key = 'hr';
 
     let dbCred = phoneOps.get(req.user.user_id);
     if (!dbCred) {
       dbCred = phoneOps.upsert(req.user.user_id, {
-        telnyx_cred_id: null,
-        telnyx_sip_user: cred.user,
+        telnyx_cred_id: TELNYX_CRED_IDS[key],
+        telnyx_sip_user: key,
         phone_number: process.env.TELNYX_FROM_NUMBER || '+15878643090',
       });
     }
 
+    const credId = TELNYX_CRED_IDS[key];
+    const login_token = await getTelnyxWebRtcToken(credId);
+
     res.json({
-      sip_user: cred.user,
-      sip_password: cred.pass,
-      sip_domain: SIP_DOMAIN,
-      wss_server: SIP_WSS,
+      login_token,
       phone_number: dbCred.phone_number || process.env.TELNYX_FROM_NUMBER || '+15878643090',
     });
   } catch (e) {
+    console.error('[sip-config] error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
