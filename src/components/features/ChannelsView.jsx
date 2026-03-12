@@ -153,7 +153,7 @@ export default function ChannelsView() {
       <div className="w-52 bg-[#141428] border-r border-white/5 flex flex-col flex-shrink-0">
         <div className="px-3 py-3 border-b border-white/5 flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Channels</span>
-          <button onClick={() => setShowCreate(true)} className="text-slate-500 hover:text-[#0EB8FF]">
+          <button onClick={() => setShowCreate(true)} className="text-slate-500 hover:text-[#60a5fa]">
             <Plus className="w-4 h-4" />
           </button>
         </div>
@@ -162,9 +162,9 @@ export default function ChannelsView() {
           <div className="px-3 py-2 border-b border-white/5 space-y-2">
             <input value={newName} onChange={e => setNewName(e.target.value)}
               placeholder="channel-name" onKeyDown={e => e.key === "Enter" && createChannel()}
-              className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs outline-none focus:border-[#0684BD]" />
+              className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs outline-none focus:border-[#3b82f6]" />
             <div className="flex gap-1">
-              <button onClick={createChannel} className="flex-1 py-1 bg-[#0684BD] rounded text-xs">Create</button>
+              <button onClick={createChannel} className="flex-1 py-1 bg-[#3b82f6] rounded text-xs">Create</button>
               <button onClick={() => setShowCreate(false)} className="px-2 py-1 bg-white/5 rounded text-xs"><X className="w-3 h-3" /></button>
             </div>
           </div>
@@ -173,11 +173,11 @@ export default function ChannelsView() {
         <div className="flex-1 overflow-y-auto py-2">
           {channels.map(ch => (
             <button key={ch.id} onClick={() => setActive(ch)}
-              className={"w-full text-left px-3 py-2 flex items-center gap-2 transition-all " + (active?.id === ch.id ? "bg-[#0684BD]/20 text-[#0EB8FF]" : "text-slate-400 hover:bg-white/5 hover:text-white")}>
+              className={"w-full text-left px-3 py-2 flex items-center gap-2 transition-all " + (active?.id === ch.id ? "bg-[#3b82f6]/20 text-[#60a5fa]" : "text-slate-400 hover:bg-white/5 hover:text-white")}>
               <Hash className="w-4 h-4 flex-shrink-0" />
               <span className="text-sm truncate">{ch.name}</span>
               {ch.unread > 0 && (
-                <span className="ml-auto w-4 h-4 rounded-full bg-[#0684BD] flex items-center justify-center text-[9px] font-bold">{ch.unread}</span>
+                <span className="ml-auto w-4 h-4 rounded-full bg-[#3b82f6] flex items-center justify-center text-[9px] font-bold">{ch.unread}</span>
               )}
             </button>
           ))}
@@ -247,9 +247,9 @@ export default function ChannelsView() {
                 <input ref={inputRef} value={text} onChange={handleTextChange}
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } if (e.key === "Escape") setShowMentions(false); }}
                   placeholder={"Message #" + active.name + " (type @ to mention)"}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD] resize-none" />
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6] resize-none" />
                 <button onClick={() => send()} disabled={!text.trim() || sending}
-                  className="px-3 py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg disabled:opacity-40 transition-all">
+                  className="px-3 py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg disabled:opacity-40 transition-all">
                   <Send className="w-4 h-4" />
                 </button>
               </div>

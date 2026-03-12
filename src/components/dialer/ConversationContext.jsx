@@ -32,14 +32,14 @@ export default function ConversationContext({ number, onClose }) {
   return (
     <div className="p-4 space-y-4 text-white text-sm">
       <div className="flex items-center gap-2 mb-1">
-        <History className="w-4 h-4 text-[#0EB8FF]" />
+        <History className="w-4 h-4 text-[#60a5fa]" />
         <span className="font-semibold">Caller Context</span>
         <span className="ml-2 text-slate-500 text-xs">{number}</span>
       </div>
 
       {ctx?.ai_brief && (
-        <div className="bg-[#0684BD]/10 border border-[#0684BD]/30 rounded-xl p-3">
-          <p className="text-xs font-semibold text-[#0EB8FF] mb-1">AI Brief</p>
+        <div className="bg-[#3b82f6]/10 border border-[#3b82f6]/30 rounded-xl p-3">
+          <p className="text-xs font-semibold text-[#60a5fa] mb-1">AI Brief</p>
           <p className="text-xs text-slate-300">{ctx.ai_brief}</p>
         </div>
       )}
@@ -87,7 +87,7 @@ export default function ConversationContext({ number, onClose }) {
         <div className="flex gap-2 mt-2">
           <input value={note} onChange={e => setNote(e.target.value)} placeholder="Add note..."
             onKeyDown={e => e.key === "Enter" && addNote()}
-            className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs outline-none focus:border-[#0684BD]" />
+            className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs outline-none focus:border-[#3b82f6]" />
           <button onClick={addNote} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-xs">Add</button>
         </div>
       </div>

@@ -3,7 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cel
 import { Phone, Clock, AlertCircle, MessageSquare } from "lucide-react";
 import api from "@/api/inboxAiClient";
 
-const COLORS = ["#0EB8FF", "#6366F1", "#EF4444", "#10B981"];
+const COLORS = ["#60a5fa", "#6366F1", "#EF4444", "#10B981"];
 
 export default function AnalyticsDashboard() {
   const [range, setRange] = useState("7d");
@@ -20,7 +20,7 @@ export default function AnalyticsDashboard() {
   }, [range]);
 
   const stats = [
-    { label: "Total Calls", value: data?.total_calls ?? 0, icon: Phone, color: "#0EB8FF" },
+    { label: "Total Calls", value: data?.total_calls ?? 0, icon: Phone, color: "#60a5fa" },
     { label: "Avg Duration", value: data?.avg_duration ? Math.floor(data.avg_duration / 60) + "m " + (data.avg_duration % 60) + "s" : "0s", icon: Clock, color: "#10B981" },
     { label: "Missed Rate", value: (data?.missed_rate ?? 0) + "%", icon: AlertCircle, color: "#EF4444" },
     { label: "SMS Sent", value: data?.sms_sent ?? 0, icon: MessageSquare, color: "#6366F1" },
@@ -38,7 +38,7 @@ export default function AnalyticsDashboard() {
         <div className="flex gap-2">
           {["7d","30d","90d"].map(r => (
             <button key={r} onClick={() => setRange(r)}
-              className={"px-3 py-1.5 rounded-lg text-xs font-semibold transition-all " + (range === r ? "bg-[#0684BD] text-white" : "bg-white/5 text-slate-400 hover:bg-white/10")}>
+              className={"px-3 py-1.5 rounded-lg text-xs font-semibold transition-all " + (range === r ? "bg-[#3b82f6] text-white" : "bg-white/5 text-slate-400 hover:bg-white/10")}>
               {r}
             </button>
           ))}
@@ -77,7 +77,7 @@ export default function AnalyticsDashboard() {
                   <XAxis dataKey="day" tick={{ fill: "#94a3b8", fontSize: 11 }} />
                   <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: "#1e1e30", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} />
-                  <Bar dataKey="calls" fill="#0EB8FF" radius={[4,4,0,0]} />
+                  <Bar dataKey="calls" fill="#60a5fa" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

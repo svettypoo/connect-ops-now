@@ -42,7 +42,7 @@ export default function SupervisorPanel() {
   return (
     <div className="p-6 space-y-6 text-white">
       <div className="flex items-center gap-3">
-        <Eye className="w-5 h-5 text-[#0EB8FF]" />
+        <Eye className="w-5 h-5 text-[#60a5fa]" />
         <h2 className="text-xl font-bold">Supervisor Panel</h2>
         <span className="ml-auto text-xs text-slate-500">Live • updates every 3s</span>
       </div>
@@ -73,7 +73,7 @@ export default function SupervisorPanel() {
                     </span>
                   ) : (
                     <button onClick={() => listen(call)}
-                      className="px-3 py-1.5 bg-[#0684BD]/20 hover:bg-[#0684BD]/40 text-[#0EB8FF] rounded-lg text-xs font-semibold flex items-center gap-1 transition-all">
+                      className="px-3 py-1.5 bg-[#3b82f6]/20 hover:bg-[#3b82f6]/40 text-[#60a5fa] rounded-lg text-xs font-semibold flex items-center gap-1 transition-all">
                       <Eye className="w-3 h-3" /> Listen
                     </button>
                   )}

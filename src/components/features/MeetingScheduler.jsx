@@ -59,40 +59,40 @@ export default function MeetingScheduler() {
   return (
     <div className="p-6 space-y-5 text-white">
       <div className="flex items-center gap-3">
-        <Calendar className="w-5 h-5 text-[#0EB8FF]" />
+        <Calendar className="w-5 h-5 text-[#60a5fa]" />
         <h2 className="text-xl font-bold">Meetings</h2>
         <button onClick={() => setShowCreate(true)}
-          className="ml-auto flex items-center gap-2 px-3 py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold transition-all">
+          className="ml-auto flex items-center gap-2 px-3 py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold transition-all">
           <Plus className="w-4 h-4" /> New Meeting
         </button>
       </div>
 
       {showCreate && (
-        <div className="bg-white/5 rounded-xl p-5 border border-[#0684BD]/40 space-y-3">
+        <div className="bg-white/5 rounded-xl p-5 border border-[#3b82f6]/40 space-y-3">
           <div className="flex justify-between items-center">
             <h3 className="font-semibold">Schedule Meeting</h3>
             <button onClick={() => setShowCreate(false)}><X className="w-4 h-4 text-slate-400" /></button>
           </div>
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            placeholder="Meeting title" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]" />
+            placeholder="Meeting title" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]" />
           <div className="grid grid-cols-2 gap-3">
             <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]" />
+              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]" />
             <input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]" />
+              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <select value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]">
+              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]">
               {["15","30","45","60","90","120"].map(d => <option key={d} value={d} className="bg-[#1e1e30]">{d} minutes</option>)}
             </select>
             <input value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))}
-              placeholder="Room name (auto)" className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]" />
+              placeholder="Room name (auto)" className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]" />
           </div>
           <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-            placeholder="SMS invite to phone (optional)" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]" />
+            placeholder="SMS invite to phone (optional)" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]" />
           <button onClick={create} disabled={creating || !form.title || !form.date}
-            className="w-full py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold disabled:opacity-40 transition-all">
+            className="w-full py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold disabled:opacity-40 transition-all">
             {creating ? "Creating..." : "Create Meeting"}
           </button>
         </div>
@@ -109,8 +109,8 @@ export default function MeetingScheduler() {
                 const link = "https://meet.jit.si/" + (m.room_name || m.id);
                 return (
                   <div key={m.id || i} className="bg-white/5 rounded-xl p-4 border border-white/10 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-[#0684BD]/20 flex items-center justify-center flex-shrink-0">
-                      <Video className="w-5 h-5 text-[#0EB8FF]" />
+                    <div className="w-10 h-10 rounded-xl bg-[#3b82f6]/20 flex items-center justify-center flex-shrink-0">
+                      <Video className="w-5 h-5 text-[#60a5fa]" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm">{m.title || m.room_name}</p>
@@ -121,7 +121,7 @@ export default function MeetingScheduler() {
                         <Copy className="w-3 h-3" /> {copied === m.id + "copy" ? "Copied!" : "Copy"}
                       </button>
                       <a href={link} target="_blank" rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-xs font-semibold flex items-center gap-1 transition-all">
+                        className="px-3 py-1.5 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-xs font-semibold flex items-center gap-1 transition-all">
                         <Link className="w-3 h-3" /> Join
                       </a>
                     </div>

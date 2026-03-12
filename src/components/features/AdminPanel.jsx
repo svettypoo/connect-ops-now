@@ -37,14 +37,14 @@ export default function AdminPanel() {
   return (
     <div className="p-6 space-y-4 text-white">
       <div className="flex items-center gap-3 mb-2">
-        <Shield className="w-5 h-5 text-[#0EB8FF]" />
+        <Shield className="w-5 h-5 text-[#60a5fa]" />
         <h2 className="text-xl font-bold">Admin Panel</h2>
       </div>
 
       <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit">
         {["users","numbers","roles"].map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={"px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-all " + (tab === t ? "bg-[#0684BD] text-white" : "text-slate-400 hover:text-white")}>
+            className={"px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-all " + (tab === t ? "bg-[#3b82f6] text-white" : "text-slate-400 hover:text-white")}>
             {t === "numbers" ? "Phone Numbers" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
@@ -62,7 +62,7 @@ export default function AdminPanel() {
           <div className="flex justify-between items-center">
             <p className="text-slate-400 text-sm">{users.length} user{users.length !== 1 ? "s" : ""}</p>
             <button onClick={() => setShowInvite(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold transition-all">
+              className="flex items-center gap-2 px-3 py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold transition-all">
               <Plus className="w-4 h-4" /> Invite User
             </button>
           </div>
@@ -75,12 +75,12 @@ export default function AdminPanel() {
               </div>
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Full name"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]" />
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]" />
               <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="Email address" type="email"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]" />
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]" />
               <button onClick={invite} disabled={inviting}
-                className="w-full py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold disabled:opacity-50 transition-all">
+                className="w-full py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold disabled:opacity-50 transition-all">
                 {inviting ? "Sending..." : "Send Invite"}
               </button>
             </div>
@@ -108,7 +108,7 @@ export default function AdminPanel() {
                       <td className="px-4 py-3 text-slate-400">{u.email}</td>
                       <td className="px-4 py-3 text-slate-400">{u.extension || "—"}</td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 rounded text-xs bg-[#0684BD]/20 text-[#0EB8FF]">{u.role || "agent"}</span>
+                        <span className="px-2 py-0.5 rounded text-xs bg-[#3b82f6]/20 text-[#60a5fa]">{u.role || "agent"}</span>
                       </td>
                     </tr>
                   ))}

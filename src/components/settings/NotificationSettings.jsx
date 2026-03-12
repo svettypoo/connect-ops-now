@@ -6,8 +6,8 @@ import { useNotificationSettings, startRingtone, stopRingtone, playMessageSound 
 function Section({ title, children }) {
   return (
     <div style={{ marginBottom: "28px" }}>
-      <p style={{ fontSize: "11px", fontWeight: 700, color: "#0684BD", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 12px", padding: "0 16px" }}>{title}</p>
-      <div style={{ background: "#1E2025", borderRadius: "14px", overflow: "hidden" }}>
+      <p style={{ fontSize: "11px", fontWeight: 700, color: "#3b82f6", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 12px", padding: "0 16px" }}>{title}</p>
+      <div style={{ background: "#0f1628", borderRadius: "14px", overflow: "hidden" }}>
         {children}
       </div>
     </div>
@@ -19,11 +19,11 @@ function Row({ label, sub, children, last }) {
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "14px 16px",
-      borderBottom: last ? "none" : "1px solid #2A2D35",
+      borderBottom: last ? "none" : "1px solid #1a2744",
     }}>
       <div>
         <p style={{ margin: 0, fontSize: "14px", color: "#FFFFFF", fontWeight: 500 }}>{label}</p>
-        {sub && <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#8B8F9B" }}>{sub}</p>}
+        {sub && <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#6b84a8" }}>{sub}</p>}
       </div>
       {children}
     </div>
@@ -36,7 +36,7 @@ function Toggle({ value, onChange }) {
       onClick={() => onChange(!value)}
       style={{
         width: "48px", height: "28px", borderRadius: "14px", border: "none", cursor: "pointer",
-        background: value ? "#0684BD" : "#3A3D45", position: "relative", transition: "background 0.2s", flexShrink: 0,
+        background: value ? "#3b82f6" : "#243352", position: "relative", transition: "background 0.2s", flexShrink: 0,
       }}
     >
       <span style={{
@@ -54,7 +54,7 @@ function Select({ value, onChange, options }) {
       value={value}
       onChange={e => onChange(e.target.value)}
       style={{
-        background: "#2A2D35", border: "1px solid #3A3D45", borderRadius: "8px",
+        background: "#1a2744", border: "1px solid #243352", borderRadius: "8px",
         color: "#FFFFFF", fontSize: "13px", padding: "6px 10px", cursor: "pointer", outline: "none",
       }}
     >
@@ -70,7 +70,7 @@ function VolumeSlider({ value, onChange }) {
       <input
         type="range" min={0} max={100} value={value}
         onChange={e => onChange(Number(e.target.value))}
-        style={{ flex: 1, accentColor: "#0684BD" }}
+        style={{ flex: 1, accentColor: "#3b82f6" }}
       />
       <span style={{ fontSize: "16px" }}>🔊</span>
     </div>
@@ -114,7 +114,7 @@ export default function NotificationSettings() {
     <div style={{
       height: "100%", overflowY: "auto", padding: "24px 16px",
       fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
-      background: "#17191C", color: "#FFFFFF",
+      background: "#0a0e1a", color: "#FFFFFF",
     }}>
       <p style={{ fontSize: "20px", fontWeight: 700, margin: "0 0 24px 0", padding: "0 0 0 4px" }}>Notifications & Sounds</p>
 
@@ -126,7 +126,7 @@ export default function NotificationSettings() {
           ) : (
             <button
               onClick={requestNotifPermission}
-              style={{ background: "#0684BD", border: "none", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "6px 14px", cursor: "pointer", fontWeight: 600 }}
+              style={{ background: "#3b82f6", border: "none", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "6px 14px", cursor: "pointer", fontWeight: 600 }}
             >
               Enable
             </button>
@@ -142,7 +142,7 @@ export default function NotificationSettings() {
         <Row label="Ringtone" sub="Plays when a call comes in">
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Select value={settings.ringtone} onChange={v => update({ ringtone: v })} options={RINGTONES} />
-            <button onClick={testRingtone} style={{ background: "#2A2D35", border: "1px solid #3A3D45", borderRadius: "8px", color: "#C8CAD0", fontSize: "12px", padding: "6px 10px", cursor: "pointer" }}>
+            <button onClick={testRingtone} style={{ background: "#1a2744", border: "1px solid #243352", borderRadius: "8px", color: "#c8d6e5", fontSize: "12px", padding: "6px 10px", cursor: "pointer" }}>
               Test
             </button>
           </div>
@@ -168,7 +168,7 @@ export default function NotificationSettings() {
         <Row label="Message sound">
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Select value={settings.messageSound} onChange={v => update({ messageSound: v })} options={MESSAGE_SOUNDS} />
-            <button onClick={testMessage} style={{ background: "#2A2D35", border: "1px solid #3A3D45", borderRadius: "8px", color: "#C8CAD0", fontSize: "12px", padding: "6px 10px", cursor: "pointer" }}>
+            <button onClick={testMessage} style={{ background: "#1a2744", border: "1px solid #243352", borderRadius: "8px", color: "#c8d6e5", fontSize: "12px", padding: "6px 10px", cursor: "pointer" }}>
               Test
             </button>
           </div>
@@ -196,14 +196,14 @@ export default function NotificationSettings() {
               <input
                 type="time" value={settings.dndStart}
                 onChange={e => update({ dndStart: e.target.value })}
-                style={{ background: "#2A2D35", border: "1px solid #3A3D45", borderRadius: "8px", color: "#fff", fontSize: "14px", padding: "6px 10px", outline: "none" }}
+                style={{ background: "#1a2744", border: "1px solid #243352", borderRadius: "8px", color: "#fff", fontSize: "14px", padding: "6px 10px", outline: "none" }}
               />
             </Row>
             <Row label="End time" last>
               <input
                 type="time" value={settings.dndEnd}
                 onChange={e => update({ dndEnd: e.target.value })}
-                style={{ background: "#2A2D35", border: "1px solid #3A3D45", borderRadius: "8px", color: "#fff", fontSize: "14px", padding: "6px 10px", outline: "none" }}
+                style={{ background: "#1a2744", border: "1px solid #243352", borderRadius: "8px", color: "#fff", fontSize: "14px", padding: "6px 10px", outline: "none" }}
               />
             </Row>
           </>

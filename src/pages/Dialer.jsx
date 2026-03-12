@@ -78,7 +78,7 @@ const DotsIcon = ({ size = 24, color = 'currentColor' }) => (
   </svg>
 );
 
-const BellIcon = ({ size = 22, color = '#8B8F9B' }) => (
+const BellIcon = ({ size = 22, color = '#6b84a8' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
     <path d="M13.73 21a2 2 0 01-3.46 0" />
@@ -335,7 +335,7 @@ function RecordingsList() {
     return (r.title||'').toLowerCase().includes(q) || (r.transcript||'').toLowerCase().includes(q) || (r.ai_summary||'').toLowerCase().includes(q);
   });
 
-  if (loading) return <div style={{ padding:'24px', textAlign:'center', color:'#8B8F9B', fontSize:'14px' }}>Loading…</div>;
+  if (loading) return <div style={{ padding:'24px', textAlign:'center', color:'#6b84a8', fontSize:'14px' }}>Loading…</div>;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -350,7 +350,7 @@ function RecordingsList() {
         />
       </div>
 
-      {filtered.length === 0 && <div style={{ padding:'24px', color:'#8B8F9B', textAlign:'center', fontSize:'14px' }}>{recordings.length === 0 ? 'No recordings' : 'No matches'}</div>}
+      {filtered.length === 0 && <div style={{ padding:'24px', color:'#6b84a8', textAlign:'center', fontSize:'14px' }}>{recordings.length === 0 ? 'No recordings' : 'No matches'}</div>}
 
       <div style={{ flex:1, overflowY:'auto' }}>
         {filtered.map(rec => {
@@ -361,16 +361,16 @@ function RecordingsList() {
               <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 16px', cursor:'pointer' }}
                 onClick={() => setExpandedId(isExpanded ? null : rec.id)}>
                 <button onClick={(e) => { e.stopPropagation(); toggle(rec); }}
-                  style={{ background:'rgba(14,184,255,0.15)', border:'none', borderRadius:'50%', width:'36px', height:'36px', flexShrink:0, cursor:'pointer', color:'#0EB8FF', fontSize:'16px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  style={{ background:'rgba(14,184,255,0.15)', border:'none', borderRadius:'50%', width:'36px', height:'36px', flexShrink:0, cursor:'pointer', color:'#60a5fa', fontSize:'16px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   {isPlaying ? '⏹' : '▶'}
                 </button>
                 <div style={{ flex:1, minWidth:0 }}>
                   <p style={{ margin:'0 0 2px', fontSize:'13px', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{rec.title || 'Recording'}</p>
                   <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                    <span style={{ fontSize:'11px', color:'#8B8F9B' }}>{fmtTime(rec.created_at)}</span>
-                    {rec.duration > 0 && <span style={{ fontSize:'11px', color:'#8B8F9B' }}>{fmtDur(rec.duration)}</span>}
-                    {rec.size > 0 && <span style={{ fontSize:'11px', color:'#8B8F9B' }}>{fmtSize(rec.size)}</span>}
-                    {rec.transcript && <span style={{ fontSize:'9px', background:'rgba(6,132,189,0.2)', color:'#0EB8FF', padding:'1px 6px', borderRadius:'6px', fontWeight:600 }}>TXT</span>}
+                    <span style={{ fontSize:'11px', color:'#6b84a8' }}>{fmtTime(rec.created_at)}</span>
+                    {rec.duration > 0 && <span style={{ fontSize:'11px', color:'#6b84a8' }}>{fmtDur(rec.duration)}</span>}
+                    {rec.size > 0 && <span style={{ fontSize:'11px', color:'#6b84a8' }}>{fmtSize(rec.size)}</span>}
+                    {rec.transcript && <span style={{ fontSize:'9px', background:'rgba(6,132,189,0.2)', color:'#60a5fa', padding:'1px 6px', borderRadius:'6px', fontWeight:600 }}>TXT</span>}
                     {rec.ai_summary && <span style={{ fontSize:'9px', background:'rgba(139,92,246,0.2)', color:'#a78bfa', padding:'1px 6px', borderRadius:'6px', fontWeight:600 }}>AI</span>}
                   </div>
                 </div>
@@ -379,7 +379,7 @@ function RecordingsList() {
                     style={{ background:'rgba(244,67,54,0.1)', border:'none', borderRadius:'8px', width:'28px', height:'28px', cursor:'pointer', color:'#f44336', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px' }}>
                     🗑
                   </button>
-                  <span style={{ color:'#3A3D45', fontSize:'12px' }}>{isExpanded ? '▲' : '▼'}</span>
+                  <span style={{ color:'#243352', fontSize:'12px' }}>{isExpanded ? '▲' : '▼'}</span>
                 </div>
               </div>
               {isExpanded && (rec.ai_summary || rec.transcript) && (
@@ -392,7 +392,7 @@ function RecordingsList() {
                   )}
                   {rec.transcript && (
                     <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:'12px', padding:'12px', maxHeight:'120px', overflowY:'auto' }}>
-                      <p style={{ margin:'0 0 6px', fontSize:'10px', color:'#8B8F9B', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>Transcript</p>
+                      <p style={{ margin:'0 0 6px', fontSize:'10px', color:'#6b84a8', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>Transcript</p>
                       <p style={{ margin:0, fontSize:'12px', color:'#9ca3af', lineHeight:1.5 }}>{rec.transcript}</p>
                     </div>
                   )}
@@ -420,16 +420,16 @@ function PhoneScreen({ phone, user, onDial, onCallBack, vmUnread }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Sub-tab bar */}
       <div style={{
-        display: 'flex', borderBottom: '1px solid #2A2D35',
-        overflowX: 'auto', flexShrink: 0, background: '#17191C',
+        display: 'flex', borderBottom: '1px solid #1a2744',
+        overflowX: 'auto', flexShrink: 0, background: '#0a0e1a',
         scrollbarWidth: 'none',
       }}>
         {SUB_TABS.map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)} style={{
             padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
             whiteSpace: 'nowrap',
-            color: subTab === t.id ? '#0684BD' : '#8B8F9B',
-            borderBottom: subTab === t.id ? '2px solid #0684BD' : '2px solid transparent',
+            color: subTab === t.id ? '#3b82f6' : '#6b84a8',
+            borderBottom: subTab === t.id ? '2px solid #3b82f6' : '2px solid transparent',
             fontSize: '14px', fontWeight: subTab === t.id ? 600 : 400,
             flexShrink: 0,
           }}>{t.label}</button>
@@ -437,13 +437,13 @@ function PhoneScreen({ phone, user, onDial, onCallBack, vmUnread }) {
       </div>
       {/* Caller ID bar */}
       <div style={{
-        padding: '8px 16px', background: '#17191C',
-        borderBottom: '1px solid #2A2D35', flexShrink: 0,
+        padding: '8px 16px', background: '#0a0e1a',
+        borderBottom: '1px solid #1a2744', flexShrink: 0,
       }}>
-        <span style={{ fontSize: '13px', color: '#8B8F9B' }}>
+        <span style={{ fontSize: '13px', color: '#6b84a8' }}>
           My caller ID:{' '}
           <span style={{ color: '#FFFFFF' }}>{phone?.phoneNumber || '+1 (587) 983-6164'}</span>
-          <span style={{ color: '#0684BD', marginLeft: '4px' }}>&#9660;</span>
+          <span style={{ color: '#3b82f6', marginLeft: '4px' }}>&#9660;</span>
         </span>
       </div>
       {/* Content */}
@@ -452,7 +452,7 @@ function PhoneScreen({ phone, user, onDial, onCallBack, vmUnread }) {
         {subTab === 'calls' && <CallHistory onCallBack={onCallBack} />}
         {subTab === 'voicemail' && <VoicemailList onCallBack={onCallBack} />}
         {subTab === 'notes' && (
-          <div style={{ padding: '24px', color: '#8B8F9B', textAlign: 'center', fontSize: '14px' }}>
+          <div style={{ padding: '24px', color: '#6b84a8', textAlign: 'center', fontSize: '14px' }}>
             No notes yet
           </div>
         )}
@@ -478,20 +478,20 @@ function ContactsView({ onCall, onMessage }) {
   };
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: '#17191C' }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: '#0a0e1a' }}>
       {/* Search bar */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2D35' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a2744' }}>
         <input
           placeholder="Search contacts..."
           style={{
-            width: '100%', background: '#1E2025', border: '1px solid #2A2D35',
+            width: '100%', background: '#0f1628', border: '1px solid #1a2744',
             borderRadius: '10px', padding: '8px 12px', color: '#FFFFFF',
             fontSize: '14px', outline: 'none', boxSizing: 'border-box',
           }}
         />
       </div>
       {contacts.length === 0 ? (
-        <div style={{ padding: '32px', textAlign: 'center', color: '#8B8F9B', fontSize: '14px' }}>
+        <div style={{ padding: '32px', textAlign: 'center', color: '#6b84a8', fontSize: '14px' }}>
           No contacts found
         </div>
       ) : (
@@ -499,25 +499,25 @@ function ContactsView({ onCall, onMessage }) {
           {contacts.map(c => (
             <div key={c.id || c.email} style={{
               display: 'flex', alignItems: 'center', gap: '12px',
-              padding: '12px 16px', borderBottom: '1px solid #2A2D35',
+              padding: '12px 16px', borderBottom: '1px solid #1a2744',
             }}>
               <div style={{
                 width: '40px', height: '40px', borderRadius: '50%',
-                background: '#0684BD', display: 'flex', alignItems: 'center',
+                background: '#3b82f6', display: 'flex', alignItems: 'center',
                 justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff', flexShrink: 0,
               }}>
                 {getInitialsLocal(c.name || c.email)}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name || c.email}</div>
-                {c.phone && <div style={{ color: '#8B8F9B', fontSize: '12px' }}>{c.phone}</div>}
+                {c.phone && <div style={{ color: '#6b84a8', fontSize: '12px' }}>{c.phone}</div>}
               </div>
               {c.phone && (
                 <button onClick={() => onCall && onCall(c)} style={{
                   background: 'none', border: 'none', cursor: 'pointer', padding: '6px',
-                  color: '#0684BD',
+                  color: '#3b82f6',
                 }}>
-                  <PhoneIcon size={18} color="#0684BD" />
+                  <PhoneIcon size={18} color="#3b82f6" />
                 </button>
               )}
             </div>
@@ -581,16 +581,16 @@ function AudioDeviceSettings({ onBack }) {
     osc.onended = () => { ctx.close(); setSpkTesting(false); };
   };
 
-  const sLabel = { fontSize:'11px', color:'#8B8F9B', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'6px' };
+  const sLabel = { fontSize:'11px', color:'#6b84a8', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'6px' };
   const sSelect = {
     width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)',
     borderRadius:'10px', padding:'8px 12px', color:'#fff', fontSize:'13px', outline:'none',
   };
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#17191C' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#0a0e1a' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'16px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-        <button onClick={onBack} style={{ background:'none', border:'none', color:'#8B8F9B', cursor:'pointer', padding:'4px', display:'flex' }}>
+        <button onClick={onBack} style={{ background:'none', border:'none', color:'#6b84a8', cursor:'pointer', padding:'4px', display:'flex' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
         </button>
         <span style={{ color:'#fff', fontSize:'15px', fontWeight:600 }}>Audio Devices</span>
@@ -604,7 +604,7 @@ function AudioDeviceSettings({ onBack }) {
             {mics.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || 'Mic ' + m.deviceId.slice(0,6)}</option>)}
           </select>
           <button onClick={testMic} disabled={micTesting}
-            style={{ marginTop:'10px', padding:'8px 16px', borderRadius:'10px', background:'rgba(14,184,255,0.1)', border:'1px solid rgba(14,184,255,0.2)', color:'#0EB8FF', fontSize:'12px', fontWeight:600, cursor:'pointer', opacity: micTesting ? 0.5 : 1 }}>
+            style={{ marginTop:'10px', padding:'8px 16px', borderRadius:'10px', background:'rgba(14,184,255,0.1)', border:'1px solid rgba(14,184,255,0.2)', color:'#60a5fa', fontSize:'12px', fontWeight:600, cursor:'pointer', opacity: micTesting ? 0.5 : 1 }}>
             {micTesting ? 'Recording 3s… play back' : '🎙 Test mic (3s record + play)'}
           </button>
           {micResult === 'ok' && <p style={{ color:'#4CAF50', fontSize:'12px', marginTop:'6px' }}>Mic working — you should hear playback</p>}
@@ -622,7 +622,7 @@ function AudioDeviceSettings({ onBack }) {
             {spkTesting ? 'Playing beep…' : '🔊 Test speaker (play beep)'}
           </button>
         </div>
-        <p style={{ fontSize:'11px', color:'#3A3D45', textAlign:'center' }}>Device selections are saved and applied to all calls</p>
+        <p style={{ fontSize:'11px', color:'#243352', textAlign:'center' }}>Device selections are saved and applied to all calls</p>
       </div>
     </div>
   );
@@ -657,7 +657,7 @@ function MoreSettings({ user, onLogout, onNavigate }) {
 
   const itemStyle = {
     display: 'flex', alignItems: 'center', gap: '14px',
-    padding: '14px 16px', borderBottom: '1px solid #2A2D35',
+    padding: '14px 16px', borderBottom: '1px solid #1a2744',
     cursor: 'pointer', background: 'none', border: 'none',
     width: '100%', textAlign: 'left',
   };
@@ -668,17 +668,17 @@ function MoreSettings({ user, onLogout, onNavigate }) {
       background: 'rgba(6,132,189,0.15)', display: 'flex',
       alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     }}>
-      <Icon size={18} color="#0684BD" />
+      <Icon size={18} color="#3b82f6" />
     </div>
   );
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: '#17191C' }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: '#0a0e1a' }}>
       {/* Profile header */}
-      <div style={{ padding: '24px 16px 20px', display: 'flex', alignItems: 'center', gap: '16px', borderBottom: '1px solid #2A2D35' }}>
+      <div style={{ padding: '24px 16px 20px', display: 'flex', alignItems: 'center', gap: '16px', borderBottom: '1px solid #1a2744' }}>
         <div style={{
           width: '64px', height: '64px', borderRadius: '50%',
-          background: '#0684BD', display: 'flex', alignItems: 'center',
+          background: '#3b82f6', display: 'flex', alignItems: 'center',
           justifyContent: 'center', fontSize: '22px', fontWeight: 700,
           color: '#fff', flexShrink: 0,
         }}>
@@ -686,18 +686,18 @@ function MoreSettings({ user, onLogout, onNavigate }) {
         </div>
         <div>
           <div style={{ color: '#FFFFFF', fontSize: '17px', fontWeight: 700, marginBottom: '2px' }}>{userName}</div>
-          <div style={{ color: '#8B8F9B', fontSize: '13px' }}>{userPhone}</div>
+          <div style={{ color: '#6b84a8', fontSize: '13px' }}>{userPhone}</div>
         </div>
       </div>
 
       {/* Top section — no label */}
-      <div style={{ borderBottom: '1px solid #2A2D35' }}>
+      <div style={{ borderBottom: '1px solid #1a2744' }}>
         {topItems.map(item => (
           <button
             key={item.id}
             onClick={() => {}}
-            style={{ ...itemStyle, borderBottom: '1px solid #2A2D35' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#1E2025'}
+            style={{ ...itemStyle, borderBottom: '1px solid #1a2744' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#0f1628'}
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
           >
             {iconWrap(item.icon)}
@@ -709,7 +709,7 @@ function MoreSettings({ user, onLogout, onNavigate }) {
 
       {/* Settings section */}
       <div>
-        <div style={{ padding: '12px 16px 4px', color: '#8B8F9B', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+        <div style={{ padding: '12px 16px 4px', color: '#6b84a8', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
           Settings
         </div>
         {settingsItems.map((item, i) => (
@@ -720,7 +720,7 @@ function MoreSettings({ user, onLogout, onNavigate }) {
               if (['message', 'contacts'].includes(item.id)) onNavigate && onNavigate(item.id);
             }}
             style={{ ...itemStyle }}
-            onMouseEnter={e => e.currentTarget.style.background = '#1E2025'}
+            onMouseEnter={e => e.currentTarget.style.background = '#0f1628'}
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
           >
             {iconWrap(item.icon)}
@@ -783,7 +783,7 @@ export default function Dialer() {
   const headerLabel = TAB_LABELS[activeNav] || 'Phone';
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#17191C', overflow: 'hidden', position: 'relative', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
+    <div style={{ display: 'flex', height: '100vh', background: '#0a0e1a', overflow: 'hidden', position: 'relative', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
 
       {/* Desktop sidebar */}
       <div className="hidden sm:flex flex-col">
@@ -867,7 +867,7 @@ export default function Dialer() {
 
           {/* RC-style mobile header — matches real RingCentral */}
           <div className="flex sm:hidden" style={{
-            background: '#17191C', height: '56px', borderBottom: '1px solid #2A2D35',
+            background: '#0a0e1a', height: '56px', borderBottom: '1px solid #1a2744',
             alignItems: 'center', justifyContent: 'space-between',
             padding: '0 16px', flexShrink: 0,
           }}>
@@ -875,7 +875,7 @@ export default function Dialer() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{
                 width: '32px', height: '32px', borderRadius: '50%',
-                background: '#0684BD', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '12px', fontWeight: 700, color: '#fff', flexShrink: 0,
               }}>
                 {userInitials}
@@ -887,10 +887,10 @@ export default function Dialer() {
             {/* Right: group-add + kebab */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}>
-                <GroupAddIcon size={22} color="#8B8F9B" />
+                <GroupAddIcon size={22} color="#6b84a8" />
               </button>
               <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}>
-                <KebabIcon size={22} color="#8B8F9B" />
+                <KebabIcon size={22} color="#6b84a8" />
               </button>
             </div>
           </div>
@@ -944,7 +944,7 @@ export default function Dialer() {
       {/* Mobile bottom nav — 4 tabs */}
       <div className="flex sm:hidden" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
-        background: '#17191C', borderTop: '1px solid #2A2D35',
+        background: '#0a0e1a', borderTop: '1px solid #1a2744',
         height: '64px', paddingBottom: 'env(safe-area-inset-bottom)',
         alignItems: 'center', justifyContent: 'space-around',
       }}>
@@ -957,13 +957,13 @@ export default function Dialer() {
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: isActive ? '#0684BD' : '#8B8F9B',
+                color: isActive ? '#3b82f6' : '#6b84a8',
                 padding: '4px 8px', minWidth: '60px',
                 position: 'relative',
               }}
             >
-              <Icon size={22} color={isActive ? '#0684BD' : '#8B8F9B'} />
-              <span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400, color: isActive ? '#0684BD' : '#8B8F9B' }}>
+              <Icon size={22} color={isActive ? '#3b82f6' : '#6b84a8'} />
+              <span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400, color: isActive ? '#3b82f6' : '#6b84a8' }}>
                 {label}
               </span>
               {/* Red badge on Phone tab for missed calls */}

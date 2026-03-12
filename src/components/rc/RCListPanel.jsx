@@ -91,7 +91,7 @@ export default function RCListPanel({ activeNav, selectedContact, setSelectedCon
                 api.createContact({ name, phone }).then(loadData).catch(() => alert('Failed to create contact'));
               }} className="w-7 h-7 rounded-lg flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-400 transition-all text-lg font-bold" title="Add contact">+</button>
             )}
-            <button onClick={loadData} className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#0684BD]/20 hover:bg-[#0684BD]/40 text-[#0EB8FF] transition-all text-lg font-bold">↻</button>
+            <button onClick={loadData} className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#3b82f6]/20 hover:bg-[#3b82f6]/40 text-[#60a5fa] transition-all text-lg font-bold">↻</button>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
@@ -112,7 +112,7 @@ export default function RCListPanel({ activeNav, selectedContact, setSelectedCon
         {filtered.map(item => (
           <button key={item.id} onClick={() => setSelectedContact({ ...item._raw, name: item.name, status: item.status || "offline" })}
             className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${
-              selectedContact?.id === item.id ? "bg-white/8 border-l-2 border-[#0EB8FF]" : "hover:bg-white/4 border-l-2 border-transparent"
+              selectedContact?.id === item.id ? "bg-white/8 border-l-2 border-[#60a5fa]" : "hover:bg-white/4 border-l-2 border-transparent"
             }`}>
             <div className="relative flex-shrink-0">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-sm font-bold text-white">
@@ -128,7 +128,7 @@ export default function RCListPanel({ activeNav, selectedContact, setSelectedCon
               <p className="text-xs text-slate-500 truncate mt-0.5">{item.sub}</p>
             </div>
             {item.unread > 0 && (
-              <div className="w-5 h-5 rounded-full bg-[#0684BD] flex items-center justify-center text-[10px] font-bold text-white">{item.unread}</div>
+              <div className="w-5 h-5 rounded-full bg-[#3b82f6] flex items-center justify-center text-[10px] font-bold text-white">{item.unread}</div>
             )}
           </button>
         ))}

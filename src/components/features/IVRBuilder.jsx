@@ -3,7 +3,7 @@ import { GitBranch, Plus, X, Save, Play, Check } from "lucide-react";
 import api from "@/api/inboxAiClient";
 
 const NODE_TYPES = ["Greeting", "Menu", "Transfer", "Voicemail", "Hangup"];
-const NODE_COLORS = { Greeting: "#0684BD", Menu: "#6366F1", Transfer: "#10B981", Voicemail: "#F59E0B", Hangup: "#EF4444" };
+const NODE_COLORS = { Greeting: "#3b82f6", Menu: "#6366F1", Transfer: "#10B981", Voicemail: "#F59E0B", Hangup: "#EF4444" };
 
 function NodeBox({ node, onRemove }) {
   return (
@@ -88,7 +88,7 @@ export default function IVRBuilder() {
   return (
     <div className="p-6 space-y-4 text-white">
       <div className="flex items-center gap-3">
-        <GitBranch className="w-5 h-5 text-[#0EB8FF]" />
+        <GitBranch className="w-5 h-5 text-[#60a5fa]" />
         <h2 className="text-xl font-bold">IVR Builder</h2>
       </div>
 
@@ -100,19 +100,19 @@ export default function IVRBuilder() {
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-400 uppercase">IVRs</span>
             <button onClick={() => { setActive(null); setName(""); setNodes([]); setCreating(true); }}
-              className="text-slate-500 hover:text-[#0EB8FF]"><Plus className="w-4 h-4" /></button>
+              className="text-slate-500 hover:text-[#60a5fa]"><Plus className="w-4 h-4" /></button>
           </div>
           {(creating || ivrs.length === 0) && (
-            <div className="bg-white/5 rounded-xl p-3 border border-[#0684BD]/40 space-y-2">
+            <div className="bg-white/5 rounded-xl p-3 border border-[#3b82f6]/40 space-y-2">
               <input value={name} onChange={e => setName(e.target.value)} placeholder="IVR name"
-                className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm outline-none focus:border-[#0684BD]" />
+                className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm outline-none focus:border-[#3b82f6]" />
               <button onClick={() => { setCreating(false); if (!active) selectIVR({ name, nodes: [] }); }}
-                className="w-full py-1.5 bg-[#0684BD] rounded text-xs font-semibold">Start Building</button>
+                className="w-full py-1.5 bg-[#3b82f6] rounded text-xs font-semibold">Start Building</button>
             </div>
           )}
           {ivrs.map(ivr => (
             <button key={ivr.id} onClick={() => { setCreating(false); selectIVR(ivr); }}
-              className={"w-full text-left px-3 py-2 rounded-lg text-sm transition-all " + (active?.id === ivr.id ? "bg-[#0684BD]/20 text-[#0EB8FF]" : "bg-white/5 text-slate-400 hover:bg-white/10")}>
+              className={"w-full text-left px-3 py-2 rounded-lg text-sm transition-all " + (active?.id === ivr.id ? "bg-[#3b82f6]/20 text-[#60a5fa]" : "bg-white/5 text-slate-400 hover:bg-white/10")}>
               <div className="font-medium">{ivr.name}</div>
               {ivr.is_active && <div className="text-[10px] text-green-400 flex items-center gap-1 mt-0.5"><Check className="w-2.5 h-2.5" />Active</div>}
             </button>
@@ -125,9 +125,9 @@ export default function IVRBuilder() {
             <>
               <div className="flex items-center gap-3">
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="IVR Name"
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD] flex-1" />
+                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6] flex-1" />
                 <button onClick={save} disabled={saving}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold disabled:opacity-50 transition-all">
+                  className="flex items-center gap-2 px-4 py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold disabled:opacity-50 transition-all">
                   <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save"}
                 </button>
               </div>

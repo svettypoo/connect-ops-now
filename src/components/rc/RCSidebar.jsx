@@ -162,6 +162,12 @@ const MORE_NAV = [
   { id: 'admin', icon: ShieldIcon, label: 'Admin' },
 ];
 
+const activeColor = '#93c5fd';
+const mutedColor = 'rgba(150,175,210,0.45)';
+const activeBg = 'rgba(59,130,246,0.1)';
+const hoverBg = 'rgba(59,130,246,0.05)';
+const accentBorder = '#3b82f6';
+
 export default function RCSidebar({ activeNav, setActiveNav, user, onLogout, vmUnread = 0 }) {
   const [showMore, setShowMore] = useState(false);
 
@@ -173,16 +179,18 @@ export default function RCSidebar({ activeNav, setActiveNav, user, onLogout, vmU
     <div style={{
       width: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center',
       padding: '12px 0', gap: '4px',
-      background: '#17191C', borderRight: '1px solid #2A2D35',
-      position: 'relative', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
+      background: 'rgba(8,12,24,0.95)', backdropFilter: 'blur(24px)',
+      borderRight: '1px solid rgba(80,120,200,0.08)',
+      position: 'relative', fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
     }}>
-      {/* Orange R logo */}
+      {/* S&T logo */}
       <div style={{
-        width: '36px', height: '36px', borderRadius: '10px', marginBottom: '16px',
-        background: '#FF6E00', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: '0 2px 12px rgba(255,110,0,0.3)',
+        width: '36px', height: '36px', borderRadius: '50%', marginBottom: '16px',
+        border: '1.5px solid rgba(255,215,100,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'transparent',
       }}>
-        <span style={{ fontWeight: 900, color: '#fff', fontSize: '18px', letterSpacing: '-0.5px' }}>R</span>
+        <span style={{ fontWeight: 600, color: 'rgba(255,215,100,0.7)', fontSize: '11px', letterSpacing: '0.5px' }}>S&T</span>
       </div>
 
       {/* Main nav */}
@@ -196,20 +204,21 @@ export default function RCSidebar({ activeNav, setActiveNav, user, onLogout, vmU
             style={{
               position: 'relative', width: '40px', height: '40px', borderRadius: '10px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: active ? 'rgba(6,132,189,0.15)' : 'none',
-              border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-              color: active ? '#0684BD' : '#8B8F9B',
+              background: active ? activeBg : 'none',
+              border: '1px solid ' + (active ? 'rgba(59,130,246,0.1)' : 'transparent'),
+              cursor: 'pointer', transition: 'all 0.2s',
+              color: active ? activeColor : mutedColor,
             }}
-            onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-            onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'none'; }}
+            onMouseEnter={e => { if (!active) { e.currentTarget.style.background = hoverBg; e.currentTarget.style.color = 'rgba(200,220,240,0.8)'; } }}
+            onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = mutedColor; } }}
           >
             {active && (
               <div style={{
                 position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-                width: '3px', height: '20px', borderRadius: '0 2px 2px 0', background: '#0684BD',
+                width: '3px', height: '20px', borderRadius: '0 2px 2px 0', background: accentBorder,
               }} />
             )}
-            <Icon size={20} color={active ? '#0684BD' : '#8B8F9B'} />
+            <Icon size={20} color={active ? activeColor : mutedColor} />
           </button>
         );
       })}
@@ -223,24 +232,26 @@ export default function RCSidebar({ activeNav, setActiveNav, user, onLogout, vmU
         style={{
           position: 'relative', width: '40px', height: '40px', borderRadius: '10px',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: activeNav === 'voicemail' ? 'rgba(6,132,189,0.15)' : 'none',
-          border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+          background: activeNav === 'voicemail' ? activeBg : 'none',
+          border: '1px solid ' + (activeNav === 'voicemail' ? 'rgba(59,130,246,0.1)' : 'transparent'),
+          cursor: 'pointer', transition: 'all 0.2s',
         }}
-        onMouseEnter={e => { if (activeNav !== 'voicemail') e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseEnter={e => { if (activeNav !== 'voicemail') e.currentTarget.style.background = hoverBg; }}
         onMouseLeave={e => { if (activeNav !== 'voicemail') e.currentTarget.style.background = 'none'; }}
       >
         {activeNav === 'voicemail' && (
           <div style={{
             position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-            width: '3px', height: '20px', borderRadius: '0 2px 2px 0', background: '#0684BD',
+            width: '3px', height: '20px', borderRadius: '0 2px 2px 0', background: accentBorder,
           }} />
         )}
-        <BellIcon size={20} color={activeNav === 'voicemail' ? '#0684BD' : '#8B8F9B'} />
+        <BellIcon size={20} color={activeNav === 'voicemail' ? activeColor : mutedColor} />
         {vmUnread > 0 && (
           <span style={{
             position: 'absolute', top: '4px', right: '4px', width: '15px', height: '15px',
-            background: '#F44336', color: '#fff', fontSize: '8px', borderRadius: '50%',
+            background: 'rgba(239,68,68,0.9)', color: '#fff', fontSize: '8px', borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(239,68,68,0.3)',
           }}>{vmUnread}</span>
         )}
       </button>
@@ -253,39 +264,41 @@ export default function RCSidebar({ activeNav, setActiveNav, user, onLogout, vmU
           style={{
             width: '40px', height: '40px', borderRadius: '10px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: (showMore || (!isMainActive && activeNav !== 'voicemail')) ? 'rgba(6,132,189,0.15)' : 'none',
-            border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+            background: (showMore || (!isMainActive && activeNav !== 'voicemail')) ? activeBg : 'none',
+            border: '1px solid ' + ((showMore || (!isMainActive && activeNav !== 'voicemail')) ? 'rgba(59,130,246,0.1)' : 'transparent'),
+            cursor: 'pointer', transition: 'all 0.2s',
           }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-          onMouseLeave={e => e.currentTarget.style.background = (showMore || (!isMainActive && activeNav !== 'voicemail')) ? 'rgba(6,132,189,0.15)' : 'none'}
+          onMouseEnter={e => e.currentTarget.style.background = hoverBg}
+          onMouseLeave={e => e.currentTarget.style.background = (showMore || (!isMainActive && activeNav !== 'voicemail')) ? activeBg : 'none'}
         >
-          <GridIcon size={20} color={(showMore || (!isMainActive && activeNav !== 'voicemail')) ? '#0684BD' : '#8B8F9B'} />
+          <GridIcon size={20} color={(showMore || (!isMainActive && activeNav !== 'voicemail')) ? activeColor : mutedColor} />
         </button>
 
         {showMore && (
           <div style={{
             position: 'absolute', left: '56px', bottom: 0, width: '220px',
-            background: '#1E2025', border: '1px solid #2A2D35', borderRadius: '12px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)', padding: '8px 0', zIndex: 50,
+            background: 'rgba(12,18,35,0.95)', backdropFilter: 'blur(24px)',
+            border: '1px solid rgba(80,120,200,0.12)', borderRadius: '14px',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.6)', padding: '8px 0', zIndex: 50,
           }}>
             {MORE_NAV.map((item, i) =>
               !item ? (
-                <div key={i} style={{ borderTop: '1px solid #2A2D35', margin: '4px 0' }} />
+                <div key={i} style={{ borderTop: '1px solid rgba(80,120,200,0.08)', margin: '4px 0' }} />
               ) : (
                 <button
                   key={item.id}
                   onClick={() => go(item.id)}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '8px 16px', background: activeNav === item.id ? 'rgba(6,132,189,0.1)' : 'none',
-                    border: 'none', cursor: 'pointer', transition: 'background 0.1s',
-                    color: activeNav === item.id ? '#0684BD' : '#8B8F9B',
-                    fontSize: '13px',
+                    padding: '8px 16px', background: activeNav === item.id ? activeBg : 'none',
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                    color: activeNav === item.id ? activeColor : mutedColor,
+                    fontSize: '13px', borderRadius: '0',
                   }}
-                  onMouseEnter={e => { if (activeNav !== item.id) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#FFFFFF'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = activeNav === item.id ? 'rgba(6,132,189,0.1)' : 'none'; e.currentTarget.style.color = activeNav === item.id ? '#0684BD' : '#8B8F9B'; }}
+                  onMouseEnter={e => { if (activeNav !== item.id) e.currentTarget.style.background = hoverBg; e.currentTarget.style.color = '#e2e8f0'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = activeNav === item.id ? activeBg : 'none'; e.currentTarget.style.color = activeNav === item.id ? activeColor : mutedColor; }}
                 >
-                  <item.icon size={16} color={activeNav === item.id ? '#0684BD' : '#8B8F9B'} />
+                  <item.icon size={16} color={activeNav === item.id ? activeColor : mutedColor} />
                   {item.label}
                 </button>
               )
@@ -300,13 +313,13 @@ export default function RCSidebar({ activeNav, setActiveNav, user, onLogout, vmU
         title="Logout"
         style={{
           width: '32px', height: '32px', borderRadius: '50%', marginTop: '4px',
-          background: 'linear-gradient(135deg, #0684BD, #0EB8FF)',
+          background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: '13px', fontWeight: 700, color: '#fff', cursor: 'pointer',
-          transition: 'opacity 0.15s',
+          transition: 'opacity 0.15s', border: '2px solid rgba(100,150,220,0.15)',
         }}
-        onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
-        onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+        onMouseEnter={e => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.borderColor = 'rgba(100,150,220,0.35)'; }}
+        onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.borderColor = 'rgba(100,150,220,0.15)'; }}
       >
         {(user?.name || user?.email || 'U')[0].toUpperCase()}
       </div>

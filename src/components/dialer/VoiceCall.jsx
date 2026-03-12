@@ -134,7 +134,7 @@ function CallTimer({ running }) {
 }
 
 // ── Circular action button ─────────────────────────────────────────────────
-function ActionBtn({ icon, label, active, activeColor = '#1A3A4A', activeLabelColor = '#0EB8FF', onClick, disabled }) {
+function ActionBtn({ icon, label, active, activeColor = '#1A3A4A', activeLabelColor = '#60a5fa', onClick, disabled }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
       <button
@@ -142,20 +142,20 @@ function ActionBtn({ icon, label, active, activeColor = '#1A3A4A', activeLabelCo
         disabled={disabled}
         style={{
           width: '64px', height: '64px', borderRadius: '50%',
-          background: active ? activeColor : '#1E2025',
-          border: active ? `1px solid ${activeLabelColor}40` : '1px solid #2A2D35',
+          background: active ? activeColor : '#0f1628',
+          border: active ? `1px solid ${activeLabelColor}40` : '1px solid #1a2744',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.4 : 1,
           transition: 'background 0.15s',
-          color: active ? activeLabelColor : '#C8CAD0',
+          color: active ? activeLabelColor : '#c8d6e5',
         }}
-        onMouseEnter={e => { if (!disabled && !active) e.currentTarget.style.background = '#2A2D35'; }}
-        onMouseLeave={e => { if (!disabled && !active) e.currentTarget.style.background = '#1E2025'; }}
+        onMouseEnter={e => { if (!disabled && !active) e.currentTarget.style.background = '#1a2744'; }}
+        onMouseLeave={e => { if (!disabled && !active) e.currentTarget.style.background = '#0f1628'; }}
       >
         {icon}
       </button>
-      <span style={{ fontSize: '11px', color: active ? activeLabelColor : '#8B8F9B', textAlign: 'center', lineHeight: 1 }}>{label}</span>
+      <span style={{ fontSize: '11px', color: active ? activeLabelColor : '#6b84a8', textAlign: 'center', lineHeight: 1 }}>{label}</span>
     </div>
   );
 }
@@ -174,12 +174,12 @@ function TransferDialog({ onClose, onTransfer }) {
       background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end',
     }} onClick={onClose}>
       <div
-        style={{ width: '100%', background: '#17191C', borderRadius: '20px 20px 0 0', padding: '20px 24px 40px' }}
+        style={{ width: '100%', background: '#0a0e1a', borderRadius: '20px 20px 0 0', padding: '20px 24px 40px' }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <span style={{ color: '#FFFFFF', fontSize: '16px', fontWeight: 600 }}>Transfer Call</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8B8F9B', cursor: 'pointer', padding: '4px' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b84a8', cursor: 'pointer', padding: '4px' }}>
             <ChevronDown />
           </button>
         </div>
@@ -192,7 +192,7 @@ function TransferDialog({ onClose, onTransfer }) {
           placeholder="Number or extension…"
           style={{
             width: '100%', padding: '14px 16px', borderRadius: '12px',
-            background: '#1E2025', border: '1px solid #2A2D35',
+            background: '#0f1628', border: '1px solid #1a2744',
             color: '#FFFFFF', fontSize: '18px', outline: 'none',
             fontFamily: 'monospace', letterSpacing: '1px', marginBottom: '16px',
           }}
@@ -202,8 +202,8 @@ function TransferDialog({ onClose, onTransfer }) {
           disabled={!dest.trim()}
           style={{
             width: '100%', padding: '14px', borderRadius: '12px',
-            background: dest.trim() ? '#0684BD' : '#1E2025',
-            border: 'none', color: dest.trim() ? '#fff' : '#3A3D45',
+            background: dest.trim() ? '#3b82f6' : '#0f1628',
+            border: 'none', color: dest.trim() ? '#fff' : '#243352',
             fontSize: '15px', fontWeight: 600, cursor: dest.trim() ? 'pointer' : 'not-allowed',
             transition: 'background 0.15s',
           }}
@@ -232,25 +232,25 @@ function DtmfOverlay({ onClose, onKey }) {
     }} onClick={onClose}>
       <div
         style={{
-          width: '100%', background: '#17191C', borderRadius: '20px 20px 0 0',
+          width: '100%', background: '#0a0e1a', borderRadius: '20px 20px 0 0',
           padding: '16px 24px 32px',
         }}
         onClick={e => e.stopPropagation()}
       >
         {/* Handle + close */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: '#2A2D35', margin: '0 auto' }} />
+          <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: '#1a2744', margin: '0 auto' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8B8F9B', cursor: 'pointer', padding: '4px' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b84a8', cursor: 'pointer', padding: '4px' }}>
             <ChevronDown />
           </button>
           <div style={{ flex: 1, textAlign: 'center', fontSize: '28px', fontWeight: 300, color: '#FFFFFF', letterSpacing: '3px', minHeight: '40px' }}>
-            {digits || <span style={{ color: '#3A3D45', fontSize: '14px', fontWeight: 400 }}>Enter digits</span>}
+            {digits || <span style={{ color: '#243352', fontSize: '14px', fontWeight: 400 }}>Enter digits</span>}
           </div>
           <button
             onClick={() => setDigits(d => d.slice(0, -1))}
-            style={{ background: 'none', border: 'none', color: '#8B8F9B', cursor: 'pointer', padding: '4px', opacity: digits ? 1 : 0 }}
+            style={{ background: 'none', border: 'none', color: '#6b84a8', cursor: 'pointer', padding: '4px', opacity: digits ? 1 : 0 }}
           >
             <BackspaceIcon />
           </button>
@@ -264,15 +264,15 @@ function DtmfOverlay({ onClose, onKey }) {
               onClick={() => pressKey(k)}
               style={{
                 aspectRatio: '1/1', borderRadius: '50%',
-                background: '#1E2025', border: '1px solid #2A2D35',
+                background: '#0f1628', border: '1px solid #1a2744',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                 gap: '1px', cursor: 'pointer', transition: 'background 0.1s', outline: 'none',
               }}
-              onMouseDown={e => e.currentTarget.style.background = '#2A2D35'}
-              onMouseUp={e => e.currentTarget.style.background = '#1E2025'}
+              onMouseDown={e => e.currentTarget.style.background = '#1a2744'}
+              onMouseUp={e => e.currentTarget.style.background = '#0f1628'}
             >
               <span style={{ color: '#FFFFFF', fontSize: '22px', fontWeight: 600, lineHeight: 1 }}>{k}</span>
-              {DTMF_SUBS[k] && <span style={{ color: '#8B8F9B', fontSize: '9px', letterSpacing: '1.5px' }}>{DTMF_SUBS[k]}</span>}
+              {DTMF_SUBS[k] && <span style={{ color: '#6b84a8', fontSize: '9px', letterSpacing: '1.5px' }}>{DTMF_SUBS[k]}</span>}
             </button>
           ))}
         </div>
@@ -291,7 +291,7 @@ function TranscriptPanel({ lines, onClose }) {
       position: 'fixed', inset: 0, zIndex: 190, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end',
     }} onClick={onClose}>
       <div
-        style={{ width: '100%', background: '#17191C', borderRadius: '20px 20px 0 0', padding: '20px 16px 32px', maxHeight: '60vh', display: 'flex', flexDirection: 'column' }}
+        style={{ width: '100%', background: '#0a0e1a', borderRadius: '20px 20px 0 0', padding: '20px 16px 32px', maxHeight: '60vh', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexShrink: 0 }}>
@@ -299,27 +299,27 @@ function TranscriptPanel({ lines, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F44336', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
             <span style={{ fontSize: '12px', color: '#F44336' }}>Live</span>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8B8F9B', cursor: 'pointer', marginLeft: '8px', padding: '4px' }}>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b84a8', cursor: 'pointer', marginLeft: '8px', padding: '4px' }}>
               <ChevronDown />
             </button>
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {lines.length === 0 && (
-            <p style={{ color: '#3A3D45', fontSize: '14px', textAlign: 'center', paddingTop: '24px' }}>Transcript will appear here…</p>
+            <p style={{ color: '#243352', fontSize: '14px', textAlign: 'center', paddingTop: '24px' }}>Transcript will appear here…</p>
           )}
           {lines.map((line, i) => (
             <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
               <div style={{
                 width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
-                background: i % 2 === 0 ? '#0684BD' : '#2A2D35',
+                background: i % 2 === 0 ? '#3b82f6' : '#1a2744',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '11px', fontWeight: 700, color: '#fff',
               }}>
                 {i % 2 === 0 ? 'Me' : 'C'}
               </div>
-              <div style={{ background: '#1E2025', borderRadius: '12px', padding: '8px 12px', flex: 1 }}>
-                <p style={{ color: '#C8CAD0', fontSize: '13px', margin: 0, lineHeight: 1.5 }}>{line}</p>
+              <div style={{ background: '#0f1628', borderRadius: '12px', padding: '8px 12px', flex: 1 }}>
+                <p style={{ color: '#c8d6e5', fontSize: '13px', margin: 0, lineHeight: 1.5 }}>{line}</p>
               </div>
             </div>
           ))}
@@ -443,11 +443,11 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
-        height: '100%', background: 'linear-gradient(180deg, #0A1628 0%, #17191C 100%)',
+        height: '100%', background: 'linear-gradient(180deg, #0A1628 0%, #0a0e1a 100%)',
         padding: '60px 24px 48px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
       }}>
         <div style={{ textAlign: 'center' }}>
-          <p style={{ color: '#8B8F9B', fontSize: '14px', marginBottom: '24px' }}>Calling…</p>
+          <p style={{ color: '#6b84a8', fontSize: '14px', marginBottom: '24px' }}>Calling…</p>
           <div style={{
             width: '96px', height: '96px', borderRadius: '50%', background: AVATAR_BG,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -458,7 +458,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
             {getInitials(phone.activeName || dialName || '')}
           </div>
           <h2 style={{ color: '#fff', fontSize: '26px', fontWeight: 700, margin: '0 0 6px' }}>{phone.activeName || dialName || phone.activeNumber}</h2>
-          <p style={{ color: '#8B8F9B', fontSize: '15px', margin: 0 }}>{phone.activeNumber}</p>
+          <p style={{ color: '#6b84a8', fontSize: '15px', margin: 0 }}>{phone.activeNumber}</p>
         </div>
         <button
           onClick={() => { phone.hangup(); (onCallEnd || onHangup)?.(); }}
@@ -477,12 +477,12 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
-        height: '100%', background: 'linear-gradient(180deg, #0A1628 0%, #17191C 100%)',
+        height: '100%', background: 'linear-gradient(180deg, #0A1628 0%, #0a0e1a 100%)',
         padding: '60px 24px 48px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
       }}>
         {/* Top: Incoming label */}
         <div style={{ textAlign: 'center' }}>
-          <p style={{ color: '#8B8F9B', fontSize: '14px', marginBottom: '24px' }}>Incoming call</p>
+          <p style={{ color: '#6b84a8', fontSize: '14px', marginBottom: '24px' }}>Incoming call</p>
           {/* Avatar */}
           <div style={{
             width: '96px', height: '96px', borderRadius: '50%', background: AVATAR_BG,
@@ -493,7 +493,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
             {getInitials(callerName)}
           </div>
           <p style={{ color: '#FFFFFF', fontSize: '26px', fontWeight: 600, margin: '0 0 6px' }}>{callerName}</p>
-          {callerNumber && <p style={{ color: '#8B8F9B', fontSize: '15px', margin: 0 }}>{callerNumber}</p>}
+          {callerNumber && <p style={{ color: '#6b84a8', fontSize: '15px', margin: 0 }}>{callerNumber}</p>}
         </div>
 
         {/* Answer / Reject */}
@@ -505,7 +505,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
             >
               <PhoneOffIcon size={30} />
             </button>
-            <span style={{ color: '#8B8F9B', fontSize: '13px' }}>Decline</span>
+            <span style={{ color: '#6b84a8', fontSize: '13px' }}>Decline</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
             <button
@@ -514,7 +514,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
             >
               <PhoneAnswerIcon size={30} />
             </button>
-            <span style={{ color: '#8B8F9B', fontSize: '13px' }}>Answer</span>
+            <span style={{ color: '#6b84a8', fontSize: '13px' }}>Answer</span>
           </div>
         </div>
       </div>
@@ -526,7 +526,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        height: '100%', background: '#17191C',
+        height: '100%', background: '#0a0e1a',
         padding: '40px 24px 32px',
         fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
         position: 'relative',
@@ -541,7 +541,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
           <p style={{ color: phone.status === 'held' ? '#FF9800' : '#4CAF50', fontSize: '13px', fontWeight: 500, margin: '0 0 4px' }}>
             {phone.status === 'held' ? 'On Hold' : 'On Call'}
           </p>
-          <p style={{ color: '#8B8F9B', fontSize: '13px', fontFamily: 'monospace', margin: 0 }}>
+          <p style={{ color: '#6b84a8', fontSize: '13px', fontFamily: 'monospace', margin: 0 }}>
             <CallTimer running={phone.status === 'active'} />
           </p>
         </div>
@@ -559,7 +559,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
 
         {/* Name + number */}
         <p style={{ color: '#FFFFFF', fontSize: '22px', fontWeight: 600, margin: '0 0 4px', textAlign: 'center' }}>{callerName}</p>
-        {callerNumber && <p style={{ color: '#8B8F9B', fontSize: '14px', margin: '0 0 32px', textAlign: 'center' }}>{callerNumber}</p>}
+        {callerNumber && <p style={{ color: '#6b84a8', fontSize: '14px', margin: '0 0 32px', textAlign: 'center' }}>{callerNumber}</p>}
 
         {/* Audio waveform animation */}
         {phone.status === 'active' && (
@@ -628,7 +628,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
             padding: '8px 16px', borderRadius: '20px',
             background: showTranscript ? 'rgba(6,132,189,0.2)' : 'rgba(255,255,255,0.05)',
             border: showTranscript ? '1px solid rgba(6,132,189,0.4)' : '1px solid rgba(255,255,255,0.08)',
-            color: showTranscript ? '#0EB8FF' : '#8B8F9B', fontSize: '13px', cursor: 'pointer',
+            color: showTranscript ? '#60a5fa' : '#6b84a8', fontSize: '13px', cursor: 'pointer',
             marginBottom: '32px',
           }}
         >
@@ -674,7 +674,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   // ── Post-call / idle ─────────────────────────────────────────────────────
   if (phone.elapsed > 0) {
     return (
-      <div style={{ padding: '16px', background: '#17191C', height: '100%', overflowY: 'auto' }}>
+      <div style={{ padding: '16px', background: '#0a0e1a', height: '100%', overflowY: 'auto' }}>
         {/* AI chips */}
         {(aiLoading || aiChips) && (
           <div style={{ marginBottom: '16px' }}>
@@ -689,18 +689,18 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
                 {/* Summary chip */}
                 {aiChips.summary && (
                   <div style={{ background: 'rgba(14,184,255,0.08)', border: '1px solid rgba(14,184,255,0.2)', borderRadius: '12px', padding: '10px 12px' }}>
-                    <p style={{ margin: '0 0 4px', fontSize: '10px', color: '#0EB8FF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Summary</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#C8CAD0', lineHeight: 1.4 }}>{aiChips.summary}</p>
+                    <p style={{ margin: '0 0 4px', fontSize: '10px', color: '#60a5fa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Summary</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#c8d6e5', lineHeight: 1.4 }}>{aiChips.summary}</p>
                   </div>
                 )}
                 {/* Task chips */}
                 {aiChips.tasks?.filter((_, i) => !dismissedChips.includes(i)).map((task, i) => (
                   <div key={i} style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)', borderRadius: '12px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '14px' }}>✓</span>
-                    <span style={{ flex: 1, fontSize: '13px', color: '#C8CAD0' }}>{task}</span>
+                    <span style={{ flex: 1, fontSize: '13px', color: '#c8d6e5' }}>{task}</span>
                     <button
                       onClick={() => setDismissedChips(d => [...d, i])}
-                      style={{ background: 'none', border: 'none', color: '#3A3D45', cursor: 'pointer', padding: '2px', fontSize: '14px', lineHeight: 1 }}
+                      style={{ background: 'none', border: 'none', color: '#243352', cursor: 'pointer', padding: '2px', fontSize: '14px', lineHeight: 1 }}
                     >×</button>
                   </div>
                 ))}
@@ -731,10 +731,10 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   // ── Mic permission denied ────────────────────────────────────────────────
   if (phone.micDenied) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#17191C', gap: '12px', padding: '32px', textAlign: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#0a0e1a', gap: '12px', padding: '32px', textAlign: 'center' }}>
         <div style={{ fontSize: '40px' }}>🎤</div>
         <p style={{ color: '#FF5252', fontSize: '15px', fontWeight: 600 }}>Microphone Access Required</p>
-        <p style={{ color: '#8B8F9B', fontSize: '13px', maxWidth: '260px' }}>
+        <p style={{ color: '#6b84a8', fontSize: '13px', maxWidth: '260px' }}>
           Go to Settings → Apps → Connect Ops → Permissions and enable Microphone, then restart the app.
         </p>
       </div>
@@ -745,16 +745,16 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      height: '100%', background: '#17191C', gap: '12px',
+      height: '100%', background: '#0a0e1a', gap: '12px',
       fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
     }}>
-      <div style={{ width: '48px', height: '48px', borderRadius: '50%', border: '2px solid #2A2D35', borderTopColor: '#0EB8FF', animation: 'spin 0.8s linear infinite' }} />
-      <p style={{ color: '#8B8F9B', fontSize: '14px' }}>
+      <div style={{ width: '48px', height: '48px', borderRadius: '50%', border: '2px solid #1a2744', borderTopColor: '#60a5fa', animation: 'spin 0.8s linear infinite' }} />
+      <p style={{ color: '#6b84a8', fontSize: '14px' }}>
         {phone.status === 'reconnecting' ? 'Reconnecting…' : phone.status === 'connecting' ? 'Connecting to network…' : 'Initializing phone…'}
       </p>
       <button
         onClick={() => window.location.reload()}
-        style={{ marginTop: '8px', background: 'none', border: '1px solid #2A2D35', borderRadius: '8px', color: '#8B8F9B', padding: '6px 18px', fontSize: '13px', cursor: 'pointer' }}
+        style={{ marginTop: '8px', background: 'none', border: '1px solid #1a2744', borderRadius: '8px', color: '#6b84a8', padding: '6px 18px', fontSize: '13px', cursor: 'pointer' }}
       >
         Retry
       </button>

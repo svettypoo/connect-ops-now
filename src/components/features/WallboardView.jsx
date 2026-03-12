@@ -6,7 +6,7 @@ function Tile({ label, value, threshold, unit = "" }) {
   const num = typeof value === "number" ? value : parseFloat(value) || 0;
   const color = threshold
     ? num >= threshold.red ? "text-red-400 border-red-500/30" : num >= threshold.yellow ? "text-yellow-400 border-yellow-500/30" : "text-green-400 border-green-500/30"
-    : "text-[#0EB8FF] border-[#0684BD]/30";
+    : "text-[#60a5fa] border-[#3b82f6]/30";
   return (
     <div className={"bg-white/5 rounded-2xl p-6 border flex flex-col items-center justify-center text-center " + color}>
       <p className="text-4xl font-black mb-2">{value ?? 0}{unit}</p>
@@ -69,7 +69,7 @@ export default function WallboardView() {
           <h3 className="text-sm font-semibold mb-3 text-slate-300">Queue Depth (last hour)</h3>
           <ResponsiveContainer width="100%" height={100}>
             <LineChart data={history}>
-              <Line type="monotone" dataKey="queue" stroke="#0EB8FF" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="queue" stroke="#60a5fa" strokeWidth={2} dot={false} />
               <Tooltip contentStyle={{ background: "#1e1e30", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} formatter={v => [v, "Queue"]} labelFormatter={() => ""} />
             </LineChart>
           </ResponsiveContainer>

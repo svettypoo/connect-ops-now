@@ -20,7 +20,7 @@ const AppContent = () => {
   if (isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#1a1a2e]">
-        <div className="w-8 h-8 border-4 border-slate-600 border-t-[#0EB8FF] rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-slate-600 border-t-[#60a5fa] rounded-full animate-spin" />
       </div>
     );
   }

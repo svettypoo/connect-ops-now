@@ -103,12 +103,12 @@ export default function VideoCall({ contactName, meetingRoom }) {
           </div>
           {roomName && (
             <div className="bg-white/5 rounded-lg px-3 py-2 text-xs text-slate-400">
-              Room: <span className="text-[#0EB8FF]">{roomName}</span>
+              Room: <span className="text-[#60a5fa]">{roomName}</span>
             </div>
           )}
           <input value={roomName} onChange={e => setRoomName(e.target.value)}
             placeholder="Custom room name (optional)"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#0EB8FF]/40" />
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#60a5fa]/40" />
           {error && <p className="text-red-400 text-xs">{error}</p>}
           <button onClick={startCall}
             className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold text-white flex items-center justify-center gap-2 transition-all">
@@ -120,7 +120,7 @@ export default function VideoCall({ contactName, meetingRoom }) {
           <div ref={containerRef} style={{ height: 480, minHeight: 400 }} />
           {status === "loading" && (
             <div className="absolute inset-0 bg-[#0d0d1f] flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-slate-600 border-t-[#0EB8FF] rounded-full animate-spin" />
+              <div className="w-8 h-8 border-4 border-slate-600 border-t-[#60a5fa] rounded-full animate-spin" />
             </div>
           )}
           {status === "active" && (

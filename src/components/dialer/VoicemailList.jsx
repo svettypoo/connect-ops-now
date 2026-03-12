@@ -21,7 +21,7 @@ function Waveform({ active }) {
       {heights.map((h, i) => (
         <div key={i} style={{
           width:'3px', borderRadius:'2px',
-          background: active ? '#0EB8FF' : '#3A3D45',
+          background: active ? '#60a5fa' : '#243352',
           height: active ? h + 'px' : '4px',
           animation: active ? `wave ${0.5 + i * 0.06}s ease-in-out infinite alternate` : 'none',
           transition: 'height 0.3s ease',
@@ -73,7 +73,7 @@ export default function VoicemailList({ onCallBack }) {
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
-        <Voicemail className="w-4 h-4 text-[#0EB8FF]" />
+        <Voicemail className="w-4 h-4 text-[#60a5fa]" />
         <span className="text-sm font-medium text-white">Voicemail</span>
         {unreadCount > 0 && (
           <span className="ml-auto w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-[10px] font-bold text-white">{unreadCount}</span>
@@ -121,7 +121,7 @@ export default function VoicemailList({ onCallBack }) {
                   <div className="flex items-center gap-2">
                     <button onClick={(e) => playVm(vm, e)}
                       className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                        isPlaying ? "bg-[#0684BD]/40 text-[#0EB8FF]" : "bg-white/5 hover:bg-white/10 text-slate-300"
+                        isPlaying ? "bg-[#3b82f6]/40 text-[#60a5fa]" : "bg-white/5 hover:bg-white/10 text-slate-300"
                       }`}>
                       {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                       {isPlaying ? "Pause" : fmtDur(vm.duration) || "Play"}

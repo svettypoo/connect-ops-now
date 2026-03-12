@@ -68,7 +68,7 @@ export default function CallHistory({ onCallBack }) {
     const cls = "w-4 h-4";
     if (status === "missed") return <PhoneMissed className={cls + " text-red-400"} />;
     if (dir === "inbound") return <PhoneIncoming className={cls + " text-green-400"} />;
-    return <PhoneOutgoing className={cls + " text-[#0EB8FF]"} />;
+    return <PhoneOutgoing className={cls + " text-[#60a5fa]"} />;
   };
 
   return (
@@ -76,7 +76,7 @@ export default function CallHistory({ onCallBack }) {
       <div className="flex gap-1 px-4 py-3 border-b border-white/5">
         {FILTERS.map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.id ? "bg-[#0684BD]/30 text-[#0EB8FF]" : "text-slate-500 hover:text-slate-300"}`}>
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.id ? "bg-[#3b82f6]/30 text-[#60a5fa]" : "text-slate-500 hover:text-slate-300"}`}>
             {f.label}
           </button>
         ))}
@@ -97,7 +97,7 @@ export default function CallHistory({ onCallBack }) {
                 onClick={() => hasSummary && setExpandedId(isExpanded ? null : log.id)}
               >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  log.status === "missed" ? "bg-red-500/15" : log.direction === "inbound" ? "bg-green-500/15" : "bg-[#0684BD]/15"
+                  log.status === "missed" ? "bg-red-500/15" : log.direction === "inbound" ? "bg-green-500/15" : "bg-[#3b82f6]/15"
                 }`}>
                   <DirIcon dir={log.direction} status={log.status} />
                 </div>

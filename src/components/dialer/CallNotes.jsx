@@ -29,7 +29,7 @@ export default function CallNotes({ sessionId, callType, durationMinutes, transc
     <div className="mt-4 border-t border-white/10 pt-4 px-4 pb-4">
       <button onClick={() => setExpanded(p => !p)}
         className="w-full flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors">
-        {loading ? <Loader2 className="w-4 h-4 animate-spin text-[#0EB8FF]" /> : <FileText className="w-4 h-4 text-[#0EB8FF]" />}
+        {loading ? <Loader2 className="w-4 h-4 animate-spin text-[#60a5fa]" /> : <FileText className="w-4 h-4 text-[#60a5fa]" />}
         <span className="font-medium">{loading ? "Generating AI call notes…" : "AI Call Notes"}</span>
         {!loading && (expanded ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />)}
       </button>
@@ -45,7 +45,7 @@ export default function CallNotes({ sessionId, callType, durationMinutes, transc
             <div className="bg-slate-800/60 rounded-xl p-3">
               <p className="text-xs text-slate-500 font-medium mb-2 uppercase tracking-wider">Key Points</p>
               {notes.key_points.map((pt, i) => (
-                <p key={i} className="text-slate-200 flex gap-2"><span className="text-[#0EB8FF]">•</span>{pt}</p>
+                <p key={i} className="text-slate-200 flex gap-2"><span className="text-[#60a5fa]">•</span>{pt}</p>
               ))}
             </div>
           )}

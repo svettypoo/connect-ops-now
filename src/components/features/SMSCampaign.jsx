@@ -58,7 +58,7 @@ export default function SMSCampaign() {
   return (
     <div className="p-6 space-y-5 text-white max-w-3xl">
       <div className="flex items-center gap-3">
-        <MessageSquare className="w-5 h-5 text-[#0EB8FF]" />
+        <MessageSquare className="w-5 h-5 text-[#60a5fa]" />
         <h2 className="text-xl font-bold">SMS Campaign</h2>
       </div>
 
@@ -66,7 +66,7 @@ export default function SMSCampaign() {
       <div className="flex items-center gap-2">
         {["Contacts","Prompt","Preview","Done"].map((s, i) => (
           <div key={s} className="flex items-center gap-2">
-            <div className={"w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold " + (step > i+1 ? "bg-green-500 text-white" : step === i+1 ? "bg-[#0684BD] text-white" : "bg-white/10 text-slate-500")}>
+            <div className={"w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold " + (step > i+1 ? "bg-green-500 text-white" : step === i+1 ? "bg-[#3b82f6] text-white" : "bg-white/10 text-slate-500")}>
               {step > i+1 ? "✓" : i+1}
             </div>
             <span className={"text-xs " + (step === i+1 ? "text-white" : "text-slate-500")}>{s}</span>
@@ -79,7 +79,7 @@ export default function SMSCampaign() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm text-slate-400">{selected.length} of {contacts.length} selected</p>
-            <button onClick={toggleAll} className="text-xs text-[#0EB8FF] hover:text-white">
+            <button onClick={toggleAll} className="text-xs text-[#60a5fa] hover:text-white">
               {selected.length === contacts.length ? "Deselect all" : "Select all"}
             </button>
           </div>
@@ -89,7 +89,7 @@ export default function SMSCampaign() {
             ) : contacts.map(c => (
               <div key={c.id} onClick={() => toggle(c.id)}
                 className="flex items-center gap-3 px-4 py-3 border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/5">
-                {selected.includes(c.id) ? <CheckSquare className="w-4 h-4 text-[#0EB8FF] flex-shrink-0" /> : <Square className="w-4 h-4 text-slate-600 flex-shrink-0" />}
+                {selected.includes(c.id) ? <CheckSquare className="w-4 h-4 text-[#60a5fa] flex-shrink-0" /> : <Square className="w-4 h-4 text-slate-600 flex-shrink-0" />}
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{c.name}</p>
                   <p className="text-xs text-slate-500">{c.phone}</p>
@@ -98,7 +98,7 @@ export default function SMSCampaign() {
             ))}
           </div>
           <button onClick={() => setStep(2)} disabled={selected.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold disabled:opacity-40 transition-all">
+            className="flex items-center gap-2 px-4 py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold disabled:opacity-40 transition-all">
             Next <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -111,14 +111,14 @@ export default function SMSCampaign() {
             <p className="text-xs text-slate-500 mb-3">Describe what you want to say. AI will personalize each message.</p>
             <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4}
               placeholder="e.g. Remind them about our spring sale ending this Friday. Mention their name and offer 20% off."
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD] resize-none" />
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6] resize-none" />
           </div>
           <div className="flex gap-3">
             <button onClick={() => setStep(1)} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-semibold transition-all">
               <ChevronLeft className="w-4 h-4" /> Back
             </button>
             <button onClick={generatePreviews} disabled={!prompt.trim() || loading}
-              className="flex items-center gap-2 px-4 py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold disabled:opacity-40 transition-all">
+              className="flex items-center gap-2 px-4 py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold disabled:opacity-40 transition-all">
               <Eye className="w-4 h-4" /> {loading ? "Generating..." : "Preview Messages"}
             </button>
           </div>
@@ -158,7 +158,7 @@ export default function SMSCampaign() {
           </div>
           <h3 className="text-lg font-bold text-green-400">Campaign Sent!</h3>
           <p className="text-slate-400 text-sm">{selected.length} messages sent successfully</p>
-          <button onClick={reset} className="px-4 py-2 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold transition-all">
+          <button onClick={reset} className="px-4 py-2 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold transition-all">
             New Campaign
           </button>
         </div>

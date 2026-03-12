@@ -66,7 +66,7 @@ export default function BusinessHours() {
   return (
     <div className="p-6 space-y-5 text-white max-w-2xl">
       <div className="flex items-center gap-3">
-        <Clock className="w-5 h-5 text-[#0EB8FF]" />
+        <Clock className="w-5 h-5 text-[#60a5fa]" />
         <h2 className="text-xl font-bold">Business Hours</h2>
         <span className={"ml-auto px-3 py-1 rounded-full text-xs font-bold " + (open ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400")}>
           {open ? "● Currently Open" : "● Currently Closed"}
@@ -79,7 +79,7 @@ export default function BusinessHours() {
         <div className="flex items-center gap-3 mb-4">
           <label className="text-sm text-slate-300">Timezone</label>
           <select value={tz} onChange={e => setTz(e.target.value)}
-            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]">
+            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]">
             {TZS.map(t => <option key={t} value={t} className="bg-[#1e1e30]">{t}</option>)}
           </select>
         </div>
@@ -87,17 +87,17 @@ export default function BusinessHours() {
         {hours.map((d, i) => (
           <div key={d.day} className="flex items-center gap-3">
             <button onClick={() => updateDay(i, "enabled", !d.enabled)}
-              className={"w-10 h-5 rounded-full transition-all flex items-center px-0.5 " + (d.enabled ? "bg-[#0684BD]" : "bg-white/10")}>
+              className={"w-10 h-5 rounded-full transition-all flex items-center px-0.5 " + (d.enabled ? "bg-[#3b82f6]" : "bg-white/10")}>
               <span className={"w-4 h-4 rounded-full bg-white transition-all " + (d.enabled ? "translate-x-5" : "")} />
             </button>
             <span className={"text-sm w-24 " + (d.enabled ? "text-white" : "text-slate-500")}>{d.day}</span>
             {d.enabled ? (
               <>
                 <input type="time" value={d.open} onChange={e => updateDay(i, "open", e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm outline-none focus:border-[#0684BD]" />
+                  className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm outline-none focus:border-[#3b82f6]" />
                 <span className="text-slate-500 text-sm">to</span>
                 <input type="time" value={d.close} onChange={e => updateDay(i, "close", e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm outline-none focus:border-[#0684BD]" />
+                  className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm outline-none focus:border-[#3b82f6]" />
               </>
             ) : (
               <span className="text-xs text-slate-600">Closed</span>
@@ -111,7 +111,7 @@ export default function BusinessHours() {
         <div className="flex gap-3">
           {["voicemail","transfer","message"].map(a => (
             <button key={a} onClick={() => setAfterAction(a)}
-              className={"px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all " + (afterAction === a ? "bg-[#0684BD] text-white" : "bg-white/5 text-slate-400 hover:bg-white/10")}>
+              className={"px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all " + (afterAction === a ? "bg-[#3b82f6] text-white" : "bg-white/5 text-slate-400 hover:bg-white/10")}>
               {a === "transfer" ? "Transfer" : a === "voicemail" ? "Voicemail" : "Play Message"}
             </button>
           ))}
@@ -119,11 +119,11 @@ export default function BusinessHours() {
         {afterAction === "transfer" && (
           <input value={afterNumber} onChange={e => setAfterNumber(e.target.value)}
             placeholder="Transfer to number or extension"
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD]" />
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6]" />
         )}
         {(afterAction === "message" || afterAction === "voicemail") && (
           <textarea value={afterMsg} onChange={e => setAfterMsg(e.target.value)} rows={2}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0684BD] resize-none" />
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3b82f6] resize-none" />
         )}
       </div>
 
@@ -140,9 +140,9 @@ export default function BusinessHours() {
         ))}
         <div className="flex gap-2">
           <input type="date" value={newHoliday.date} onChange={e => setNewHoliday(h => ({ ...h, date: e.target.value }))}
-            className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm outline-none focus:border-[#0684BD]" />
+            className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm outline-none focus:border-[#3b82f6]" />
           <input value={newHoliday.message} onChange={e => setNewHoliday(h => ({ ...h, message: e.target.value }))}
-            placeholder="Holiday message" className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm outline-none focus:border-[#0684BD]" />
+            placeholder="Holiday message" className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm outline-none focus:border-[#3b82f6]" />
           <button onClick={addHoliday} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-sm">
             <Plus className="w-4 h-4" />
           </button>
@@ -150,7 +150,7 @@ export default function BusinessHours() {
       </div>
 
       <button onClick={save} disabled={saving}
-        className="flex items-center gap-2 px-5 py-2.5 bg-[#0684BD] hover:bg-[#0EB8FF] rounded-lg text-sm font-semibold disabled:opacity-50 transition-all">
+        className="flex items-center gap-2 px-5 py-2.5 bg-[#3b82f6] hover:bg-[#60a5fa] rounded-lg text-sm font-semibold disabled:opacity-50 transition-all">
         <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Business Hours"}
       </button>
     </div>

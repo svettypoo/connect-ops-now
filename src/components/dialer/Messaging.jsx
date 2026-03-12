@@ -131,14 +131,14 @@ export default function Messaging({ initialThread }) {
   if (activeThread) {
     const name = activeThread.contact_name || activeThread.name || activeThread.from_number || activeThread.number || "Unknown";
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#17191C', position: 'relative' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0a0e1a', position: 'relative' }}>
         {/* Thread header */}
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2D35', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a2744', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
           <button
             onClick={() => { setActiveThread(null); setMessages([]); setSuggestions([]); }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '8px' }}
           >
-            <ArrowLeft style={{ width: '16px', height: '16px', color: '#8B8F9B' }} />
+            <ArrowLeft style={{ width: '16px', height: '16px', color: '#6b84a8' }} />
           </button>
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <div style={{
@@ -152,16 +152,16 @@ export default function Messaging({ initialThread }) {
             <div style={{
               position: 'absolute', bottom: '0px', right: '0px',
               width: '9px', height: '9px', borderRadius: '50%',
-              background: '#4CAF50', border: '2px solid #17191C',
+              background: '#4CAF50', border: '2px solid #0a0e1a',
             }} />
           </div>
           <div style={{ flex: 1 }}>
             <p style={{ color: '#FFFFFF', fontSize: '15px', fontWeight: 600, margin: 0 }}>{name}</p>
-            <p style={{ color: '#8B8F9B', fontSize: '12px', margin: 0 }}>{activeThread.from_number || activeThread.number}</p>
+            <p style={{ color: '#6b84a8', fontSize: '12px', margin: 0 }}>{activeThread.from_number || activeThread.number}</p>
           </div>
           <button
             onClick={loadSuggestions}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', color: '#8B8F9B', fontSize: '12px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', color: '#6b84a8', fontSize: '12px' }}
           >
             {loadingSugg ? <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" /> : <Lightbulb style={{ width: '12px', height: '12px' }} />}
             Suggest
@@ -170,18 +170,18 @@ export default function Messaging({ initialThread }) {
 
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {messages.length === 0 && <p style={{ color: '#8B8F9B', fontSize: '14px', textAlign: 'center', paddingTop: '32px' }}>No messages yet</p>}
+          {messages.length === 0 && <p style={{ color: '#6b84a8', fontSize: '14px', textAlign: 'center', paddingTop: '32px' }}>No messages yet</p>}
           {messages.map((m, i) => {
             const out = m.direction === "outbound" || m.out;
             return (
               <div key={m.id || i} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
                 <div style={{
                   maxWidth: '78%', borderRadius: '18px', padding: '10px 14px', fontSize: '14px',
-                  background: out ? '#0684BD' : '#2A2D35',
+                  background: out ? '#3b82f6' : '#1a2744',
                   color: out ? '#FFFFFF' : '#E8E9EC',
                 }}>
                   {m.body || m.text}
-                  <div style={{ fontSize: '11px', marginTop: '4px', color: out ? 'rgba(255,255,255,0.6)' : '#8B8F9B' }}>
+                  <div style={{ fontSize: '11px', marginTop: '4px', color: out ? 'rgba(255,255,255,0.6)' : '#6b84a8' }}>
                     {fmtTime(m.created_at || m.time || Date.now())}
                   </div>
                 </div>
@@ -192,10 +192,10 @@ export default function Messaging({ initialThread }) {
         </div>
 
         {suggestions.length > 0 && (
-          <div style={{ padding: '8px 12px', borderTop: '1px solid #2A2D35', display: 'flex', gap: '8px', overflowX: 'auto', flexShrink: 0 }}>
+          <div style={{ padding: '8px 12px', borderTop: '1px solid #1a2744', display: 'flex', gap: '8px', overflowX: 'auto', flexShrink: 0 }}>
             {suggestions.map((s, i) => (
               <button key={i} onClick={() => setInput(s)}
-                style={{ flexShrink: 0, padding: '6px 12px', borderRadius: '14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', color: '#C8CAD0', fontSize: '12px' }}>
+                style={{ flexShrink: 0, padding: '6px 12px', borderRadius: '14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', color: '#c8d6e5', fontSize: '12px' }}>
                 {s}
               </button>
             ))}
@@ -208,7 +208,7 @@ export default function Messaging({ initialThread }) {
         )}
         {/* Emoji picker popover */}
         {showEmoji && (
-          <div style={{ position: 'absolute', bottom: '64px', left: '16px', right: '16px', background: '#1E2025', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '12px', zIndex: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+          <div style={{ position: 'absolute', bottom: '64px', left: '16px', right: '16px', background: '#0f1628', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '12px', zIndex: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {EMOJI_LIST.map(em => (
                 <button key={em} onClick={() => { setInput(p => p + em); setShowEmoji(false); }}
@@ -221,13 +221,13 @@ export default function Messaging({ initialThread }) {
           </div>
         )}
         {/* Input row */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #2A2D35', display: 'flex', alignItems: 'flex-end', gap: '8px', flexShrink: 0, position: 'relative' }}>
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #1a2744', display: 'flex', alignItems: 'flex-end', gap: '8px', flexShrink: 0, position: 'relative' }}>
           <button
             onClick={() => setShowEmoji(p => !p)}
             style={{
               flexShrink: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
               borderRadius: '10px', fontSize: '18px', background: showEmoji ? 'rgba(6,132,189,0.3)' : 'rgba(255,255,255,0.05)',
-              border: 'none', cursor: 'pointer', color: showEmoji ? '#0EB8FF' : '#8B8F9B',
+              border: 'none', cursor: 'pointer', color: showEmoji ? '#60a5fa' : '#6b84a8',
             }}
           >😊</button>
           <div style={{ flex: 1, position: 'relative' }}>
@@ -239,7 +239,7 @@ export default function Messaging({ initialThread }) {
               placeholder="Message…"
               rows={1}
               style={{
-                width: '100%', background: '#1E2025', border: '1px solid #2A2D35', borderRadius: '18px',
+                width: '100%', background: '#0f1628', border: '1px solid #1a2744', borderRadius: '18px',
                 padding: '10px 40px 10px 16px', fontSize: '14px', color: '#FFFFFF', outline: 'none',
                 resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
               }}
@@ -258,7 +258,7 @@ export default function Messaging({ initialThread }) {
             onClick={sendMessage}
             disabled={!input.trim() || sending}
             style={{
-              flexShrink: 0, width: '32px', height: '32px', borderRadius: '10px', background: '#0684BD',
+              flexShrink: 0, width: '32px', height: '32px', borderRadius: '10px', background: '#3b82f6',
               border: 'none', cursor: input.trim() && !sending ? 'pointer' : 'not-allowed',
               opacity: input.trim() && !sending ? 1 : 0.4,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -272,21 +272,21 @@ export default function Messaging({ initialThread }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#17191C' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0a0e1a' }}>
       {/* Header */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2D35', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a2744', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4CAF50', display: 'inline-block' }} />
           <span style={{ fontSize: '15px', fontWeight: 600, color: '#FFFFFF' }}>Messages</span>
         </div>
         <button
           onClick={() => setShowNew(p => !p)}
-          style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6,132,189,0.2)', border: 'none', cursor: 'pointer', color: '#0EB8FF', fontSize: '18px', fontWeight: 700 }}
+          style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6,132,189,0.2)', border: 'none', cursor: 'pointer', color: '#60a5fa', fontSize: '18px', fontWeight: 700 }}
         >+</button>
       </div>
 
       {showNew && (
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2D35', display: 'flex', gap: '8px', flexShrink: 0 }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a2744', display: 'flex', gap: '8px', flexShrink: 0 }}>
           <input
             value={newNumber}
             onChange={e => setNewNumber(e.target.value)}
@@ -294,7 +294,7 @@ export default function Messaging({ initialThread }) {
             onKeyDown={e => e.key === "Enter" && startNewThread()}
             style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px', fontSize: '14px', color: '#FFFFFF', outline: 'none' }}
           />
-          <button onClick={startNewThread} style={{ padding: '8px 14px', borderRadius: '8px', background: '#0684BD', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>New</button>
+          <button onClick={startNewThread} style={{ padding: '8px 14px', borderRadius: '8px', background: '#3b82f6', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>New</button>
         </div>
       )}
 
@@ -302,11 +302,11 @@ export default function Messaging({ initialThread }) {
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loadingThreads && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
-            <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #2A2D35', borderTopColor: '#0EB8FF', animation: 'spin 0.8s linear infinite' }} />
+            <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #1a2744', borderTopColor: '#60a5fa', animation: 'spin 0.8s linear infinite' }} />
           </div>
         )}
         {!loadingThreads && threads.length === 0 && (
-          <p style={{ color: '#8B8F9B', fontSize: '14px', textAlign: 'center', paddingTop: '48px' }}>No conversations yet</p>
+          <p style={{ color: '#6b84a8', fontSize: '14px', textAlign: 'center', paddingTop: '48px' }}>No conversations yet</p>
         )}
         {threads.map(t => {
           const name = t.contact_name || t.name || t.from_number || t.number || "Unknown";
@@ -318,7 +318,7 @@ export default function Messaging({ initialThread }) {
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
                 padding: '12px 16px', background: 'none', border: 'none',
-                borderBottom: '1px solid #2A2D35', cursor: 'pointer',
+                borderBottom: '1px solid #1a2744', cursor: 'pointer',
                 minHeight: '68px', textAlign: 'left',
                 transition: 'background 0.1s',
               }}
@@ -338,22 +338,22 @@ export default function Messaging({ initialThread }) {
                 <div style={{
                   position: 'absolute', bottom: '1px', right: '1px',
                   width: '10px', height: '10px', borderRadius: '50%',
-                  background: '#4CAF50', border: '2px solid #17191C',
+                  background: '#4CAF50', border: '2px solid #0a0e1a',
                 }} />
               </div>
               {/* Text */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
                   <span style={{ fontSize: '15px', fontWeight: 600, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}>{name}</span>
-                  {t.last_message_at && <span style={{ fontSize: '12px', color: '#8B8F9B', flexShrink: 0 }}>{fmtTime(t.last_message_at)}</span>}
+                  {t.last_message_at && <span style={{ fontSize: '12px', color: '#6b84a8', flexShrink: 0 }}>{fmtTime(t.last_message_at)}</span>}
                 </div>
-                <p style={{ fontSize: '13px', color: '#8B8F9B', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.last_message || t.lastMsg || ""}</p>
+                <p style={{ fontSize: '13px', color: '#6b84a8', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.last_message || t.lastMsg || ""}</p>
               </div>
               {/* Unread badge */}
               {t.unread > 0 && (
                 <div style={{
                   width: '20px', height: '20px', borderRadius: '50%',
-                  background: '#0684BD', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0,
                 }}>{t.unread}</div>
               )}

@@ -119,7 +119,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
   const StatusIcon = ({ direction, status }) => {
     if (status === "missed") return <PhoneMissed size={14} color="#F44336" />;
     if (direction === "inbound") return <PhoneIncoming size={14} color="#4CAF50" />;
-    return <PhoneOutgoing size={14} color="#8B8F9B" />;
+    return <PhoneOutgoing size={14} color="#6b84a8" />;
   };
 
   return (
@@ -131,7 +131,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
           display:'inline-flex', alignItems:'center', gap:'6px',
           padding:'4px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:600,
           background: dnd ? 'rgba(244,67,54,0.1)' : resolvedPhoneStatus === 'active' ? 'rgba(76,175,80,0.1)' : resolvedPhoneStatus === 'held' ? 'rgba(255,152,0,0.1)' : 'rgba(14,184,255,0.1)',
-          color: dnd ? '#F44336' : resolvedPhoneStatus === 'active' ? '#4CAF50' : resolvedPhoneStatus === 'held' ? '#FF9800' : '#0EB8FF',
+          color: dnd ? '#F44336' : resolvedPhoneStatus === 'active' ? '#4CAF50' : resolvedPhoneStatus === 'held' ? '#FF9800' : '#60a5fa',
         }}>
           <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:'currentColor', display:'inline-block' }} />
           {dnd ? 'Do Not Disturb' : resolvedPhoneStatus === 'active' ? 'On Call' : resolvedPhoneStatus === 'held' ? 'On Hold' : (resolvedPhoneStatus === 'connecting' || resolvedPhoneStatus === 'reconnecting') ? 'Connecting…' : 'Ready'}
@@ -141,7 +141,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
           style={{
             background: dnd ? 'rgba(244,67,54,0.15)' : 'rgba(255,255,255,0.05)',
             border: 'none', borderRadius:'10px', padding:'4px 10px',
-            color: dnd ? '#F44336' : '#8B8F9B', fontSize:'11px', fontWeight:600, cursor:'pointer',
+            color: dnd ? '#F44336' : '#6b84a8', fontSize:'11px', fontWeight:600, cursor:'pointer',
           }}
         >
           {dnd ? 'DND On' : 'DND'}
@@ -151,13 +151,13 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
       {/* Caller ID match */}
       {matchedContact && (
         <div style={{ width: '100%', background: 'rgba(6,132,189,0.1)', border: '1px solid rgba(6,132,189,0.25)', borderRadius: '10px', padding: '8px 16px', textAlign: 'center', marginBottom: '12px' }}>
-          <p style={{ color: '#0684BD', fontWeight: 600, fontSize: '14px', margin: 0 }}>{matchedContact.name}</p>
-          <p style={{ color: '#8B8F9B', fontSize: '11px', margin: 0 }}>{matchedContact.company || "Contact"}</p>
+          <p style={{ color: '#3b82f6', fontWeight: 600, fontSize: '14px', margin: 0 }}>{matchedContact.name}</p>
+          <p style={{ color: '#6b84a8', fontSize: '11px', margin: 0 }}>{matchedContact.company || "Contact"}</p>
         </div>
       )}
       {!matchedContact && number.length >= 7 && (
-        <div style={{ width: '100%', background: '#1E2025', borderRadius: '10px', padding: '8px 16px', textAlign: 'center', marginBottom: '12px' }}>
-          <p style={{ color: '#8B8F9B', fontSize: '12px', margin: 0 }}>Unknown caller</p>
+        <div style={{ width: '100%', background: '#0f1628', borderRadius: '10px', padding: '8px 16px', textAlign: 'center', marginBottom: '12px' }}>
+          <p style={{ color: '#6b84a8', fontSize: '12px', margin: 0 }}>Unknown caller</p>
         </div>
       )}
 
@@ -181,7 +181,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
             <button
               onClick={backspace}
               style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer', color: '#8B8F9B',
+                background: 'none', border: 'none', cursor: 'pointer', color: '#6b84a8',
                 display: 'flex', alignItems: 'center', padding: '8px',
               }}
             >
@@ -192,7 +192,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
       </div>
 
       {resolvedPhoneNumber && (
-        <p style={{ fontSize: '11px', color: '#8B8F9B', marginBottom: '16px' }}>Your number: <span style={{ color: '#FFFFFF' }}>{resolvedPhoneNumber}</span></p>
+        <p style={{ fontSize: '11px', color: '#6b84a8', marginBottom: '16px' }}>Your number: <span style={{ color: '#FFFFFF' }}>{resolvedPhoneNumber}</span></p>
       )}
 
       {/* 12-key pad */}
@@ -202,18 +202,18 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
             key={key}
             onClick={() => pressKey(key)}
             style={{
-              width: '72px', height: '72px', maxWidth: '100%', borderRadius: '50%', background: '#1E2025', border: '1px solid #2A2D35',
+              width: '72px', height: '72px', maxWidth: '100%', borderRadius: '50%', background: '#0f1628', border: '1px solid #1a2744',
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               gap: '1px', cursor: 'pointer', transition: 'background 0.1s',
               outline: 'none', margin: '0 auto',
             }}
-            onMouseEnter={e => e.currentTarget.style.background = '#2A2D35'}
-            onMouseLeave={e => e.currentTarget.style.background = '#1E2025'}
+            onMouseEnter={e => e.currentTarget.style.background = '#1a2744'}
+            onMouseLeave={e => e.currentTarget.style.background = '#0f1628'}
             onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
             onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
           >
             <span style={{ color: '#FFFFFF', fontSize: '22px', fontWeight: 600, lineHeight: 1 }}>{key}</span>
-            {sub && <span style={{ color: '#8B8F9B', fontSize: '9px', letterSpacing: '1.5px' }}>{sub}</span>}
+            {sub && <span style={{ color: '#6b84a8', fontSize: '9px', letterSpacing: '1.5px' }}>{sub}</span>}
           </button>
         ))}
       </div>
@@ -238,7 +238,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
           aria-label="Make Call"
           style={{
             width: '64px', height: '64px', borderRadius: '50%',
-            background: (!number.trim() || busy) ? '#2A2D35' : '#4CAF50',
+            background: (!number.trim() || busy) ? '#1a2744' : '#4CAF50',
             border: 'none', cursor: (!number.trim() || busy) ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: (!number.trim() || busy) ? 'none' : '0 4px 20px rgba(76,175,80,0.4)',
@@ -252,7 +252,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
       </div>
 
       {busy && (
-        <p style={{ fontSize: '12px', color: '#FF6E00', marginBottom: '8px' }}>
+        <p style={{ fontSize: '12px', color: '#3b82f6', marginBottom: '8px' }}>
           {resolvedPhoneStatus === "ringing" ? "Incoming call…" : resolvedPhoneStatus === "active" ? "In call" : "On hold"}
         </p>
       )}
@@ -260,7 +260,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
       {/* Recent calls */}
       {recents.length > 0 && !busy && (
         <div style={{ width: '100%', marginTop: '16px' }}>
-          <p style={{ fontSize: '11px', color: '#8B8F9B', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px', padding: '0 4px' }}>Recent</p>
+          <p style={{ fontSize: '11px', color: '#6b84a8', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px', padding: '0 4px' }}>Recent</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {recents.map(log => {
               const num = log.direction === "inbound" ? log.from_number : log.to_number;
@@ -274,12 +274,12 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
                     padding: '10px 12px', borderRadius: '10px', background: 'none',
                     border: 'none', cursor: 'pointer', transition: 'background 0.1s',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#1E2025'}
+                  onMouseEnter={e => e.currentTarget.style.background = '#0f1628'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}
                 >
                   <StatusIcon direction={log.direction} status={log.status} />
                   <span style={{ flex: 1, textAlign: 'left', fontSize: '14px', color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
-                  <span style={{ fontSize: '12px', color: '#8B8F9B' }}>{fmtTime(log.started_at)}</span>
+                  <span style={{ fontSize: '12px', color: '#6b84a8' }}>{fmtTime(log.started_at)}</span>
                 </button>
               );
             })}
@@ -288,7 +288,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
       )}
 
       {recents.length === 0 && !busy && (
-        <p style={{ fontSize: '13px', color: '#8B8F9B', marginTop: '12px' }}>No recent calls</p>
+        <p style={{ fontSize: '13px', color: '#6b84a8', marginTop: '12px' }}>No recent calls</p>
       )}
     </div>
   );
