@@ -95,21 +95,25 @@ export function usePhone() {
   const [micStatus,     setMicStatus]     = useState('prompt');
   const [isRecording,   setIsRecording]   = useState(false);
   const [lastError,     setLastError]     = useState(null);
-  const [outputDevices, setOutputDevices] = useState([]); // [{deviceId, label}]
-  const [outputDeviceId,setOutputDeviceId] = useState('default');
+  const [outputDevices,  setOutputDevices]  = useState([]);
+  const [outputDeviceId, setOutputDeviceId] = useState('default');
+  const [inputDevices,   setInputDevices]   = useState([]);
+  const [inputDeviceId,  setInputDeviceId]  = useState('default');
 
-  const wsRef       = useRef(null);
-  const audioCtxRef = useRef(null);  // AudioContext for playback
-  const audioDestRef= useRef(null);  // MediaStreamDestinationNode
-  const audioElRef  = useRef(null);  // HTMLAudioElement (for setSinkId)
-  const nextPlayRef = useRef(0);
-  const micCtxRef   = useRef(null);
-  const micStreamRef= useRef(null);
-  const micProcRef  = useRef(null);
-  const isMutedRef  = useRef(false);
-  const timerRef    = useRef(null);
-  const startTimeRef= useRef(null);
-  const mountedRef  = useRef(true);
+  const wsRef           = useRef(null);
+  const audioCtxRef     = useRef(null);  // Shared AudioContext (created on user gesture)
+  const audioDestRef    = useRef(null);  // MediaStreamDestinationNode for playback
+  const audioElRef      = useRef(null);  // HTMLAudioElement (for setSinkId)
+  const nextPlayRef     = useRef(0);
+  const micStreamRef    = useRef(null);
+  const micProcRef      = useRef(null);
+  const isMutedRef      = useRef(false);
+  const inputDeviceIdRef= useRef('default');
+  const timerRef        = useRef(null);
+  const startTimeRef    = useRef(null);
+  const mountedRef      = useRef(true);
+  const micLevelRef     = useRef(0);    // 0-1, updated by mic onaudioprocess
+  const remoteLevelRef  = useRef(0);   // 0-1, updated by playAudioChunk
 
   // Keep isMutedRef in sync (used inside ScriptProcessor callback)
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
@@ -159,6 +163,10 @@ export function usePhone() {
       const bytes = new Uint8Array(raw.length);
       for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
       const pcm    = decodeMulaw(bytes);
+      // Track remote audio level (RMS)
+      let sum = 0;
+      for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i];
+      remoteLevelRef.current = Math.min(1, Math.sqrt(sum / pcm.length) * 8);
       const buffer = ctx.createBuffer(1, pcm.length, 8000);
       buffer.copyToChannel(pcm, 0);
       const src = ctx.createBufferSource();
@@ -183,6 +191,10 @@ export function usePhone() {
         .filter(d => d.kind === 'audiooutput')
         .map(d => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` }));
       if (mountedRef.current) setOutputDevices(outputs);
+      const inputs = all
+        .filter(d => d.kind === 'audioinput')
+        .map(d => ({ deviceId: d.deviceId, label: d.label || `Microphone ${d.deviceId.slice(0, 6)}` }));
+      if (mountedRef.current) setInputDevices(inputs);
     } catch {}
   }
 
@@ -196,21 +208,22 @@ export function usePhone() {
 
   // ── Mic capture ───────────────────────────────────────────────────────────────
 
-  async function startMicCapture() {
-    if (micProcRef.current) return;
+  async function startMicCapture(deviceId) {
+    if (micProcRef.current) stopMicCapture(); // restart if already running (device change)
+    // Use the shared AudioContext created during user gesture — guaranteed running
+    const ctx = audioCtxRef.current;
+    if (!ctx || ctx.state === 'closed') { console.warn('[Phone] AudioContext not ready for mic'); return; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
+      const audioConstraints = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+      const dev = deviceId || inputDeviceIdRef.current;
+      if (dev && dev !== 'default') audioConstraints.deviceId = { exact: dev };
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       micStreamRef.current = stream;
 
-      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-      micCtxRef.current = ctx;
       const src  = ctx.createMediaStreamSource(stream);
-      // Buffer size = 256 samples → ~32ms at 8kHz equivalent after downsampling
-      const proc = ctx.createScriptProcessor(512, 1, 1);
+      const proc = ctx.createScriptProcessor(1024, 1, 1);
 
-      // Silent gain node — keeps ScriptProcessor alive without routing mic to speakers
+      // Silent gain — keeps ScriptProcessor alive without routing mic to speakers
       const silentGain = ctx.createGain();
       silentGain.gain.value = 0;
       proc.connect(silentGain);
@@ -218,9 +231,13 @@ export function usePhone() {
       src.connect(proc);
 
       proc.onaudioprocess = e => {
+        const float32 = e.inputBuffer.getChannelData(0);
+        // Track mic level (RMS)
+        let sum = 0;
+        for (let i = 0; i < float32.length; i++) sum += float32[i] * float32[i];
+        micLevelRef.current = Math.min(1, Math.sqrt(sum / float32.length) * 6);
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
         if (isMutedRef.current) return;
-        const float32     = e.inputBuffer.getChannelData(0);
         const downsampled = downsampleTo8k(float32, ctx.sampleRate);
         const mulaw       = encodeMulaw(downsampled);
         const base64      = btoa(String.fromCharCode(...mulaw));
@@ -228,7 +245,7 @@ export function usePhone() {
       };
 
       micProcRef.current = proc;
-      console.log('[Phone] Mic capture started at', ctx.sampleRate, 'Hz');
+      console.log('[Phone] Mic capture started at', ctx.sampleRate, 'Hz, device:', dev || 'default');
     } catch (e) {
       console.error('[Phone] Mic capture failed:', e.message);
     }
@@ -237,8 +254,14 @@ export function usePhone() {
   function stopMicCapture() {
     if (micProcRef.current) { try { micProcRef.current.disconnect(); } catch {} micProcRef.current = null; }
     if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
-    if (micCtxRef.current) { try { micCtxRef.current.close(); } catch {} micCtxRef.current = null; }
+    micLevelRef.current = 0;
   }
+
+  const setInputDevice = useCallback(async (deviceId) => {
+    inputDeviceIdRef.current = deviceId;
+    setInputDeviceId(deviceId);
+    if (micProcRef.current) await startMicCapture(deviceId); // restart with new device
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reset call state ─────────────────────────────────────────────────────────
 
@@ -386,7 +409,7 @@ export function usePhone() {
       // Clean up audio element
       const el = document.getElementById('sb-playback-audio');
       if (el) { el.srcObject = null; }
-      if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch {} audioCtxRef.current = null; }
+      if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch {} audioCtxRef.current = null; audioDestRef.current = null; }
     };
   }, [connectWs]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -485,6 +508,8 @@ export function usePhone() {
     startRecording, stopRecording, toggleRecording,
     lastError,
     outputDevices, outputDeviceId, setOutputDevice,
+    inputDevices, inputDeviceId, setInputDevice,
+    micLevelRef, remoteLevelRef,
     makeCall, answerCall, hangup, toggleMute, toggleHold, sendDtmf, blindTransfer,
   };
 }

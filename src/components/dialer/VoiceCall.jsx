@@ -330,6 +330,73 @@ function TranscriptPanel({ lines, onClose }) {
   );
 }
 
+// ── Audio level meters + device selectors ──────────────────────────────────
+function AudioLevels({ phone, isActive }) {
+  const micBarRef    = useRef(null);
+  const remoteBarRef = useRef(null);
+  const rafRef       = useRef(null);
+
+  useEffect(() => {
+    if (!isActive) return;
+    let micDisplay    = 0;
+    let remoteDisplay = 0;
+    const tick = () => {
+      const micRaw    = phone.micLevelRef?.current    || 0;
+      const remoteRaw = phone.remoteLevelRef?.current || 0;
+      // Peak-hold with decay
+      micDisplay    = Math.max(micRaw,    micDisplay    * 0.82);
+      remoteDisplay = Math.max(remoteRaw, remoteDisplay * 0.82);
+      // Clear source refs after reading
+      if (phone.micLevelRef)    phone.micLevelRef.current    = 0;
+      if (phone.remoteLevelRef) phone.remoteLevelRef.current = 0;
+      if (micBarRef.current)    micBarRef.current.style.width    = Math.round(micDisplay    * 100) + '%';
+      if (remoteBarRef.current) remoteBarRef.current.style.width = Math.round(remoteDisplay * 100) + '%';
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [isActive]); // eslint-disable-line
+
+  const barTrack = { flex: 1, height: '6px', background: '#0f1628', borderRadius: '3px', overflow: 'hidden' };
+  const row      = { display: 'flex', alignItems: 'center', gap: '8px' };
+  const label    = { color: '#6b84a8', fontSize: '10px', width: '30px', textAlign: 'right', flexShrink: 0 };
+
+  return (
+    <div style={{ width: '100%', maxWidth: '300px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {/* Mic row */}
+      <div style={row}>
+        <span style={label}>You</span>
+        <div style={barTrack}>
+          <div ref={micBarRef} style={{ height: '100%', background: '#4CAF50', borderRadius: '3px', width: '0%', transition: 'none' }} />
+        </div>
+        {phone.inputDevices?.length > 1 && (
+          <select
+            value={phone.inputDeviceId || ''}
+            onChange={e => phone.setInputDevice?.(e.target.value)}
+            style={{
+              background: '#0f1628', border: '1px solid #1a2744', borderRadius: '6px',
+              color: '#c8d6e5', fontSize: '10px', padding: '2px 4px',
+              width: '76px', cursor: 'pointer', outline: 'none', flexShrink: 0,
+            }}
+          >
+            {phone.inputDevices.map(d => (
+              <option key={d.deviceId} value={d.deviceId}>{d.label || 'Mic ' + d.deviceId.slice(0, 6)}</option>
+            ))}
+          </select>
+        )}
+      </div>
+      {/* Remote row */}
+      <div style={row}>
+        <span style={label}>Them</span>
+        <div style={barTrack}>
+          <div ref={remoteBarRef} style={{ height: '6px', background: '#3b82f6', borderRadius: '3px', width: '0%', transition: 'none' }} />
+        </div>
+        {phone.inputDevices?.length > 1 && <div style={{ width: '76px', flexShrink: 0 }} />}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup }) {
   const [showDtmf, setShowDtmf] = useState(false);
@@ -553,18 +620,8 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
         <p style={{ color: '#FFFFFF', fontSize: '22px', fontWeight: 600, margin: '0 0 4px', textAlign: 'center' }}>{callerName}</p>
         {callerNumber && <p style={{ color: '#6b84a8', fontSize: '14px', margin: '0 0 32px', textAlign: 'center' }}>{callerNumber}</p>}
 
-        {/* Audio waveform animation */}
-        {phone.status === 'active' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', height: '24px', marginBottom: '32px' }}>
-            {[4,7,10,7,12,9,6,11,8,5,10,7,4].map((h, i) => (
-              <div key={i} style={{
-                width: '3px', borderRadius: '2px', background: '#4CAF50',
-                animation: `wave ${0.6 + i * 0.07}s ease-in-out infinite alternate`,
-                height: h + 'px',
-              }} />
-            ))}
-          </div>
-        )}
+        {/* Audio level meters */}
+        <AudioLevels phone={phone} isActive={phone.status === 'active'} />
 
         {/* 6-button grid: Mute / Keypad / [Output on desktop] — Hold / Transfer / Record */}
         <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: '20px 24px', width: '100%', maxWidth: isDesktop ? '300px' : '220px', marginBottom: '40px' }}>
@@ -671,10 +728,6 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
         </button>
 
         <style>{`
-          @keyframes wave {
-            from { transform: scaleY(0.4); opacity: 0.6; }
-            to { transform: scaleY(1.2); opacity: 1; }
-          }
           @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
