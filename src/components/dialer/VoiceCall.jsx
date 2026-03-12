@@ -345,6 +345,18 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   const recognitionRef = useRef(null);
   const { callControlId } = phone;
 
+  // Auto-navigate back when call ends/fails (status snaps to 'ready' with no elapsed)
+  const prevStatusRef = useRef(null);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const cur  = phone.status;
+    if (prev && prev !== 'ready' && prev !== 'idle' && prev !== 'connecting' && cur === 'ready' && phone.elapsed === 0) {
+      // Call ended or failed before connecting — go back to phone screen
+      setTimeout(() => (onCallEnd || onHangup)?.(), 1500);
+    }
+    prevStatusRef.current = cur;
+  }, [phone.status]); // eslint-disable-line
+
   // Auto-call — use effect so it fires after phone reaches 'ready'
   const prevDialToRef = useRef(null);
   const autoRecordedRef = useRef(false);
