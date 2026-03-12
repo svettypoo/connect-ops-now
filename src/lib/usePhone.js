@@ -11,6 +11,16 @@ function getNotifSettings() {
   } catch { return {}; }
 }
 
+// Check mic permission state without triggering a dialog
+async function checkMicPermission() {
+  try {
+    const result = await navigator.permissions.query({ name: 'microphone' });
+    return result.state; // 'granted' | 'denied' | 'prompt'
+  } catch {
+    return 'prompt'; // browser doesn't support permissions API
+  }
+}
+
 // On Android, verify mic access before trying to init Telnyx.
 // getUserMedia triggers the Android runtime permission dialog AND grants
 // the WebView's RESOURCE_AUDIO_CAPTURE so WebRTC can actually use the mic.
@@ -37,6 +47,7 @@ export function usePhone() {
   const [phoneNumber, setPhoneNumber] = useState(null);
   const [callControlId, setCallControlId] = useState(null);
   const [micDenied, setMicDenied]   = useState(false);
+  const [micStatus, setMicStatus]   = useState('prompt'); // 'granted'|'denied'|'prompt'|'error'
 
   const clientRef     = useRef(null);
   const callRef       = useRef(null);
@@ -110,6 +121,15 @@ export function usePhone() {
     client.on("telnyx.error", (err) => {
       console.warn("[Phone] telnyx.error:", err);
       if (mountedRef.current) setStatus("idle");
+    });
+
+    client.on("telnyx.rtc.mediaError", (err) => {
+      console.warn("[Phone] telnyx.rtc.mediaError:", err);
+      if (mountedRef.current) {
+        setMicStatus('denied');
+        setMicDenied(true);
+        setStatus('idle');
+      }
     });
 
     client.on("telnyx.socket.close", () => {
@@ -189,12 +209,24 @@ export function usePhone() {
     mountedRef.current = true;
     (async () => {
       try {
+        // Check mic permission upfront — show banner before Telnyx init on web
+        if (!Capacitor.isNativePlatform()) {
+          const permState = await checkMicPermission();
+          if (mountedRef.current) setMicStatus(permState);
+          if (permState === 'denied') {
+            setMicDenied(true);
+            setStatus('idle');
+            return;
+          }
+        }
+
         // On Android, request mic access before Telnyx so the WebView's
         // RESOURCE_AUDIO_CAPTURE is pre-authorized when WebRTC needs it.
         if (Capacitor.isNativePlatform()) {
           const ok = await ensureMicPermission();
           if (!ok) {
             setMicDenied(true);
+            setMicStatus('denied');
             setStatus("idle");
             return;
           }
@@ -212,10 +244,39 @@ export function usePhone() {
       }
     })();
 
+    // Visibility change: reconnect when tab comes back into focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && mountedRef.current && tokenRef.current) {
+        const st = clientRef.current?.connected ?? clientRef.current?.isConnected;
+        if (!st) {
+          console.log('[Phone] visibility visible — reconnecting');
+          setStatus('connecting');
+          initTelnyx(tokenRef.current).catch(() => {});
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Device change: re-attach remote audio if devices change during a call
+    const handleDeviceChange = async () => {
+      if (!remoteAudioRef.current || !callRef.current) return;
+      const savedSpk = localStorage.getItem('con_spk_id');
+      if (savedSpk && typeof remoteAudioRef.current.setSinkId === 'function') {
+        remoteAudioRef.current.setSinkId(savedSpk).catch(() => {});
+      }
+    };
+    if (navigator.mediaDevices) {
+      navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+    }
+
     return () => {
       mountedRef.current = false;
       stopTimer();
       clearInterval(keepAliveRef.current);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (navigator.mediaDevices) {
+        navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+      }
       try { clientRef.current?.disconnect(); } catch {}
     };
   }, [initTelnyx]);
@@ -236,8 +297,19 @@ export function usePhone() {
     return () => callEventEmitter.removeEventListener('incoming_call', handler);
   }, [initTelnyx]);
 
-  const makeCall = useCallback((number, name) => {
+  const makeCall = useCallback(async (number, name) => {
     if (!clientRef.current) return;
+    // Pre-flight mic check — if permission is still 'prompt', trigger the dialog now
+    if (!Capacitor.isNativePlatform()) {
+      const permState = await checkMicPermission();
+      if (permState === 'prompt') {
+        const ok = await ensureMicPermission();
+        if (ok) setMicStatus('granted');
+        else { setMicStatus('denied'); setMicDenied(true); return; }
+      } else if (permState === 'denied') {
+        setMicStatus('denied'); setMicDenied(true); return;
+      }
+    }
     // Normalise to E.164 — prepend +1 if it looks like a 10-digit North American number
     let dest = number.replace(/\D/g, '');
     if (dest.length === 10) dest = '1' + dest;
@@ -298,7 +370,7 @@ export function usePhone() {
 
   return {
     status, activeName, activeNumber, elapsed, fmtElapsed,
-    isMuted, isOnHold, inboundCall, phoneNumber, callControlId, micDenied,
+    isMuted, isOnHold, inboundCall, phoneNumber, callControlId, micDenied, micStatus,
     makeCall, answerCall, hangup, toggleMute, toggleHold, sendDtmf, blindTransfer,
   };
 }

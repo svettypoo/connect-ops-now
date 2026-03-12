@@ -87,6 +87,8 @@ export const api = {
   getRecordingComments: (id) => request('GET', '/api/recordings/' + id + '/comments'),
   addRecordingComment: (id, body, timestampSec) => request('POST', '/api/recordings/' + id + '/comments', { body, timestamp_sec: timestampSec }),
   deleteRecording: (id) => request('DELETE', '/api/recordings/' + id),
+  postCallInsights: (data) => request('POST', '/api/ai/post-call-insights', data),
+  getCallInsights: (callLogId) => request('GET', '/api/ai/call-insights/' + callLogId),
 };
 
 export default api;

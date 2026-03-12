@@ -188,6 +188,18 @@ try { db.exec(`ALTER TABLE call_logs ADD COLUMN transcript TEXT DEFAULT ''`); } 
 try { db.exec(`ALTER TABLE call_logs ADD COLUMN ai_summary TEXT DEFAULT ''`); } catch {}
 try { db.exec(`ALTER TABLE call_logs ADD COLUMN is_voicemail INTEGER NOT NULL DEFAULT 0`); } catch {}
 
+// ─── Call insights (post-call AI chips) ───────────────────────────────────────
+db.exec(`CREATE TABLE IF NOT EXISTS call_insights (
+  id           TEXT PRIMARY KEY,
+  call_log_id  TEXT,
+  user_id      TEXT NOT NULL,
+  tasks        TEXT NOT NULL DEFAULT '[]',
+  email_draft  TEXT NOT NULL DEFAULT '',
+  summary      TEXT NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  FOREIGN KEY(user_id) REFERENCES users(id)
+)`);
+
 // ─── Device preferences ───────────────────────────────────────────────────────
 db.exec(`CREATE TABLE IF NOT EXISTS device_prefs (
   fingerprint       TEXT PRIMARY KEY,
@@ -633,6 +645,21 @@ function ensureAdminUser() {
   }
 }
 
+const insightOps = {
+  create({ user_id, call_log_id, tasks, email_draft, summary }) {
+    const id = uuidv4();
+    db.prepare(`INSERT INTO call_insights (id, call_log_id, user_id, tasks, email_draft, summary) VALUES (?,?,?,?,?,?)`)
+      .run(id, call_log_id || null, user_id, JSON.stringify(tasks || []), email_draft || '', summary || '');
+    return db.prepare('SELECT * FROM call_insights WHERE id=?').get(id);
+  },
+  listByUser(user_id, limit = 20) {
+    return db.prepare('SELECT * FROM call_insights WHERE user_id=? ORDER BY created_at DESC LIMIT ?').all(user_id, limit);
+  },
+  getByCallLog(call_log_id) {
+    return db.prepare('SELECT * FROM call_insights WHERE call_log_id=?').get(call_log_id);
+  },
+};
+
 module.exports = {
   db,
   userOps,
@@ -646,5 +673,6 @@ module.exports = {
   recordingCommentOps,
   meetingOps,
   devicePrefsOps,
+  insightOps,
   ensureAdminUser,
 };

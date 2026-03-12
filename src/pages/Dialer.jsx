@@ -802,6 +802,34 @@ export default function Dialer() {
         )}
       </div>
 
+      {/* Mic permission denied banner */}
+      {phone.micStatus === 'denied' && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 61,
+          background: 'linear-gradient(135deg, #4A1010, #7B1818)',
+          borderBottom: '1px solid #F44336',
+          padding: '10px 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          boxShadow: '0 4px 24px rgba(244,67,54,0.3)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2a7 7 0 01-.11 1.23" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+            <div>
+              <div style={{ fontSize: '12px', color: '#EF9A9A', fontWeight: 600 }}>Microphone access blocked</div>
+              <div style={{ fontSize: '11px', color: '#FFCDD2' }}>Click the lock icon in your browser address bar and allow microphone access, then reload.</div>
+            </div>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ background: 'rgba(244,67,54,0.2)', border: '1px solid rgba(244,67,54,0.4)', color: '#FF5252', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+          >
+            Reload
+          </button>
+        </div>
+      )}
+
       {/* Inbound call banner */}
       {inbound && (
         <div style={{

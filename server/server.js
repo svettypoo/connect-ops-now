@@ -46,11 +46,11 @@ async function zohoImapAuth(email, password) {
 }
 
 let userOps, sessionOps, contactOps, phoneOps, smsOps, voicemailOps, callLogOps,
-    recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, ensureAdminUser, db;
+    recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, insightOps, ensureAdminUser, db;
 let DB_LOAD_ERROR = null;
 try {
   ({ userOps, sessionOps, contactOps, phoneOps, smsOps, voicemailOps, callLogOps,
-     recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, ensureAdminUser, db } = require('./db'));
+     recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, insightOps, ensureAdminUser, db } = require('./db'));
   console.log('[DB] Loaded successfully. Node version:', process.version);
 } catch (e) {
   DB_LOAD_ERROR = e.message;
@@ -437,6 +437,60 @@ app.post('/api/call-logs/transcript', requireAuth, async (req, res) => {
     console.error('[CallTranscript]', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ─── Routes: Post-call AI chips ───────────────────────────────────────────────
+
+app.post('/api/ai/post-call-insights', requireAuth, requireAI, async (req, res) => {
+  try {
+    const { transcript, duration, contact_name, contact_number, call_log_id } = req.body;
+    if (!transcript || !transcript.trim()) return res.json({ tasks: [], email_draft: '', summary: '' });
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const prompt = `You just had a phone call with ${contact_name || contact_number || 'a contact'} (${Math.round(duration || 0)} seconds). Here is the transcript:
+
+${transcript}
+
+Generate a JSON object with:
+1. "tasks": array of up to 3 action items (strings, imperative, under 60 chars each)
+2. "email_draft": a short follow-up email body (2-4 sentences, no subject/greeting line)
+3. "summary": 1-sentence call summary
+
+Return ONLY valid JSON, no markdown, no explanation.`;
+
+    const msg = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const raw = msg.content?.[0]?.text?.trim() || '{}';
+    let parsed;
+    try { parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim()); }
+    catch { parsed = {}; }
+
+    const tasks = Array.isArray(parsed.tasks) ? parsed.tasks.slice(0, 3) : [];
+    const email_draft = parsed.email_draft || '';
+    const summary = parsed.summary || '';
+
+    const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
+    const insight = insightOps.create({ user_id: phoneUserId, call_log_id: call_log_id || null, tasks, email_draft, summary });
+
+    res.json({ tasks, email_draft, summary, id: insight.id });
+  } catch (e) {
+    console.error('[post-call-insights]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/ai/call-insights/:callLogId', requireAuth, (req, res) => {
+  try {
+    const insight = insightOps.getByCallLog(req.params.callLogId);
+    if (!insight) return res.json(null);
+    res.json({ ...insight, tasks: JSON.parse(insight.tasks || '[]') });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── Routes: Stats ────────────────────────────────────────────────────────────
@@ -905,6 +959,17 @@ app.post('/webhooks/telnyx', express.json(), async (req, res) => {
         }
       }
     }
+    if (type === 'message.finalized') {
+      const msgId = payload.id || '';
+      const deliveryStatus = payload.to?.[0]?.status || payload.delivery_state || '';
+      if (msgId && deliveryStatus) {
+        const statusMap = { 'delivered': 'delivered', 'delivery_failed': 'failed', 'queued': 'queued', 'sending': 'sending', 'sent': 'sent' };
+        const status = statusMap[deliveryStatus] || deliveryStatus;
+        try { db.prepare('UPDATE sms_messages SET status=? WHERE telnyx_message_id=?').run(status, msgId); }
+        catch (e) { console.warn('[sms finalized] db update failed:', e.message); }
+        console.log('[Webhook] SMS finalized:', msgId, status);
+      }
+    }
   } catch (err) {
     console.error('[Webhook/telnyx] Error:', err.message);
   }
@@ -925,6 +990,17 @@ app.post('/api/telnyx/webhook', express.json(), async (req, res) => {
     const matchedCred = allCreds.find(c => c.phone_number === toNum) || allCreds[0];
     if (matchedCred) {
       smsOps.create({ user_id: matchedCred.user_id, direction: 'inbound', from_number: fromNum, to_number: toNum, body: payload.text || '', status: 'delivered', telnyx_message_id: payload.id || '' });
+    }
+  }
+  if (type === 'message.finalized') {
+    const msgId = payload.id || '';
+    const deliveryStatus = payload.to?.[0]?.status || payload.delivery_state || '';
+    if (msgId && deliveryStatus) {
+      const statusMap = { 'delivered': 'delivered', 'delivery_failed': 'failed', 'queued': 'queued', 'sending': 'sending', 'sent': 'sent' };
+      const status = statusMap[deliveryStatus] || deliveryStatus;
+      try { db.prepare('UPDATE sms_messages SET status=? WHERE telnyx_message_id=?').run(status, msgId); }
+      catch (e) { console.warn('[sms finalized] db update failed:', e.message); }
+      console.log('[sms finalized] msgId:', msgId, 'status:', status);
     }
   }
 });

@@ -340,18 +340,36 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
   const [transcript, setTranscript] = useState([]);
   const [speakerOn, setSpeakerOn] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [aiChips, setAiChips] = useState(null); // { tasks, email_draft, summary }
+  const [aiLoading, setAiLoading] = useState(false);
+  const [dismissedChips, setDismissedChips] = useState([]);
+  const [showEmailDraft, setShowEmailDraft] = useState(false);
   const recognitionRef = useRef(null);
   const { callControlId } = phone;
 
   // Auto-call — use effect so it fires after phone reaches 'ready'
   const prevDialToRef = useRef(null);
+  const autoRecordedRef = useRef(false);
+
   useEffect(() => {
     if (dialTo && dialTo !== prevDialToRef.current && phone.status === 'ready') {
       prevDialToRef.current = dialTo;
+      autoRecordedRef.current = false;
       phone.makeCall(dialTo, dialName);
       startTranscription();
     }
   }, [dialTo, phone.status]); // eslint-disable-line
+
+  // Auto-start recording when call goes active
+  useEffect(() => {
+    if (phone.status === 'active' && phone.callControlId && !autoRecordedRef.current) {
+      autoRecordedRef.current = true;
+      api.startRecording(phone.callControlId).then(() => setIsRecording(true)).catch(() => {});
+    }
+    if (phone.status !== 'active' && phone.status !== 'held') {
+      autoRecordedRef.current = false;
+    }
+  }, [phone.status, phone.callControlId]); // eslint-disable-line
 
   function startTranscription() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -368,7 +386,27 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
 
   function stopTranscription() { recognitionRef.current?.stop(); recognitionRef.current = null; }
 
-  const handleHangup = () => { stopTranscription(); phone.hangup(); onCallEnd?.(); };
+  const handleHangup = () => {
+    stopTranscription();
+    const capturedTranscript = transcript.join(' ');
+    const capturedDuration = phone.elapsed;
+    const capturedName = phone.activeName || dialName || '';
+    const capturedNumber = phone.activeNumber || dialTo || '';
+    phone.hangup();
+    onCallEnd?.();
+    // Fire AI insights after hangup if we have a transcript
+    if (capturedTranscript.trim() && capturedDuration > 10) {
+      setAiLoading(true);
+      api.postCallInsights({
+        transcript: capturedTranscript,
+        duration: capturedDuration,
+        contact_name: capturedName,
+        contact_number: capturedNumber,
+      }).then(data => {
+        if (data?.tasks?.length || data?.email_draft) setAiChips(data);
+      }).catch(() => {}).finally(() => setAiLoading(false));
+    }
+  };
 
   const toggleSpeaker = async () => {
     const next = !speakerOn;
@@ -642,7 +680,55 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
   // ── Post-call / idle ─────────────────────────────────────────────────────
   if (phone.elapsed > 0) {
     return (
-      <div style={{ padding: '16px', background: '#17191C', height: '100%' }}>
+      <div style={{ padding: '16px', background: '#17191C', height: '100%', overflowY: 'auto' }}>
+        {/* AI chips */}
+        {(aiLoading || aiChips) && (
+          <div style={{ marginBottom: '16px' }}>
+            {aiLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: 'rgba(139,92,246,0.1)', borderRadius: '12px', marginBottom: '8px' }}>
+                <div style={{ width: '16px', height: '16px', border: '2px solid rgba(167,139,250,0.3)', borderTopColor: '#a78bfa', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                <span style={{ color: '#a78bfa', fontSize: '13px' }}>Generating AI insights…</span>
+              </div>
+            )}
+            {aiChips && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {/* Summary chip */}
+                {aiChips.summary && (
+                  <div style={{ background: 'rgba(14,184,255,0.08)', border: '1px solid rgba(14,184,255,0.2)', borderRadius: '12px', padding: '10px 12px' }}>
+                    <p style={{ margin: '0 0 4px', fontSize: '10px', color: '#0EB8FF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Summary</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#C8CAD0', lineHeight: 1.4 }}>{aiChips.summary}</p>
+                  </div>
+                )}
+                {/* Task chips */}
+                {aiChips.tasks?.filter((_, i) => !dismissedChips.includes(i)).map((task, i) => (
+                  <div key={i} style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)', borderRadius: '12px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>✓</span>
+                    <span style={{ flex: 1, fontSize: '13px', color: '#C8CAD0' }}>{task}</span>
+                    <button
+                      onClick={() => setDismissedChips(d => [...d, i])}
+                      style={{ background: 'none', border: 'none', color: '#3A3D45', cursor: 'pointer', padding: '2px', fontSize: '14px', lineHeight: 1 }}
+                    >×</button>
+                  </div>
+                ))}
+                {/* Email draft chip */}
+                {aiChips.email_draft && (
+                  <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '12px', padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <p style={{ margin: 0, fontSize: '10px', color: '#a78bfa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Follow-up Draft</p>
+                      <button
+                        onClick={() => setShowEmailDraft(p => !p)}
+                        style={{ background: 'none', border: 'none', color: '#a78bfa', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                      >{showEmailDraft ? 'Hide' : 'Show'}</button>
+                    </div>
+                    {showEmailDraft && (
+                      <p style={{ margin: 0, fontSize: '12px', color: '#c4b5fd', lineHeight: 1.5, whiteSpace: 'pre-line' }}>{aiChips.email_draft}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <CallNotes sessionId={sessionId} callType="voice" durationMinutes={Math.round(phone.elapsed / 60)} transcript={transcript} />
       </div>
     );
