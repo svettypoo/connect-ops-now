@@ -1,5 +1,8 @@
 // Inbox AI API client
-const BASE = import.meta.env.VITE_API_BASE || '';
+// On web (same-origin), always use '' so requests hit the same host.
+// Only use VITE_API_BASE in Capacitor/APK builds (no window.location.host match).
+const isCapacitor = typeof window !== 'undefined' && window.Capacitor;
+const BASE = isCapacitor ? (import.meta.env.VITE_API_BASE || '') : '';
 
 async function request(method, path, body) {
   const opts = { method, credentials: 'include', headers: {} };
