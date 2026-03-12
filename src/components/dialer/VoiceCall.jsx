@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { usePhone } from "@/lib/usePhone";
+
 import CallNotes from "@/components/dialer/CallNotes";
 import api from "@/api/inboxAiClient";
 
@@ -331,8 +331,7 @@ function TranscriptPanel({ lines, onClose }) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
-  const phone = usePhone();
+export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup }) {
   const [showDtmf, setShowDtmf] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -394,7 +393,7 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
     const capturedName = phone.activeName || dialName || '';
     const capturedNumber = phone.activeNumber || dialTo || '';
     phone.hangup();
-    onCallEnd?.();
+    (onCallEnd || onHangup)?.();
     // Fire AI insights after hangup if we have a transcript
     if (capturedTranscript.trim() && capturedDuration > 10) {
       setAiLoading(true);
@@ -468,7 +467,7 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
           <p style={{ color: '#8B8F9B', fontSize: '15px', margin: 0 }}>{phone.activeNumber}</p>
         </div>
         <button
-          onClick={() => { phone.hangup(); onCallEnd?.(); }}
+          onClick={() => { phone.hangup(); (onCallEnd || onHangup)?.(); }}
           style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#F44336', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(244,67,54,0.4)' }}
         >
           <Ic d="M16 2a14 14 0 00-9.9 4.1L2.6 2.6 1.4 3.8 4.9 7.3A14 14 0 002 16h2a12 12 0 013.5-8.5L9 9l.7-.7-1.4-1.4.7-.7 1.4 1.4A11.96 11.96 0 0116 6v-2a13.9 13.9 0 00-4-.6" color="#fff" size={28} />
