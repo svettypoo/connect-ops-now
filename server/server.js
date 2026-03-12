@@ -558,6 +558,62 @@ app.get('/api/phone/me', requireAuth, (req, res) => {
   res.json({ phone_number: cred?.phone_number || null, sip_user: cred?.telnyx_sip_user || null });
 });
 
+// Client-side call recording upload (SIP.js MediaRecorder → server → Supabase)
+const multer = require('multer');
+const recUpload = multer({ dest: uploadsDir, limits: { fileSize: 50 * 1024 * 1024 } });
+app.post('/api/phone/upload-recording', requireAuth, recUpload.single('recording'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No recording file' });
+    const { from_number, to_number, duration } = req.body;
+    const ext = path.extname(req.file.originalname) || '.webm';
+    const filename = `call_${req.user.user_id}_${Date.now()}${ext}`;
+    const finalPath = path.join(uploadsDir, filename);
+    fs.renameSync(req.file.path, finalPath);
+    console.log('[recording] client upload saved:', filename, fs.statSync(finalPath).size, 'bytes');
+
+    // Upload to Supabase for persistence
+    let storageUrl = '';
+    try {
+      storageUrl = await uploadToSupabase(finalPath, filename);
+      console.log('[recording] uploaded to Supabase:', storageUrl.slice(0, 80));
+    } catch (e) { console.error('[recording] Supabase upload failed:', e.message); }
+
+    // Transcribe with Deepgram if available
+    let transcript = '';
+    const dgKey = process.env.DEEPGRAM_API_KEY;
+    if (dgKey) {
+      try {
+        const audio = fs.readFileSync(finalPath);
+        const ct = ext === '.webm' ? 'audio/webm' : 'audio/mpeg';
+        const dgRes = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true', {
+          method: 'POST',
+          headers: { 'Authorization': `Token ${dgKey}`, 'Content-Type': ct },
+          body: audio,
+        });
+        const dgData = await dgRes.json();
+        transcript = dgData?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+      } catch (e) { console.warn('[recording] Deepgram transcription failed:', e.message); }
+    }
+
+    // Save to DB
+    const title = `Call ${from_number || 'unknown'} → ${to_number || 'unknown'}`;
+    const { id: recId } = recordingOps.create({
+      userId: req.user.user_id,
+      title,
+      filename,
+      duration: parseInt(duration) || 0,
+      size: fs.statSync(finalPath).size,
+      storageUrl,
+    });
+    if (transcript) recordingOps.update(recId, req.user.user_id, { transcript });
+
+    res.json({ ok: true, recording_id: recId, transcript: transcript ? transcript.slice(0, 200) + '…' : '' });
+  } catch (e) {
+    console.error('[recording] upload error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/phone/park', requireAuth, async (req, res) => {
   const { call_control_id } = req.body;
   if (!call_control_id) return res.status(400).json({ error: 'call_control_id required' });

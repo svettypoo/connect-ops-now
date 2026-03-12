@@ -338,7 +338,6 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   const [sessionId] = useState(() => 'voice-' + Date.now());
   const [transcript, setTranscript] = useState([]);
   const [speakerOn, setSpeakerOn] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [aiChips, setAiChips] = useState(null); // { tasks, email_draft, summary }
   const [aiLoading, setAiLoading] = useState(false);
   const [dismissedChips, setDismissedChips] = useState([]);
@@ -363,8 +362,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   useEffect(() => {
     if (phone.status === 'active' && phone.callControlId && !autoRecordedRef.current) {
       autoRecordedRef.current = true;
-      // TODO: client-side MediaRecorder (SIP.js has no server-side recording)
-      setIsRecording(false);
+      phone.startRecording();
     }
     if (phone.status !== 'active' && phone.status !== 'held') {
       autoRecordedRef.current = false;
@@ -388,6 +386,8 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
 
   const handleHangup = () => {
     stopTranscription();
+    // Stop recording — triggers upload in background
+    if (phone.isRecording) phone.stopRecording();
     const capturedTranscript = transcript.join(' ');
     const capturedDuration = phone.elapsed;
     const capturedName = phone.activeName || dialName || '';
@@ -428,13 +428,7 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
     } catch (_) {}
   };
 
-  const toggleRecording = async () => {
-    if (!callControlId) return;
-    try {
-      // TODO: client-side MediaRecorder (SIP.js has no server-side recording)
-      setIsRecording(r => !r);
-    } catch(_) {}
-  };
+  const toggleRecording = () => { phone.toggleRecording(); };
 
   const sendDtmf = (k) => { phone.sendDtmf(k); };
 
@@ -617,9 +611,9 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
             onClick={() => setShowTransfer(p => !p)}
           />
           <ActionBtn
-            icon={<RecordIcon active={isRecording} size={22} />}
-            label={isRecording ? 'Stop Rec' : 'Record'}
-            active={isRecording}
+            icon={<RecordIcon active={phone.isRecording} size={22} />}
+            label={phone.isRecording ? 'Stop Rec' : 'Record'}
+            active={phone.isRecording}
             activeColor="#2A1515"
             activeLabelColor="#F44336"
             onClick={toggleRecording}

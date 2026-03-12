@@ -46,6 +46,8 @@ export function usePhone() {
   const [micDenied, setMicDenied]   = useState(false);
   const [micStatus, setMicStatus]   = useState('prompt');
 
+  const [isRecording, setIsRecording] = useState(false);
+
   const uaRef         = useRef(null);
   const registererRef = useRef(null);
   const sessionRef    = useRef(null);
@@ -54,6 +56,9 @@ export function usePhone() {
   const mountedRef    = useRef(true);
   const remoteAudioRef = useRef(null);
   const sipConfigRef  = useRef(null);
+  const recorderRef   = useRef(null);   // MediaRecorder
+  const recChunksRef  = useRef([]);     // recorded chunks
+  const recContextRef = useRef(null);   // AudioContext for mixing
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
@@ -111,6 +116,12 @@ export function usePhone() {
         case SessionState.Terminating:
         case SessionState.Terminated:
           stopRingtone();
+          // Stop recording if active
+          if (recorderRef.current) {
+            try { recorderRef.current.stop(); } catch {}
+            recorderRef.current = null;
+            setIsRecording(false);
+          }
           sessionRef.current = null;
           setInboundCall(null);
           setCallControlId(null);
@@ -465,6 +476,100 @@ export function usePhone() {
     hangup();
   }, [hangup]);
 
+  // ── Recording (client-side MediaRecorder) ──────────────────────────────────
+  const startRecording = useCallback(() => {
+    const session = sessionRef.current;
+    if (!session || recorderRef.current) return;
+    const pc = session.sessionDescriptionHandler?.peerConnection;
+    if (!pc) return;
+
+    try {
+      const ctx = new AudioContext();
+      recContextRef.current = ctx;
+      const dest = ctx.createMediaStreamDestination();
+
+      // Remote audio (from peer)
+      const receivers = pc.getReceivers();
+      if (receivers.length > 0) {
+        const remoteStream = new MediaStream();
+        receivers.forEach(r => { if (r.track) remoteStream.addTrack(r.track); });
+        const remoteSrc = ctx.createMediaStreamSource(remoteStream);
+        remoteSrc.connect(dest);
+      }
+
+      // Local audio (mic)
+      const senders = pc.getSenders();
+      const localTracks = senders.filter(s => s.track && s.track.kind === 'audio').map(s => s.track);
+      if (localTracks.length > 0) {
+        const localStream = new MediaStream(localTracks);
+        const localSrc = ctx.createMediaStreamSource(localStream);
+        localSrc.connect(dest);
+      }
+
+      recChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const recorder = new MediaRecorder(dest.stream, { mimeType });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
+      recorder.start(1000); // 1s chunks
+      recorderRef.current = recorder;
+      setIsRecording(true);
+      console.log('[Phone] Recording started');
+    } catch (e) {
+      console.error('[Phone] Recording start failed:', e.message);
+    }
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    const recorder = recorderRef.current;
+    if (!recorder) { setIsRecording(false); return null; }
+
+    return new Promise((resolve) => {
+      recorder.onstop = async () => {
+        recorderRef.current = null;
+        setIsRecording(false);
+        if (recContextRef.current) {
+          recContextRef.current.close().catch(() => {});
+          recContextRef.current = null;
+        }
+        const blob = new Blob(recChunksRef.current, { type: recorder.mimeType });
+        recChunksRef.current = [];
+        console.log('[Phone] Recording stopped, blob size:', blob.size);
+        if (blob.size < 1000) { resolve(null); return; } // too small = silence
+
+        // Upload to server
+        try {
+          const formData = new FormData();
+          const filename = `call_${Date.now()}.webm`;
+          formData.append('recording', blob, filename);
+          formData.append('from_number', phoneNumber || '');
+          formData.append('to_number', activeNumber || '');
+          formData.append('duration', String(elapsed));
+          const resp = await fetch('/api/phone/upload-recording', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData,
+          });
+          const data = await resp.json();
+          console.log('[Phone] Recording uploaded:', data);
+          resolve(data);
+        } catch (e) {
+          console.error('[Phone] Recording upload failed:', e.message);
+          resolve(null);
+        }
+      };
+      recorder.stop();
+    });
+  }, [phoneNumber, activeNumber, elapsed]);
+
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
+
   const fmtElapsed = () => {
     const m = Math.floor(elapsed / 60), s = elapsed % 60;
     return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
@@ -473,6 +578,7 @@ export function usePhone() {
   return {
     status, activeName, activeNumber, elapsed, fmtElapsed,
     isMuted, isOnHold, inboundCall, phoneNumber, callControlId, micDenied, micStatus,
+    isRecording, startRecording, stopRecording, toggleRecording,
     makeCall, answerCall, hangup, toggleMute, toggleHold, sendDtmf, blindTransfer,
   };
 }
