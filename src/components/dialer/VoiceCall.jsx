@@ -343,13 +343,15 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
   const recognitionRef = useRef(null);
   const { callControlId } = phone;
 
-  // Auto-call
+  // Auto-call — use effect so it fires after phone reaches 'ready'
   const prevDialToRef = useRef(null);
-  if (dialTo && dialTo !== prevDialToRef.current && phone.status === 'ready') {
-    prevDialToRef.current = dialTo;
-    phone.makeCall(dialTo, dialName);
-    startTranscription();
-  }
+  useEffect(() => {
+    if (dialTo && dialTo !== prevDialToRef.current && phone.status === 'ready') {
+      prevDialToRef.current = dialTo;
+      phone.makeCall(dialTo, dialName);
+      startTranscription();
+    }
+  }, [dialTo, phone.status]); // eslint-disable-line
 
   function startTranscription() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -400,8 +402,43 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
 
   const isActive = phone.status === 'active' || phone.status === 'held';
   const isRinging = phone.status === 'ringing';
+  const isCalling = phone.status === 'calling'; // outbound dialing
   const callerName = isRinging ? (phone.inboundCall?.name || 'Incoming Call') : (phone.activeName || dialName || 'Unknown');
   const callerNumber = isRinging ? (phone.inboundCall?.number || '') : (dialTo || phone.activeNumber || '');
+
+  // ── Outbound calling screen ──────────────────────────────────────────────
+  if (isCalling) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
+        height: '100%', background: 'linear-gradient(180deg, #0A1628 0%, #17191C 100%)',
+        padding: '60px 24px 48px', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif",
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: '#8B8F9B', fontSize: '14px', marginBottom: '24px' }}>Calling…</p>
+          <div style={{
+            width: '96px', height: '96px', borderRadius: '50%', background: AVATAR_BG,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '34px', fontWeight: 700, color: '#fff', margin: '0 auto 20px',
+            boxShadow: '0 0 0 8px rgba(6,132,189,0.15), 0 0 0 16px rgba(6,132,189,0.07)',
+            animation: 'pulse 1.5s ease-in-out infinite',
+          }}>
+            {getInitials(phone.activeName || dialName || '')}
+          </div>
+          <h2 style={{ color: '#fff', fontSize: '26px', fontWeight: 700, margin: '0 0 6px' }}>{phone.activeName || dialName || phone.activeNumber}</h2>
+          <p style={{ color: '#8B8F9B', fontSize: '15px', margin: 0 }}>{phone.activeNumber}</p>
+        </div>
+        <button
+          onClick={() => { phone.hangup(); onCallEnd?.(); }}
+          style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#F44336', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(244,67,54,0.4)' }}
+        >
+          <Ic d="M16 2a14 14 0 00-9.9 4.1L2.6 2.6 1.4 3.8 4.9 7.3A14 14 0 002 16h2a12 12 0 013.5-8.5L9 9l.7-.7-1.4-1.4.7-.7 1.4 1.4A11.96 11.96 0 0116 6v-2a13.9 13.9 0 00-4-.6" color="#fff" size={28} />
+          <svg width={28} height={28} viewBox="0 0 24 24" fill="white"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+        </button>
+        <style>{`@keyframes pulse { 0%,100%{box-shadow:0 0 0 8px rgba(6,132,189,0.15),0 0 0 16px rgba(6,132,189,0.07)} 50%{box-shadow:0 0 0 12px rgba(6,132,189,0.2),0 0 0 24px rgba(6,132,189,0.05)} }`}</style>
+      </div>
+    );
+  }
 
   // ── Incoming call screen ─────────────────────────────────────────────────
   if (isRinging) {
@@ -633,7 +670,7 @@ export default function VoiceCall({ dialTo, dialName, onCallEnd }) {
     }}>
       <div style={{ width: '48px', height: '48px', borderRadius: '50%', border: '2px solid #2A2D35', borderTopColor: '#0EB8FF', animation: 'spin 0.8s linear infinite' }} />
       <p style={{ color: '#8B8F9B', fontSize: '14px' }}>
-        {phone.status === 'reconnecting' ? 'Reconnecting…' : phone.status === 'connecting' ? 'Connecting…' : 'Initializing phone…'}
+        {phone.status === 'reconnecting' ? 'Reconnecting…' : phone.status === 'connecting' ? 'Connecting to network…' : 'Initializing phone…'}
       </p>
       <button
         onClick={() => window.location.reload()}

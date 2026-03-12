@@ -119,6 +119,7 @@ export function usePhone() {
       const st = call.state;
 
       if (st === "ringing" && !callRef.current) {
+        // Inbound call
         callRef.current = call;
         const name = call.options?.remoteCallerName || call.options?.remoteCallerNumber || "Unknown";
         setInboundCall({ name, number: call.options?.remoteCallerNumber || "" });
@@ -128,6 +129,9 @@ export function usePhone() {
         if (Notification?.permission === "granted") {
           new Notification("Incoming Call", { body: name, icon: "/favicon.ico", tag: "incoming-call", renotify: false });
         }
+      } else if (st === "ringing" && callRef.current) {
+        // Outbound call — remote is ringing, keep status as "calling" (already set)
+        setStatus("calling");
       } else if (st === "active") {
         stopRingtone();
         setInboundCall(null);
@@ -216,13 +220,16 @@ export function usePhone() {
 
   const makeCall = useCallback((number, name) => {
     if (!clientRef.current) return;
-    const call = clientRef.current.newCall({ destinationNumber: number, callerNumber: phoneNumber || "" });
+    // Normalise to E.164 — prepend +1 if it looks like a 10-digit North American number
+    let dest = number.replace(/\D/g, '');
+    if (dest.length === 10) dest = '1' + dest;
+    if (!dest.startsWith('+')) dest = '+' + dest;
+    const call = clientRef.current.newCall({ destinationNumber: dest, callerNumber: phoneNumber || "" });
     callRef.current = call;
     setCallControlId(call.id || null);
     setActiveNumber(number);
     setActiveName(name || number);
-    setStatus("active");
-    startTimer();
+    setStatus("calling"); // "calling" = dialing out, not yet active
   }, [phoneNumber]);
 
   const answerCall = useCallback(() => {
