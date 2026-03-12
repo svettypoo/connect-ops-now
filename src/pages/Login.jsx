@@ -1,21 +1,40 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Eye, EyeOff } from "lucide-react";
+
+const LS_KEY = "con_remember";
 
 export default function LoginPage() {
   const { login, authError } = useAuth();
   const [email, setEmail] = useState("hr@stproperties.com");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+      if (saved?.email) { setEmail(saved.email); setPassword(saved.password || ""); setRemember(true); }
+    } catch {}
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr(null);
     setLoading(true);
-    try { await login(email, password); }
-    catch (e) { setErr(e.message || "Login failed"); }
+    try {
+      await login(email, password);
+      if (remember) {
+        localStorage.setItem(LS_KEY, JSON.stringify({ email, password }));
+      } else {
+        localStorage.removeItem(LS_KEY);
+      }
+    } catch (e) {
+      setErr(e.message || "Login failed");
+    }
     setLoading(false);
   };
 
@@ -75,6 +94,17 @@ export default function LoginPage() {
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
+
+          {/* Remember me */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={e => setRemember(e.target.checked)}
+              style={{ width: '16px', height: '16px', accentColor: '#0684BD', cursor: 'pointer' }}
+            />
+            <span style={{ color: '#8B8F9B', fontSize: '13px' }}>Remember me</span>
+          </label>
 
           {(err || authError?.message) && (
             <p style={{ color: '#F44336', fontSize: '13px', textAlign: 'center', margin: '0' }}>
