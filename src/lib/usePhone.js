@@ -1,67 +1,100 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
-import { TelnyxRTC } from "@telnyx/webrtc";
-import api from "@/api/inboxAiClient";
 import { startRingtone, stopRingtone } from "@/lib/useNotificationSettings";
 import { callEventEmitter } from "@/lib/pushNotifications";
 
-const API_BASE = Capacitor.isNativePlatform()
-  ? (import.meta.env.VITE_API_BASE || 'https://phone.stproperties.com')
-  : '';
+// ─── Switchboard audio codec: μ-law (G.711) 8 kHz ───────────────────────────
+// Telnyx streams G.711 μ-law at 8 kHz; we decode/encode in the browser.
 
-function getNotifSettings() {
-  try {
-    const raw = localStorage.getItem("con_notif_settings");
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+function decodeMulaw(bytes) {
+  const out = new Float32Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) {
+    const ulaw = (~bytes[i]) & 0xff;
+    const sign = ulaw & 0x80 ? -1 : 1;
+    const exp  = (ulaw >> 4) & 0x07;
+    const mant = (ulaw & 0x0f) + 16;
+    out[i] = sign * (mant << (exp + 2)) / 32768.0;
+  }
+  return out;
 }
+
+function encodeMulaw(float32) {
+  const CLIP = 32635, BIAS = 0x84;
+  const out = new Uint8Array(float32.length);
+  for (let i = 0; i < float32.length; i++) {
+    let s = Math.round(float32[i] * 32767);
+    let sign = 0;
+    if (s < 0) { sign = 0x80; s = -s; }
+    if (s > CLIP) s = CLIP;
+    s += BIAS;
+    const exp  = 31 - Math.clz32(s) - 6;
+    const expC = Math.max(0, Math.min(exp, 7));
+    const mant = (s >> (expC + 2)) & 0x0f;
+    out[i] = (~(sign | (expC << 4) | mant)) & 0xff;
+  }
+  return out;
+}
+
+// ─── WebSocket URL helper ────────────────────────────────────────────────────
+
+function getWsBase() {
+  if (Capacitor.isNativePlatform()) return 'wss://phone.stproperties.com';
+  const loc = window.location;
+  return (loc.protocol === 'https:' ? 'wss://' : 'ws://') + loc.host;
+}
+
+function getSessionToken() {
+  return localStorage.getItem('con_session_token');
+}
+
+// ─── Mic permission helpers ──────────────────────────────────────────────────
 
 async function checkMicPermission() {
   try {
-    const result = await navigator.permissions.query({ name: 'microphone' });
-    return result.state;
-  } catch {
-    return 'prompt';
-  }
+    const r = await navigator.permissions.query({ name: 'microphone' });
+    return r.state;
+  } catch { return 'prompt'; }
 }
 
 async function ensureMicPermission() {
   if (!navigator.mediaDevices?.getUserMedia) return false;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    stream.getTracks().forEach(t => t.stop());
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach(t => t.stop());
     return true;
-  } catch (e) {
-    console.warn("[Phone] Mic permission denied:", e.message);
-    return false;
-  }
+  } catch { return false; }
 }
 
-export function usePhone() {
-  const [status, setStatus]           = useState("idle");
-  const [activeName, setActiveName]   = useState("");
-  const [activeNumber, setActiveNumber] = useState("");
-  const [elapsed, setElapsed]         = useState(0);
-  const [isMuted, setIsMuted]         = useState(false);
-  const [isOnHold, setIsOnHold]       = useState(false);
-  const [inboundCall, setInboundCall] = useState(null);
-  const [phoneNumber, setPhoneNumber] = useState(null);
-  const [callControlId, setCallControlId] = useState(null);
-  const [micDenied, setMicDenied]     = useState(false);
-  const [micStatus, setMicStatus]     = useState('prompt');
-  const [isRecording, setIsRecording] = useState(false);
-  const [lastError, setLastError] = useState(null);
+// ─── usePhone hook ───────────────────────────────────────────────────────────
 
-  const clientRef     = useRef(null);
-  const callRef       = useRef(null);
+export function usePhone() {
+  const [status,       setStatus]       = useState('idle');
+  const [activeName,   setActiveName]   = useState('');
+  const [activeNumber, setActiveNumber] = useState('');
+  const [elapsed,      setElapsed]      = useState(0);
+  const [isMuted,      setIsMuted]      = useState(false);
+  const [isOnHold,     setIsOnHold]     = useState(false);
+  const [inboundCall,  setInboundCall]  = useState(null);
+  const [phoneNumber,  setPhoneNumber]  = useState('+15878643090');
+  const [callControlId,setCallControlId] = useState(null);
+  const [micDenied,    setMicDenied]    = useState(false);
+  const [micStatus,    setMicStatus]    = useState('prompt');
+  const [isRecording,  setIsRecording]  = useState(false);
+  const [lastError,    setLastError]    = useState(null);
+
+  const wsRef         = useRef(null);   // WebSocket to server switchboard
+  const audioCtxRef   = useRef(null);   // AudioContext for playback
+  const nextPlayRef   = useRef(0);      // Scheduled playback time
+  const micCtxRef     = useRef(null);   // Mic AudioContext
+  const micStreamRef  = useRef(null);   // Mic MediaStream
+  const micProcRef    = useRef(null);   // ScriptProcessor
   const timerRef      = useRef(null);
   const startTimeRef  = useRef(null);
   const mountedRef    = useRef(true);
-  const remoteAudioRef = useRef(null);
-  const configRef     = useRef(null);
-  const recorderRef   = useRef(null);
-  const recChunksRef  = useRef([]);
-  const recContextRef = useRef(null);
+  const statusRef     = useRef('idle');
+
+  // Keep statusRef in sync for use in callbacks
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
@@ -70,275 +103,254 @@ export function usePhone() {
       setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000));
     }, 1000);
   };
-  const stopTimer = () => { clearInterval(timerRef.current); };
+  const stopTimer = () => clearInterval(timerRef.current);
 
-  const ensureAudioElement = () => {
-    if (!remoteAudioRef.current) {
-      let el = document.getElementById('sip-remote-audio');
-      if (!el) {
-        el = document.createElement('audio');
-        el.id = 'sip-remote-audio';
-        el.autoplay = true;
-        el.setAttribute('playsinline', '');
-        el.style.display = 'none';
-        document.body.appendChild(el);
-      }
-      remoteAudioRef.current = el;
-    }
-    return remoteAudioRef.current;
-  };
+  // ── Audio playback ──────────────────────────────────────────────────────────
 
-  const attachRemoteAudio = (call) => {
-    const audioEl = ensureAudioElement();
-    if (call.remoteStream) {
-      audioEl.srcObject = call.remoteStream;
-      audioEl.play().catch(() => {});
-      console.log('[Phone] Remote audio attached');
+  function ensureAudioCtx() {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 8000 });
+      nextPlayRef.current = 0;
     }
-  };
+    if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume().catch(() => {});
+    return audioCtxRef.current;
+  }
+
+  function playAudioChunk(base64Payload) {
+    if (!base64Payload) return;
+    try {
+      const ctx = ensureAudioCtx();
+      const raw  = atob(base64Payload);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      const pcm    = decodeMulaw(bytes);
+      const buffer = ctx.createBuffer(1, pcm.length, 8000);
+      buffer.copyToChannel(pcm, 0);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(ctx.destination);
+      const now = ctx.currentTime;
+      if (nextPlayRef.current < now + 0.02) nextPlayRef.current = now + 0.1;
+      src.start(nextPlayRef.current);
+      nextPlayRef.current += buffer.duration;
+    } catch (e) {
+      console.warn('[Phone] playAudioChunk error:', e.message);
+    }
+  }
+
+  // ── Mic capture ─────────────────────────────────────────────────────────────
+
+  async function startMicCapture() {
+    if (micProcRef.current) return; // already running
+    try {
+      const constraints = { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, sampleRate: 8000 } };
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
+      catch { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+
+      micStreamRef.current = stream;
+      const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 8000 });
+      micCtxRef.current = ctx;
+      const src  = ctx.createMediaStreamSource(stream);
+      const proc = ctx.createScriptProcessor(320, 1, 1); // 40 ms at 8 kHz
+
+      proc.onaudioprocess = e => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        if (isMuted) return;
+        const float32 = e.inputBuffer.getChannelData(0);
+        const mulaw   = encodeMulaw(float32);
+        const base64  = btoa(String.fromCharCode(...mulaw));
+        wsRef.current.send(JSON.stringify({ type: 'audio', payload: base64 }));
+      };
+
+      src.connect(proc);
+      proc.connect(ctx.destination); // needed for ScriptProcessor to fire
+      micProcRef.current = proc;
+      console.log('[Phone] Mic capture started');
+    } catch (e) {
+      console.error('[Phone] Mic capture failed:', e.message);
+    }
+  }
+
+  function stopMicCapture() {
+    if (micProcRef.current) { try { micProcRef.current.disconnect(); } catch {} micProcRef.current = null; }
+    if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
+    if (micCtxRef.current) { try { micCtxRef.current.close(); } catch {} micCtxRef.current = null; }
+  }
+
+  // ── Reset call state ────────────────────────────────────────────────────────
 
   const resetCallState = () => {
-    callRef.current = null;
     stopTimer();
+    stopMicCapture();
     setElapsed(0);
     setIsMuted(false);
     setIsOnHold(false);
-    setActiveName("");
-    setActiveNumber("");
+    setActiveName('');
+    setActiveNumber('');
     setInboundCall(null);
     setCallControlId(null);
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+    nextPlayRef.current = 0;
   };
 
-  // ── Core init ──────────────────────────────────────────────────────────────
-  const initTelnyx = useCallback(async (config) => {
+  // ── WebSocket connection to switchboard ─────────────────────────────────────
+
+  const connectWs = useCallback(() => {
     if (!mountedRef.current) return;
 
-    // Tear down existing client
-    if (clientRef.current) {
-      try { clientRef.current.disconnect(); } catch {}
-      clientRef.current = null;
-    }
+    const token = getSessionToken();
+    const sessionCookie = document.cookie.match(/session=([^;]+)/)?.[1];
+    const authToken = token || sessionCookie;
 
-    ensureAudioElement();
+    const url = `${getWsBase()}/ws/phone${authToken ? '?session=' + encodeURIComponent(authToken) : ''}`;
+    console.log('[Phone] Connecting switchboard WS:', url.replace(/session=[^&]+/, 'session=***'));
 
-    const client = new TelnyxRTC({
-      login_token: config.login_token,
-    });
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
 
-    clientRef.current = client;
-
-    client.on('telnyx.ready', () => {
+    ws.onopen = () => {
       if (!mountedRef.current) return;
-      console.log('[Phone] Telnyx WebRTC ready');
+      console.log('[Phone] Switchboard WS connected');
       setStatus('ready');
-    });
+      setLastError(null);
+    };
 
-    client.on('telnyx.error', (err) => {
+    ws.onclose = e => {
       if (!mountedRef.current) return;
-      const msg = err?.message || JSON.stringify(err);
-      console.error('[Phone] Telnyx error:', msg);
-      setLastError('Telnyx: ' + msg);
+      console.log('[Phone] Switchboard WS closed:', e.code, e.reason);
       setStatus('idle');
-      // Token expired — reconnect with fresh token
-      setTimeout(async () => {
-        if (!mountedRef.current) return;
-        try {
-          const newConfig = await api.getSipConfig();
-          if (!newConfig?.login_token || !mountedRef.current) return;
-          configRef.current = newConfig;
-          setPhoneNumber(newConfig.phone_number);
-          setStatus('connecting');
-          await initTelnyx(newConfig);
-        } catch {}
-      }, 5000);
-    });
+      resetCallState();
+      // Reconnect after 3 s unless we closed intentionally (4999)
+      if (e.code !== 4999) {
+        setTimeout(() => { if (mountedRef.current) connectWs(); }, 3000);
+      }
+    };
 
-    client.on('telnyx.notification', (notification) => {
+    ws.onerror = err => {
+      console.error('[Phone] Switchboard WS error:', err);
+    };
+
+    ws.onmessage = async e => {
       if (!mountedRef.current) return;
-      if (notification.type !== 'callUpdate') return;
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
 
-      const call = notification.call;
-      const state = call.state;
-      const direction = call.direction; // 'inbound' | 'outbound'
+      if (msg.type === 'audio') {
+        // Only play inbound track (what the remote party says)
+        if (!msg.track || msg.track === 'inbound') playAudioChunk(msg.payload);
+        return;
+      }
 
-      console.log('[Phone] call update:', direction, state);
+      if (msg.type === 'calling') {
+        setStatus('calling');
+        if (msg.callControlId) setCallControlId(msg.callControlId);
+        return;
+      }
 
-      callRef.current = call;
-
-      if (state === 'ringing' && direction === 'inbound') {
-        // Inbound call arriving
-        const from = call.options?.remoteCallerNumber || call.options?.destinationNumber || 'Unknown';
-        const name = call.options?.remoteCallerName || from;
-        setInboundCall({ name, number: from });
-        setCallControlId(call.id || null);
+      if (msg.type === 'ringing') {
+        // Inbound call
+        setInboundCall({ name: msg.name || msg.from, number: msg.from });
+        setCallControlId(msg.callControlId);
         setStatus('ringing');
-        startRingtone({ ringOnCall: true, ringtone: 'classic', ringVolume: 80, vibrateOnCall: true, ...getNotifSettings() });
+        startRingtone({ ringOnCall: true, ringtone: 'classic', ringVolume: 80, vibrateOnCall: true });
         if (Notification?.permission === 'granted') {
-          new Notification('Incoming Call', { body: name, icon: '/favicon.ico', tag: 'incoming-call', renotify: false });
+          new Notification('Incoming Call', { body: msg.name || msg.from, icon: '/favicon.ico', tag: 'incoming-call', renotify: false });
         }
         return;
       }
 
-      if (state === 'active') {
+      if (msg.type === 'active') {
         stopRingtone();
         setInboundCall(null);
         setStatus('active');
         startTimer();
-        attachRemoteAudio(call);
+        await startMicCapture();
         return;
       }
 
-      if (state === 'held') {
-        setIsOnHold(true);
-        setStatus('held');
-        return;
-      }
-
-      if (state === 'hangup' || state === 'destroy' || state === 'purge') {
+      if (msg.type === 'hangup') {
         stopRingtone();
-        // Stop recording if active
-        if (recorderRef.current) {
-          try { recorderRef.current.stop(); } catch {}
-          recorderRef.current = null;
-          setIsRecording(false);
-        }
         setStatus('ready');
         resetCallState();
         return;
       }
 
-      // Outbound ringing state (early/requesting/new)
-      if (direction === 'outbound' && (state === 'new' || state === 'requesting' || state === 'early')) {
-        setStatus('calling');
+      if (msg.type === 'error') {
+        setLastError(msg.message || 'Switchboard error');
+        setStatus('ready');
+        resetCallState();
         return;
       }
-    });
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    try {
-      await client.connect();
-    } catch (e) {
-      console.error('[Phone] TelnyxRTC connect failed:', e.message);
-      setLastError('Connect failed: ' + e.message);
-      setStatus('idle');
-    }
-  }, []);
+  // ── Mount ────────────────────────────────────────────────────────────────────
 
-  // ── Mount ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     mountedRef.current = true;
+
     (async () => {
-      try {
-        if (!Capacitor.isNativePlatform()) {
-          const permState = await checkMicPermission();
-          if (mountedRef.current) setMicStatus(permState);
-          if (permState === 'denied') {
-            setMicDenied(true);
-            setStatus('idle');
-            return;
-          }
-        }
-
-        if (Capacitor.isNativePlatform()) {
-          const ok = await ensureMicPermission();
-          if (!ok) {
-            setMicDenied(true);
-            setMicStatus('denied');
-            setStatus('idle');
-            return;
-          }
-        }
-
-        const config = await api.getSipConfig();
-        if (!config?.login_token || !mountedRef.current) return;
-        configRef.current = config;
-        setPhoneNumber(config.phone_number);
-        setStatus('connecting');
-        await initTelnyx(config);
-      } catch (e) {
-        console.warn('[Phone] init error:', e.message);
-        if (!mountedRef.current) return;
-        if (e.message?.includes('401') || e.message?.includes('Not authenticated') || e.message?.includes('Session expired')) {
-          localStorage.removeItem('con_session_token');
-          window.location.reload();
-          return;
-        }
-        setLastError('Init: ' + e.message);
-        setStatus('idle');
+      // Check mic permission on web
+      if (!Capacitor.isNativePlatform()) {
+        const perm = await checkMicPermission();
+        if (mountedRef.current) setMicStatus(perm);
+        if (perm === 'denied') { setMicDenied(true); setStatus('idle'); return; }
       }
+
+      if (Capacitor.isNativePlatform()) {
+        const ok = await ensureMicPermission();
+        if (!ok) { setMicDenied(true); setMicStatus('denied'); setStatus('idle'); return; }
+        setMicStatus('granted');
+      }
+
+      setStatus('connecting');
+      connectWs();
     })();
 
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && mountedRef.current && configRef.current) {
-        const client = clientRef.current;
-        if (!client || !client.connected) {
-          console.log('[Phone] visibility visible — reconnecting Telnyx');
-          setStatus('connecting');
-          try {
-            const newConfig = await api.getSipConfig();
-            if (!newConfig?.login_token || !mountedRef.current) return;
-            configRef.current = newConfig;
-            await initTelnyx(newConfig);
-          } catch {}
+    // Resume on visibility change
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && mountedRef.current) {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          connectWs();
         }
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    const handleDeviceChange = async () => {
-      if (!remoteAudioRef.current || !callRef.current) return;
-      const savedSpk = localStorage.getItem('con_spk_id');
-      if (savedSpk && typeof remoteAudioRef.current.setSinkId === 'function') {
-        remoteAudioRef.current.setSinkId(savedSpk).catch(() => {});
-      }
-    };
-    if (navigator.mediaDevices) {
-      navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
-    }
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       mountedRef.current = false;
       stopTimer();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (navigator.mediaDevices) {
-        navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
-      }
-      try { clientRef.current?.disconnect(); } catch {}
+      stopMicCapture();
+      document.removeEventListener('visibilitychange', onVisible);
+      if (wsRef.current) { wsRef.current.close(4999, 'unmount'); }
     };
-  }, [initTelnyx]);
+  }, [connectWs]);
 
-  // ── FCM wake ───────────────────────────────────────────────────────────────
+  // FCM push wake
   useEffect(() => {
-    const handler = async () => {
-      if (!mountedRef.current) return;
-      const client = clientRef.current;
-      if (!client || !client.connected) {
-        console.log('[Phone] FCM wake — reconnecting Telnyx');
-        setStatus('connecting');
-        try {
-          const newConfig = await api.getSipConfig();
-          if (!newConfig?.login_token || !mountedRef.current) return;
-          configRef.current = newConfig;
-          await initTelnyx(newConfig);
-        } catch {}
+    const handler = () => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        connectWs();
       }
     };
     callEventEmitter.addEventListener('incoming_call', handler);
     return () => callEventEmitter.removeEventListener('incoming_call', handler);
-  }, [initTelnyx]);
+  }, [connectWs]);
+
+  // ── Call controls ────────────────────────────────────────────────────────────
 
   const makeCall = useCallback(async (number, name) => {
-    if (!clientRef.current) return;
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) { setLastError('Not connected to switchboard'); return; }
 
     if (!Capacitor.isNativePlatform()) {
-      const permState = await checkMicPermission();
-      if (permState === 'prompt') {
+      const perm = await checkMicPermission();
+      if (perm === 'prompt') {
         const ok = await ensureMicPermission();
-        if (ok) setMicStatus('granted');
-        else { setMicStatus('denied'); setMicDenied(true); return; }
-      } else if (permState === 'denied') {
-        setMicStatus('denied'); setMicDenied(true); return;
-      }
+        if (ok) setMicStatus('granted'); else { setMicStatus('denied'); setMicDenied(true); return; }
+      } else if (perm === 'denied') { setMicStatus('denied'); setMicDenied(true); return; }
     }
 
     // Normalize to E.164
@@ -349,187 +361,68 @@ export function usePhone() {
     setActiveNumber(number);
     setActiveName(name || number);
     setStatus('calling');
-
-    try {
-      const call = clientRef.current.newCall({
-        destinationNumber: dest,
-        callerNumber: configRef.current?.phone_number || '+15878643090',
-        audio: true,
-        video: false,
-      });
-      callRef.current = call;
-      setCallControlId(call.id || null);
-    } catch (e) {
-      console.error('[Phone] newCall failed:', e.message);
-      setStatus('ready');
-    }
-  }, [phoneNumber]);
+    ws.send(JSON.stringify({ type: 'call', to: dest, name: name || number }));
+  }, []);
 
   const answerCall = useCallback(() => {
     stopRingtone();
-    const call = callRef.current;
-    if (!call) return;
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     setActiveName(inboundCall?.name || '');
     setActiveNumber(inboundCall?.number || '');
     setInboundCall(null);
-    try {
-      call.answer({ audio: true, video: false });
-    } catch (e) {
-      console.error('[Phone] answer failed:', e.message);
-    }
+    ws.send(JSON.stringify({ type: 'answer' }));
   }, [inboundCall]);
 
   const hangup = useCallback(() => {
     stopRingtone();
-    const call = callRef.current;
-    if (call) {
-      try { call.hangup(); } catch {}
-    }
-    // Stop recording if active
-    if (recorderRef.current) {
-      try { recorderRef.current.stop(); } catch {}
-      recorderRef.current = null;
-      setIsRecording(false);
-    }
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'hangup' }));
     setStatus('ready');
     resetCallState();
   }, []);
 
   const toggleMute = useCallback(() => {
-    const call = callRef.current;
-    if (!call) return;
-    if (isMuted) {
-      call.unmuteAudio();
-    } else {
-      call.muteAudio();
-    }
-    setIsMuted(m => !m);
-  }, [isMuted]);
+    setIsMuted(m => !m); // mic audio sending is gated by isMuted in onaudioprocess
+  }, []);
 
   const toggleHold = useCallback(() => {
-    const call = callRef.current;
-    if (!call) return;
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     if (isOnHold) {
-      call.unhold();
+      ws.send(JSON.stringify({ type: 'unhold' }));
       setIsOnHold(false);
       setStatus('active');
     } else {
-      call.hold();
+      ws.send(JSON.stringify({ type: 'hold' }));
       setIsOnHold(true);
       setStatus('held');
     }
   }, [isOnHold]);
 
   const sendDtmf = useCallback((digit) => {
-    const call = callRef.current;
-    if (!call) return;
-    try { call.dtmf(digit); } catch {}
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'dtmf', digit }));
   }, []);
 
-  const blindTransfer = useCallback((dest) => {
-    // Telnyx WebRTC SDK doesn't support direct SIP REFER — hang up after transfer
-    // For full transfer, use Telnyx Call Control API via server
-    hangup();
-  }, [hangup]);
+  const blindTransfer = useCallback(() => { hangup(); }, [hangup]);
 
-  // ── Recording (client-side via remoteStream + localStream) ─────────────────
-  const startRecording = useCallback(() => {
-    const call = callRef.current;
-    if (!call || recorderRef.current) return;
-
-    try {
-      const ctx = new AudioContext();
-      recContextRef.current = ctx;
-      const dest = ctx.createMediaStreamDestination();
-
-      if (call.remoteStream) {
-        const remoteSrc = ctx.createMediaStreamSource(call.remoteStream);
-        remoteSrc.connect(dest);
-      }
-
-      if (call.localStream) {
-        const localSrc = ctx.createMediaStreamSource(call.localStream);
-        localSrc.connect(dest);
-      }
-
-      recChunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus' : 'audio/webm';
-      const recorder = new MediaRecorder(dest.stream, { mimeType });
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
-      recorder.start(1000);
-      recorderRef.current = recorder;
-      setIsRecording(true);
-      console.log('[Phone] Recording started');
-    } catch (e) {
-      console.error('[Phone] Recording start failed:', e.message);
-    }
-  }, []);
-
-  const stopRecording = useCallback(async () => {
-    const recorder = recorderRef.current;
-    if (!recorder) { setIsRecording(false); return null; }
-
-    return new Promise((resolve) => {
-      recorder.onstop = async () => {
-        recorderRef.current = null;
-        setIsRecording(false);
-        if (recContextRef.current) {
-          recContextRef.current.close().catch(() => {});
-          recContextRef.current = null;
-        }
-        const blob = new Blob(recChunksRef.current, { type: recorder.mimeType });
-        recChunksRef.current = [];
-        console.log('[Phone] Recording stopped, blob size:', blob.size);
-        if (blob.size < 1000) { resolve(null); return; }
-
-        try {
-          const formData = new FormData();
-          const filename = `call_${Date.now()}.webm`;
-          formData.append('recording', blob, filename);
-          formData.append('from_number', phoneNumber || '');
-          formData.append('to_number', activeNumber || '');
-          formData.append('duration', String(elapsed));
-          const headers = {};
-          if (Capacitor.isNativePlatform()) {
-            const token = localStorage.getItem('con_session_token');
-            if (token) headers['x-session'] = token;
-          }
-          const resp = await fetch(API_BASE + '/api/phone/upload-recording', {
-            method: 'POST',
-            credentials: 'include',
-            headers,
-            body: formData,
-          });
-          const data = await resp.json();
-          console.log('[Phone] Recording uploaded:', data);
-          resolve(data);
-        } catch (e) {
-          console.error('[Phone] Recording upload failed:', e.message);
-          resolve(null);
-        }
-      };
-      recorder.stop();
-    });
-  }, [phoneNumber, activeNumber, elapsed]);
-
-  const toggleRecording = useCallback(() => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [isRecording, startRecording, stopRecording]);
+  // Recording: not available in switchboard mode (no local WebRTC streams)
+  const startRecording  = useCallback(() => {}, []);
+  const stopRecording   = useCallback(async () => null, []);
+  const toggleRecording = useCallback(() => {}, []);
 
   const fmtElapsed = () => {
     const m = Math.floor(elapsed / 60), s = elapsed % 60;
-    return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
   };
 
   return {
     status, activeName, activeNumber, elapsed, fmtElapsed,
-    isMuted, isOnHold, inboundCall, phoneNumber, callControlId, micDenied, micStatus,
-    isRecording, startRecording, stopRecording, toggleRecording, lastError,
+    isMuted, isOnHold, inboundCall, phoneNumber, callControlId,
+    micDenied, micStatus, isRecording,
+    startRecording, stopRecording, toggleRecording,
+    lastError,
     makeCall, answerCall, hangup, toggleMute, toggleHold, sendDtmf, blindTransfer,
   };
 }

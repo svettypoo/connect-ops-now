@@ -15,6 +15,7 @@ require('fs').existsSync('.env') && require('fs').readFileSync('.env', 'utf8').s
   if (m) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, '');
 });
 
+const http    = require('http');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
@@ -23,8 +24,10 @@ const path = require('path');
 const fs = require('fs');
 const sanitizeHtml = require('sanitize-html');
 const jwt = require('jsonwebtoken');
+const WebSocket = require('ws');
 const Telnyx = require('telnyx');
 const { ImapFlow } = require('imapflow');
+const switchboard = require('./switchboard');
 
 // Authenticate an @stproperties.com user against Zoho IMAP
 async function zohoImapAuth(email, password) {
@@ -775,6 +778,15 @@ async function speakAndWait(ccid, text, voice = VOICES.female, timeout = 30000) 
     if (r.status >= 400) { clearTimeout(t); delete _speakWaiters[ccid]; resolve(); }
   });
 }
+
+// ─── Switchboard webhook (dedicated endpoint for switchboard calls) ───────────
+
+app.post('/api/phone/switchboard-webhook', express.json(), async (req, res) => {
+  res.sendStatus(200);
+  const event = req.body?.data;
+  if (!event) return;
+  await switchboard.handleWebhook(event).catch(e => console.error('[Switchboard webhook error]', e.message));
+});
 
 // ─── Telnyx webhook (Call Control) ───────────────────────────────────────────
 
@@ -1633,10 +1645,58 @@ if (ensureAdminUser) ensureAdminUser();
   } catch (e) { console.warn('[Seed] Auto-seed failed:', e.message); }
 })();
 
-app.listen(PORT, () => {
+const httpServer = http.createServer(app);
+
+// ── WebSocket upgrade routing ─────────────────────────────────────────────────
+const wss = new WebSocket.Server({ noServer: true });
+
+httpServer.on('upgrade', (req, socket, head) => {
+  const url = req.url || '';
+
+  // Telnyx streaming WebSocket: /ws/telnyx-stream/{callControlId}
+  if (url.startsWith('/ws/telnyx-stream/')) {
+    const ccid = url.split('/ws/telnyx-stream/')[1]?.split('?')[0];
+    wss.handleUpgrade(req, socket, head, ws => {
+      switchboard.handleTelnyxStream(ws, ccid);
+    });
+    return;
+  }
+
+  // Browser phone WebSocket: /ws/phone  (requires session auth)
+  if (url.startsWith('/ws/phone')) {
+    const params = new URLSearchParams(url.split('?')[1] || '');
+    // Auth: session from query param or cookie header
+    const cookie = req.headers.cookie || '';
+    const cookieSession = cookie.match(/session=([^;]+)/)?.[1];
+    const headerSession = req.headers['x-session'];
+    const querySession  = params.get('session');
+    const token = cookieSession || headerSession || querySession;
+
+    if (!token || !sessionOps) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    const session = sessionOps.get(token);
+    if (!session) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, ws => {
+      switchboard.handleBrowserSocket(ws, token); // use session token as ID
+    });
+    return;
+  }
+
+  socket.destroy();
+});
+
+httpServer.listen(PORT, () => {
   console.log(`\n================================================`);
   console.log(`  S&T Phone running at http://localhost:${PORT}`);
   console.log(`  AI features: ${ai.isConfigured() ? 'ENABLED' : 'DISABLED (add ANTHROPIC_API_KEY)'}`);
+  console.log(`  Switchboard WebSocket: /ws/phone`);
   console.log(`================================================\n`);
 });
 
