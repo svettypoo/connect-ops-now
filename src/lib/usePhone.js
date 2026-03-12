@@ -173,7 +173,20 @@ export function usePhone() {
       displayName: config.sip_user,
       sessionDescriptionHandlerFactoryOptions: {
         peerConnectionConfiguration: {
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+          iceServers: [
+            { urls: 'stun:stun.telnyx.com:3478' },
+            { urls: 'stun:stun.l.google.com:19302' },
+            {
+              urls: 'turn:turn.telnyx.com:3478',
+              username: 'telnyx',
+              credential: 'telnyx',
+            },
+            {
+              urls: 'turns:turn.telnyx.com:5349',
+              username: 'telnyx',
+              credential: 'telnyx',
+            },
+          ],
         },
       },
       delegate: {
@@ -214,7 +227,7 @@ export function usePhone() {
       return;
     }
 
-    const registerer = new Registerer(ua, { expires: 300 });
+    const registerer = new Registerer(ua, { expires: 3600 });
     registererRef.current = registerer;
 
     registerer.stateChange.addListener((state) => {
