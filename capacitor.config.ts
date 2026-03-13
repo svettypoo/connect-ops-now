@@ -5,8 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Connect Ops Now',
   webDir: 'dist',
   server: {
+    url: 'https://phone.stproperties.com',
     androidScheme: 'https',
-    // Allow loading the Railway backend from the app
     cleartext: false,
   },
   plugins: {
