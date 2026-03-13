@@ -600,9 +600,10 @@ app.get('/api/phone/token', requireAuth, (req, res) => {
 
 // Telnyx WebRTC — telephony_credential IDs (linked to credential connections)
 const TELNYX_CRED_IDS = {
-  svet: '2344c5e0-f419-4532-8450-939564b59895',
-  hr:   '702038e2-7c6c-4c9b-8239-cbf2e390f78a',
-  info: '086f1b0c-acce-46d4-a3af-dfa4902836a6',
+  svet:  '2344c5e0-f419-4532-8450-939564b59895',
+  hr:    '702038e2-7c6c-4c9b-8239-cbf2e390f78a',
+  info:  '086f1b0c-acce-46d4-a3af-dfa4902836a6',
+  line2: 'cc5a2bdc-8fbf-414d-aec4-f0c541bc9904',
 };
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY;
 
@@ -1733,6 +1734,7 @@ if (ensureAdminUser) ensureAdminUser();
     const { v4: uuidv4 } = require('uuid');
     const seeds = [
       { email: 'hr@stproperties.com', password: 'Partycard', name: 'Svet Pargov' },
+      { email: 'line2@stproperties.com', password: 'Partycard', name: 'Line 2' },
     ];
     for (const s of seeds) {
       const exists = db.prepare('SELECT id FROM users WHERE email=?').get(s.email);
@@ -1753,6 +1755,16 @@ if (ensureAdminUser) ensureAdminUser();
           db.prepare('INSERT OR IGNORE INTO phone_credentials (id,user_id,phone_number) VALUES (?,?,?)').run(uuidv4(), adminUser.id, fromNum);
           console.log(`[Seed] Phone credential seeded for ${fromNum}`);
         }
+      }
+    }
+    // Seed phone credential for line2 user
+    const line2User = db.prepare('SELECT id FROM users WHERE email=?').get('line2@stproperties.com');
+    if (line2User) {
+      const line2Cred = db.prepare('SELECT id FROM phone_credentials WHERE user_id=?').get(line2User.id);
+      if (!line2Cred) {
+        db.prepare('INSERT OR IGNORE INTO phone_credentials (id,user_id,phone_number,telnyx_cred_id,telnyx_sip_user) VALUES (?,?,?,?,?)')
+          .run(uuidv4(), line2User.id, '+15144186797', 'cc5a2bdc-8fbf-414d-aec4-f0c541bc9904', 'line2');
+        console.log('[Seed] Phone credential seeded for +15144186797 (Line 2)');
       }
     }
   } catch (e) { console.warn('[Seed] Auto-seed failed:', e.message); }
