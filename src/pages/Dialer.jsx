@@ -1384,6 +1384,7 @@ export default function Dialer() {
           <AIPanel summary={aiSummary} tasks={aiTasks} phone={phone} />
         </div>
       </div>
+      </div>{/* end hidden sm:flex desktop wrapper */}
 
       {/* ── MOBILE layout (<640px) ─────────────────────── */}
       <div className="sm:hidden" style={{ height:'100%', display:'flex', flexDirection:'column', background:'#0a0e1a' }}>
