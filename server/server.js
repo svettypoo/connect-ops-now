@@ -118,14 +118,56 @@ app.get('/architecture', (req, res) => {
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
+const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || '';
+
+// Verify a Supabase JWT and auto-provision user in local DB
+function verifySupabaseJWT(authHeader) {
+  if (!SUPABASE_JWT_SECRET || !authHeader) return null;
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  try {
+    const payload = jwt.verify(match[1], SUPABASE_JWT_SECRET, { algorithms: ['HS256'] });
+    if (!payload.email) return null;
+    // Auto-provision user in local DB if needed
+    let user = userOps.findByEmail(payload.email);
+    if (!user) {
+      const name = payload.user_metadata?.full_name
+        || payload.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      userOps.createFromZoho(payload.email, name);
+      user = userOps.findByEmail(payload.email);
+    }
+    return user;
+  } catch {
+    return null;
+  }
+}
+
 function requireAuth(req, res, next) {
+  // 1. Try local session (cookie or header)
   const token = req.cookies.session || req.headers['x-session'];
-  if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  const session = sessionOps.get(token);
-  if (!session) return res.status(401).json({ error: 'Session expired' });
-  req.user = session;
-  req.sessionId = token;
-  next();
+  if (token) {
+    const session = sessionOps.get(token);
+    if (session) {
+      req.user = session;
+      req.sessionId = token;
+      return next();
+    }
+  }
+  // 2. Try Supabase SSO JWT (injected by Svet Browser extension)
+  const ssoUser = verifySupabaseJWT(req.headers.authorization);
+  if (ssoUser) {
+    // Create a local session so subsequent requests are faster
+    const sessionId = sessionOps.create(ssoUser.id);
+    const isProd = process.env.NODE_ENV === 'production';
+    res.cookie('session', sessionId, {
+      httpOnly: true, secure: isProd, maxAge: 30 * 24 * 60 * 60 * 1000,
+      sameSite: isProd ? 'none' : 'lax',
+    });
+    req.user = ssoUser;
+    req.sessionId = sessionId;
+    return next();
+  }
+  return res.status(401).json({ error: 'Not authenticated' });
 }
 
 function optionalAuth(req, res, next) {
@@ -133,6 +175,10 @@ function optionalAuth(req, res, next) {
   if (token) {
     const session = sessionOps.get(token);
     if (session) { req.user = session; req.sessionId = token; }
+  }
+  if (!req.user) {
+    const ssoUser = verifySupabaseJWT(req.headers.authorization);
+    if (ssoUser) { req.user = ssoUser; }
   }
   next();
 }
@@ -553,7 +599,6 @@ app.get('/api/phone/token', requireAuth, (req, res) => {
 });
 
 // Telnyx WebRTC — telephony_credential IDs (linked to credential connections)
-// These generate short-lived JWT tokens for the @telnyx/webrtc SDK (no Kamailio needed)
 const TELNYX_CRED_IDS = {
   svet: '2344c5e0-f419-4532-8450-939564b59895',
   hr:   '702038e2-7c6c-4c9b-8239-cbf2e390f78a',
