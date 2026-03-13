@@ -60,6 +60,8 @@ export function usePhone() {
   const mountedRef      = useRef(true);
   const isMutedRef      = useRef(false);
   const inputDeviceIdRef = useRef('default');
+  const isConnectingRef  = useRef(false);   // guard against concurrent connectWebRTC calls
+  const reconnectTimer   = useRef(null);    // pending reconnect setTimeout id
 
   // Level refs (read by AudioLevels component via requestAnimationFrame)
   const micLevelRef    = useRef(0);
@@ -293,6 +295,10 @@ export function usePhone() {
 
   const connectWebRTC = useCallback(async () => {
     if (!mountedRef.current) return;
+    if (isConnectingRef.current) return; // already in progress
+    isConnectingRef.current = true;
+    clearTimeout(reconnectTimer.current);
+
     if (clientRef.current) {
       try { clientRef.current.disconnect(); } catch {}
       clientRef.current = null;
@@ -314,9 +320,11 @@ export function usePhone() {
       token = data.token;
     } catch (e) {
       console.error('[Phone] Failed to get WebRTC token:', e.message);
+      isConnectingRef.current = false;
       if (mountedRef.current) {
         setLastError('Could not connect to phone service');
         setStatus('idle');
+        reconnectTimer.current = setTimeout(() => { if (mountedRef.current) connectWebRTC(); }, 8000);
       }
       return;
     }
@@ -345,16 +353,18 @@ export function usePhone() {
 
     client.on('telnyx.ready', () => {
       console.log('[Phone] Telnyx registered — ready');
+      isConnectingRef.current = false;
       if (mountedRef.current) { setStatus('ready'); setLastError(null); }
     });
 
     client.on('telnyx.socket.close', () => {
       console.log('[Phone] Telnyx WebRTC disconnected');
+      isConnectingRef.current = false;
       if (mountedRef.current) {
         setStatus('idle');
         resetCallState();
-        // Reconnect after delay
-        setTimeout(() => { if (mountedRef.current) connectWebRTC(); }, 5000);
+        // Reconnect after delay — guarded by isConnectingRef so only one pending timer
+        reconnectTimer.current = setTimeout(() => { if (mountedRef.current) connectWebRTC(); }, 5000);
       }
     });
 
@@ -415,6 +425,8 @@ export function usePhone() {
 
     return () => {
       mountedRef.current = false;
+      isConnectingRef.current = false;
+      clearTimeout(reconnectTimer.current);
       stopTimer();
       teardownLevelMeters();
       if (recorderRef.current) { try { recorderRef.current.stop(); } catch {} recorderRef.current = null; }
