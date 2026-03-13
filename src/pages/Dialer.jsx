@@ -1301,7 +1301,7 @@ export default function Dialer() {
   const showContactDetail = selectedItem && activeNav !== 'voice';
 
   const mobileTabActive = activeNav === 'voice' ? 'phone' : ['phone','messages','contacts'].includes(activeNav) ? activeNav : 'more';
-  const mobileLabel = ({ phone:'Phone', voice:'Phone', messages:'Messages', contacts:'Contacts', history:'Recents', voicemail:'Voicemail', more:'More' })[activeNav] || 'Phone';
+  const mobileLabel = ({ phone:'Phone', voice:'Phone', messages:'Text', contacts:'Contacts', history:'Recents', voicemail:'Voicemail', more:'More' })[activeNav] || 'Phone';
   const userInitials = ((user?.name || user?.email || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2));
 
   return (
@@ -1430,7 +1430,7 @@ export default function Dialer() {
             { id:'phone', label:'Phone', badge: vmUnread > 0 ? vmUnread : 0, icon: (
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8 19.79 19.79 0 01.12 2.18 2 2 0 012.11 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
             )},
-            { id:'messages', label:'Messages', badge: msgUnread > 0 ? msgUnread : 0, icon: (
+            { id:'messages', label:'Text', badge: msgUnread > 0 ? msgUnread : 0, icon: (
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             )},
             { id:'contacts', label:'Contacts', badge:0, icon: (
@@ -1451,7 +1451,6 @@ export default function Dialer() {
                   )}
                 </div>
                 <span style={{ fontSize:10, fontWeight: isActive ? 600 : 400 }}>{tab.label}</span>
-                {isActive && <div style={{ position:'absolute', bottom:0, left:'25%', right:'25%', height:2, background:'#3b82f6', borderRadius:1 }} />}
               </button>
             );
           })}
