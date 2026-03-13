@@ -1,11 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { api } from '@/api/inboxAiClient';
 import { usePhone } from '@/lib/usePhone';
-
-import RCSidebar from '@/components/rc/RCSidebar';
-import RCListPanel from '@/components/rc/RCListPanel';
-import RCContactPanel from '@/components/rc/RCContactPanel';
 
 import Dialpad from '@/components/dialer/Dialpad';
 import VoiceCall from '@/components/dialer/VoiceCall';
@@ -25,7 +21,7 @@ import BusinessHours from '@/components/features/BusinessHours';
 import MeetingScheduler from '@/components/features/MeetingScheduler';
 import TeamView from '@/components/dialer/TeamView';
 import DirectMessages from '@/components/dialer/DirectMessages';
-import NotificationSettings from '@/components/settings/NotificationSettings';
+
 
 // SVG icons — no emojis
 const DialpadIcon = ({ size = 24, color = 'currentColor' }) => (
@@ -248,24 +244,359 @@ const SignOutIcon = ({ size = 20, color = 'currentColor' }) => (
   </svg>
 );
 
-const HAS_LIST = ['message', 'recent', 'contacts', 'voicemail', 'video', 'channels', 'dm'];
-
-// 4 tabs only — matching real RingCentral mobile app
-const MOBILE_TABS = [
-  { id: 'phone', label: 'Phone', icon: PhoneTabIcon },
-  { id: 'message', label: 'Text', icon: MessageIcon },
-  { id: 'contacts', label: 'Contacts', icon: ContactIcon },
-  { id: 'more', label: 'More', icon: DotsIcon },
+// ─── Sidebar Nav Sections (matches mockup exactly) ────────────────────────────
+const NAV_SECTIONS = [
+  { label: 'Communication', items: [
+    { id: 'phone', label: 'Phone', path: 'M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z' },
+    { id: 'messages', label: 'Messages', path: 'M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z', badge: 'msg' },
+    { id: 'video', label: 'Video', path: 'm15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z' },
+    { id: 'contacts', label: 'Contacts', path: 'M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z' },
+  ]},
+  { label: 'History', items: [
+    { id: 'history', label: 'Call History', path: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z', badge: 'history' },
+    { id: 'voicemail', label: 'Voicemail', path: 'M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75', badge: 'vm', badgeRed: true },
+    { id: 'recordings', label: 'Recordings', path: 'M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z' },
+  ]},
+  { label: 'Team', items: [
+    { id: 'channels', label: 'Channels', path: 'M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5-3.6 19.5m-2.1-19.5-3.6 19.5' },
+    { id: 'team', label: 'Team', path: 'M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z' },
+    { id: 'meetings', label: 'Meetings', path: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5' },
+  ]},
+  { label: 'Management', items: [
+    { id: 'analytics', label: 'Analytics', path: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z' },
+    { id: 'wallboard', label: 'Wallboard', path: 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z' },
+    { id: 'supervisor', label: 'Supervisor', path: 'M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z' },
+  ]},
+  { label: 'Configuration', items: [
+    { id: 'ivr', label: 'IVR Builder', path: 'M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75' },
+    { id: 'ai-receptionist', label: 'AI Receptionist', path: 'M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z' },
+    { id: 'sms-campaign', label: 'SMS Campaigns', path: 'M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 0 0 1.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 0 1 0 3.46' },
+    { id: 'business-hours', label: 'Business Hours', path: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' },
+    { id: 'admin', label: 'Admin', path: 'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z' },
+  ]},
 ];
 
-const TAB_LABELS = {
-  phone: 'Phone', message: 'Text', contacts: 'Contacts', more: 'More',
-  voice: 'Call', recent: 'Call History', voicemail: 'Voicemail',
-  analytics: 'Analytics', wallboard: 'Wallboard', supervisor: 'Supervisor',
-  'sms-campaign': 'SMS Campaigns', ivr: 'IVR Builder', 'ai-receptionist': 'AI Receptionist',
-  'business-hours': 'Business Hours', admin: 'Admin', team: 'Team', meetings: 'Meetings',
-  channels: 'Channels', dm: 'Direct Messages',
-};
+function NavIcon({ path }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      {path.includes('M') && path.split(' M').map((p, i) => (
+        <path key={i} strokeLinecap="round" strokeLinejoin="round" d={i === 0 ? p : 'M' + p} />
+      ))}
+    </svg>
+  );
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+function SidebarComp({ activeNav, setActiveNav, user, onLogout, vmUnread, msgUnread, onNewCall }) {
+  const initials = getInitials(user?.name || user?.email);
+  return (
+    <aside style={{ width:240, minWidth:240, height:'100%', background:'rgba(8,12,24,0.97)', borderRight:'1px solid rgba(80,120,200,0.08)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
+      {/* Brand */}
+      <div style={{ padding:'22px 20px 18px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:11 }}>
+          <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#b8860b,#daa520,#f0c040)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'0.58rem', color:'#1a0e00', letterSpacing:'0.8px', flexShrink:0, boxShadow:'0 2px 12px rgba(218,165,32,0.2)' }}>S&T</div>
+          <div>
+            <div style={{ fontSize:'0.78rem', letterSpacing:'2.5px', textTransform:'uppercase', color:'rgba(200,214,229,0.75)', fontWeight:600 }}>S&T Properties</div>
+            <div style={{ fontSize:'0.55rem', letterSpacing:'4px', textTransform:'uppercase', color:'rgba(100,150,220,0.45)', marginTop:1 }}>Phone System</div>
+          </div>
+        </div>
+      </div>
+      {/* New Call button */}
+      <button onClick={onNewCall} style={{ margin:'0 16px 12px', padding:'10px', fontSize:'0.82rem', fontWeight:600, color:'#fff', background:'linear-gradient(135deg,#10b981,#059669)', border:'none', borderRadius:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"/></svg>
+        New Call
+      </button>
+      {/* Nav */}
+      <nav style={{ flex:1, padding:'0 8px' }}>
+        {NAV_SECTIONS.map(section => (
+          <div key={section.label}>
+            <div style={{ fontSize:'0.6rem', letterSpacing:'1.5px', textTransform:'uppercase', color:'rgba(100,140,180,0.35)', padding:'14px 12px 6px' }}>{section.label}</div>
+            {section.items.map(item => {
+              const isActive = activeNav === item.id;
+              const badge = item.badge === 'vm' ? vmUnread : item.badge === 'msg' ? msgUnread : 0;
+              return (
+                <div key={item.id} onClick={() => setActiveNav(item.id)}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', fontSize:'0.82rem', color: isActive ? '#93c5fd' : '#c8d6e5', borderRadius:8, cursor:'pointer', border:'1px solid', borderColor: isActive ? 'rgba(59,130,246,0.1)' : 'transparent', background: isActive ? 'rgba(59,130,246,0.1)' : 'transparent', transition:'all 0.15s' }}
+                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background='rgba(59,130,246,0.05)'; } }}
+                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background='transparent'; } }}
+                >
+                  <span style={{ width:18, height:18, flexShrink:0, opacity: isActive ? 1 : 0.6, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path strokeLinecap="round" strokeLinejoin="round" d={item.path} />
+                    </svg>
+                  </span>
+                  <span style={{ flex:1 }}>{item.label}</span>
+                  {badge > 0 && <span style={{ fontSize:'0.68rem', padding:'1px 7px', borderRadius:10, background: item.badgeRed ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)', color: item.badgeRed ? '#f87171' : '#60a5fa', fontWeight:600 }}>{badge}</span>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+      {/* User */}
+      <div style={{ padding:'14px 16px', borderTop:'1px solid rgba(80,120,200,0.08)', display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,#3b82f6,#6366f1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.7rem', fontWeight:700, color:'#fff', flexShrink:0, position:'relative' }}>
+          {initials}
+          <span style={{ position:'absolute', bottom:0, right:0, width:9, height:9, borderRadius:'50%', background:'#10b981', border:'2px solid rgba(8,12,24,0.9)' }}></span>
+        </div>
+        <div style={{ overflow:'hidden', flex:1 }}>
+          <div style={{ fontSize:'0.78rem', fontWeight:600, color:'#e2e8f0', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{user?.name || user?.email}</div>
+          <div style={{ fontSize:'0.65rem', color:'rgba(100,140,180,0.45)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{user?.email}</div>
+        </div>
+        <button onClick={onLogout} title="Sign out" style={{ background:'none', border:'none', cursor:'pointer', color:'rgba(100,140,180,0.45)', padding:4, display:'flex', flexShrink:0 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+// ─── Top Bar ──────────────────────────────────────────────────────────────────
+const APP_LINKS = [
+  { title:'Mail', href:'https://mail.zoho.com', path:'M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75' },
+  { title:'Phone', href:'https://phone.stproperties.com', path:'M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z', active: true },
+  { title:'Meet', href:'https://meet.jit.si', path:'m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z' },
+  { title:'Inbox AI', href:'https://inbox.stproperties.com', path:'M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z' },
+  { title:'Concierge', href:'https://concierge.stproperties.com', path:'M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0' },
+  { title:'Birthday', href:'https://birthday.stproperties.com', path:'M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z' },
+];
+
+function TopBarComp({ search, setSearch, user }) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const initials = getInitials(user?.name || user?.email);
+  return (
+    <div style={{ height:52, minHeight:52, display:'flex', alignItems:'center', padding:'0 20px', gap:16, borderBottom:'1px solid rgba(80,120,200,0.08)', flexShrink:0 }}>
+      <div style={{ position:'relative' }}>
+        <svg style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', opacity:0.4, pointerEvents:'none' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c8d6e5" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search calls, contacts, messages..." style={{ width:300, padding:'8px 14px 8px 36px', fontSize:'0.82rem', color:'#e2e8f0', background:'rgba(15,22,40,0.5)', border:'1px solid rgba(80,120,200,0.08)', borderRadius:20, outline:'none' }} />
+      </div>
+      <div style={{ flex:1 }} />
+      <div style={{ fontSize:'0.78rem', color:'#c8d6e5', whiteSpace:'nowrap' }}>{dateStr}</div>
+      <div style={{ display:'flex', gap:6, marginLeft:12 }}>
+        {APP_LINKS.map(app => (
+          <a key={app.title} href={app.href} target="_blank" rel="noreferrer" title={app.title} style={{ width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.65rem', fontWeight:700, cursor:'pointer', border:'1px solid', borderColor: app.active ? 'rgba(59,130,246,0.2)' : 'rgba(80,120,200,0.08)', background: app.active ? 'rgba(59,130,246,0.15)' : 'rgba(15,22,40,0.4)', color: app.active ? '#93c5fd' : '#c8d6e5', textDecoration:'none', transition:'all 0.15s' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path strokeLinecap="round" strokeLinejoin="round" d={app.path} /></svg>
+          </a>
+        ))}
+      </div>
+      <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#3b82f6,#6366f1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.7rem', fontWeight:700, color:'#fff', marginLeft:8, flexShrink:0 }}>{initials}</div>
+    </div>
+  );
+}
+
+// ─── List Panel ───────────────────────────────────────────────────────────────
+const AVATAR_COLORS = ['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#a78bfa)','linear-gradient(135deg,#10b981,#34d399)','linear-gradient(135deg,#ef4444,#f97316)','linear-gradient(135deg,#f59e0b,#fbbf24)','linear-gradient(135deg,#ec4899,#f472b6)','linear-gradient(135deg,#6366f1,#818cf8)'];
+function avatarColor(str) { let h=0; for(let i=0;i<(str||'').length;i++) h=(h*31+str.charCodeAt(i))%AVATAR_COLORS.length; return AVATAR_COLORS[h]; }
+
+function fmtLogTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts), now = new Date(), diff = now - d;
+  if (diff < 86400000) return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+  if (diff < 172800000) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
+function ListPanelComp({ activeNav, callLogs, contacts, selectedId, onSelect }) {
+  const [filter, setFilter] = useState('recent');
+  const pills = ['Recent', 'Missed', 'Contacts'];
+
+  const logItems = filter === 'contacts' ? [] : callLogs.filter(l => filter !== 'missed' || l.call_type === 'missed' || l.duration === 0);
+  const contactItems = filter === 'contacts' ? contacts : [];
+
+  return (
+    <div style={{ width:360, minWidth:360, borderRight:'1px solid rgba(80,120,200,0.08)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'12px 16px', display:'flex', alignItems:'center', gap:8, borderBottom:'1px solid rgba(80,120,200,0.06)', flexShrink:0 }}>
+        {pills.map(p => {
+          const isActive = filter === p.toLowerCase();
+          return (
+            <button key={p} onClick={() => setFilter(p.toLowerCase())} style={{ padding:'5px 14px', fontSize:'0.75rem', borderRadius:16, cursor:'pointer', background: isActive ? 'rgba(59,130,246,0.12)' : 'rgba(15,22,40,0.4)', color: isActive ? '#93c5fd' : '#c8d6e5', border:'1px solid', borderColor: isActive ? 'rgba(59,130,246,0.15)' : 'rgba(80,120,200,0.08)', transition:'all 0.15s' }}>{p}</button>
+          );
+        })}
+      </div>
+      <div style={{ flex:1, overflowY:'auto' }}>
+        {filter === 'contacts' ? contactItems.map(c => {
+          const ini = getInitials(c.name || c.phone);
+          const isActive = selectedId === 'c_' + c.id;
+          return (
+            <div key={c.id} onClick={() => onSelect({ type:'contact', data:c, id:'c_'+c.id })}
+              style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', borderLeft:'2px solid', borderLeftColor: isActive ? '#3b82f6' : 'transparent', background: isActive ? 'rgba(59,130,246,0.06)' : 'transparent', transition:'all 0.15s' }}>
+              <div style={{ width:38, height:38, borderRadius:'50%', background:avatarColor(c.name||c.phone), display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.72rem', fontWeight:700, color:'#fff', flexShrink:0 }}>{ini}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:'0.82rem', fontWeight:600, color:'#e2e8f0' }}>{c.name || c.phone}</div>
+                <div style={{ fontSize:'0.72rem', color:'rgba(100,140,180,0.45)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.phone}</div>
+              </div>
+            </div>
+          );
+        }) : logItems.map(l => {
+          const name = l.from_name || l.to_name || (l.direction === 'inbound' ? l.from_number : l.to_number) || 'Unknown';
+          const num = l.direction === 'inbound' ? l.from_number : l.to_number;
+          const isMissed = l.call_type === 'missed' || (!l.duration && l.direction === 'inbound');
+          const isOut = l.direction === 'outbound';
+          const ini = getInitials(name);
+          const isActive = selectedId === 'l_' + l.id;
+          return (
+            <div key={l.id} onClick={() => onSelect({ type:'log', data:l, id:'l_'+l.id })}
+              style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', borderLeft:'2px solid', borderLeftColor: isActive ? '#3b82f6' : 'transparent', background: isActive ? 'rgba(59,130,246,0.06)' : 'transparent', transition:'all 0.15s' }}>
+              <div style={{ width:38, height:38, borderRadius:'50%', background:avatarColor(name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.72rem', fontWeight:700, color:'#fff', flexShrink:0 }}>{ini}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:'0.82rem', fontWeight:600, color:'#e2e8f0' }}>{name}</div>
+                <div style={{ fontSize:'0.72rem', color:'rgba(100,140,180,0.45)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{num}{l.duration > 0 ? ' · ' + Math.floor(l.duration/60) + ':' + String(l.duration%60).padStart(2,'0') : isMissed ? ' · missed' : ''}</div>
+              </div>
+              <div style={{ textAlign:'right', flexShrink:0 }}>
+                <div style={{ fontSize:'0.68rem', color:'rgba(100,140,180,0.45)' }}>{fmtLogTime(l.started_at || l.created_at)}</div>
+                <div style={{ marginTop:4, fontSize:'0.85rem', color: isMissed ? '#ef4444' : isOut ? '#3b82f6' : '#10b981' }}>
+                  {isMissed ? '✕' : isOut ? '↗' : '↙'}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {logItems.length === 0 && contactItems.length === 0 && (
+          <div style={{ padding:32, textAlign:'center', color:'rgba(100,140,180,0.45)', fontSize:'0.82rem' }}>No items</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Contact Detail (shown in detail panel when a list item is selected) ──────
+function ContactDetailView({ item, onCall, onMessage, onVideo }) {
+  const { type, data } = item;
+  const isLog = type === 'log';
+  const name = isLog ? (data.from_name || data.to_name || (data.direction === 'inbound' ? data.from_number : data.to_number) || 'Unknown') : (data.name || data.phone);
+  const phone = isLog ? (data.direction === 'inbound' ? data.from_number : data.to_number) : data.phone;
+  const role = isLog ? (data.direction === 'inbound' ? 'Incoming call' : 'Outgoing call') : (data.company || '');
+  const ini = getInitials(name);
+  const aColor = avatarColor(name);
+
+  const actionBtn = (label, bg, color, border, onClick) => (
+    <button onClick={onClick} title={label} style={{ width:44, height:44, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', border, cursor:'pointer', background:bg, color, transition:'all 0.2s' }}>
+      {label === 'Call' && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"/></svg>}
+      {label === 'Video' && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>}
+      {label === 'SMS' && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/></svg>}
+      {label === 'Email' && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>}
+    </button>
+  );
+
+  return (
+    <div style={{ padding:'28px 32px', flex:1 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:20, marginBottom:28 }}>
+        <div style={{ width:72, height:72, borderRadius:'50%', background:aColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', fontWeight:700, color:'#fff', boxShadow:'0 4px 24px rgba(59,130,246,0.25)' }}>{ini}</div>
+        <div>
+          <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#e2e8f0' }}>{name}</div>
+          <div style={{ fontSize:'0.82rem', color:'#c8d6e5', marginTop:2 }}>{role}</div>
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:12, marginBottom:28 }}>
+        {actionBtn('Call', 'linear-gradient(135deg,#10b981,#059669)', '#fff', 'none', () => onCall(phone, name))}
+        {actionBtn('Video', 'rgba(59,130,246,0.15)', '#60a5fa', '1px solid rgba(59,130,246,0.15)', onVideo)}
+        {actionBtn('SMS', 'rgba(167,139,250,0.12)', '#a78bfa', '1px solid rgba(167,139,250,0.12)', () => onMessage(phone))}
+        {actionBtn('Email', 'rgba(251,191,36,0.12)', '#fbbf24', '1px solid rgba(251,191,36,0.12)', () => data.email && window.open('mailto:' + data.email))}
+      </div>
+      <div style={{ fontSize:'0.65rem', letterSpacing:'1.5px', textTransform:'uppercase', color:'rgba(100,140,180,0.35)', marginBottom:12 }}>Contact Information</div>
+      <div style={{ marginBottom:28 }}>
+        {phone && <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid rgba(80,120,200,0.06)' }}>
+          <span style={{ color:'rgba(100,140,180,0.45)', width:22, display:'flex', alignItems:'center', justifyContent:'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"/></svg></span>
+          <span style={{ fontSize:'0.72rem', color:'rgba(100,140,180,0.45)', width:60 }}>Phone</span>
+          <span style={{ fontSize:'0.82rem', color:'#e2e8f0' }}>{phone}</span>
+        </div>}
+        {data.email && <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid rgba(80,120,200,0.06)' }}>
+          <span style={{ color:'rgba(100,140,180,0.45)', width:22, display:'flex', alignItems:'center', justifyContent:'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg></span>
+          <span style={{ fontSize:'0.72rem', color:'rgba(100,140,180,0.45)', width:60 }}>Email</span>
+          <span style={{ fontSize:'0.82rem', color:'#e2e8f0' }}>{data.email}</span>
+        </div>}
+      </div>
+      {isLog && data.transcript && (
+        <>
+          <div style={{ fontSize:'0.65rem', letterSpacing:'1.5px', textTransform:'uppercase', color:'rgba(100,140,180,0.35)', marginBottom:12 }}>Transcript</div>
+          <div style={{ padding:14, borderRadius:12, background:'rgba(12,18,35,0.6)', border:'1px solid rgba(80,120,200,0.08)', fontSize:'0.78rem', color:'#c8d6e5', lineHeight:1.7 }}>{data.transcript}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── AI Panel ─────────────────────────────────────────────────────────────────
+function AIPanel({ summary, tasks, phone }) {
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const send = async () => {
+    const msg = input.trim();
+    if (!msg || loading) return;
+    setInput('');
+    setMessages(prev => [...prev, { role:'user', text: msg }]);
+    setLoading(true);
+    try {
+      const context = summary ? 'Last call summary: ' + summary : '';
+      const data = await api.askAI(context ? context + '\n\nUser: ' + msg : msg);
+      setMessages(prev => [...prev, { role:'ai', text: data.response || 'No response' }]);
+    } catch (e) {
+      setMessages(prev => [...prev, { role:'ai', text: 'Error: ' + e.message }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const suggestions = [
+    { label: 'Draft follow-up email', icon: 'M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75' },
+    { label: 'Suggest response to missed call', icon: 'M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z' },
+    { label: 'Summarize recent calls', icon: 'M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75' },
+  ];
+
+  return (
+    <div style={{ width:280, minWidth:280, borderLeft:'1px solid rgba(80,120,200,0.08)', display:'flex', flexDirection:'column', overflowY:'auto', padding:'20px 16px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
+        <span style={{ width:8, height:8, borderRadius:'50%', background:'#a78bfa', display:'inline-block', animation:'pulse-ai 2s infinite', boxShadow:'0 0 0 0 rgba(167,139,250,0.4)' }}></span>
+        <span style={{ fontSize:'0.82rem', fontWeight:600, color:'#e2e8f0' }}>AI Assistant</span>
+      </div>
+      {summary && (
+        <div style={{ padding:14, borderRadius:12, background:'rgba(12,18,35,0.6)', border:'1px solid rgba(80,120,200,0.08)', marginBottom:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"/></svg>
+            <span style={{ fontSize:'0.78rem', fontWeight:600, color:'#e2e8f0' }}>Call Summary</span>
+          </div>
+          <p style={{ fontSize:'0.78rem', color:'#c8d6e5', lineHeight:1.7, margin:0 }}>{summary}</p>
+        </div>
+      )}
+      {tasks.length > 0 && (
+        <div style={{ padding:14, borderRadius:12, background:'rgba(12,18,35,0.6)', border:'1px solid rgba(80,120,200,0.08)', marginBottom:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75"/></svg>
+            <span style={{ fontSize:'0.78rem', fontWeight:600, color:'#e2e8f0' }}>Suggested Tasks</span>
+          </div>
+          <ul style={{ listStyle:'none', padding:0, margin:0 }}>
+            {tasks.map((t, i) => <li key={i} style={{ fontSize:'0.78rem', color:'#c8d6e5', padding:'4px 0', display:'flex', alignItems:'center', gap:6 }}><span style={{ fontSize:'0.7rem', color:'rgba(100,140,180,0.45)' }}>☐</span>{t}</li>)}
+          </ul>
+        </div>
+      )}
+      <div style={{ marginTop:12 }}>
+        {suggestions.map(s => (
+          <button key={s.label} onClick={() => setInput(s.label)} style={{ display:'block', width:'100%', padding:'9px 12px', marginBottom:8, fontSize:'0.75rem', color:'#c4b5fd', background:'rgba(167,139,250,0.08)', border:'1px solid rgba(167,139,250,0.1)', borderRadius:8, cursor:'pointer', textAlign:'left', transition:'all 0.15s' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ display:'inline', verticalAlign:'middle', marginRight:6 }}><path strokeLinecap="round" strokeLinejoin="round" d={s.icon} /></svg>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      {messages.length > 0 && (
+        <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:8 }}>
+          {messages.map((m, i) => (
+            <div key={i} style={{ padding:'10px 12px', borderRadius:10, background: m.role === 'user' ? 'rgba(59,130,246,0.12)' : 'rgba(167,139,250,0.08)', fontSize:'0.78rem', color: m.role === 'user' ? '#93c5fd' : '#c8d6e5', lineHeight:1.6 }}>{m.text}</div>
+          ))}
+          {loading && <div style={{ padding:'10px 12px', borderRadius:10, background:'rgba(167,139,250,0.08)', fontSize:'0.78rem', color:'rgba(167,139,250,0.6)' }}>Thinking…</div>}
+        </div>
+      )}
+      <div style={{ marginTop:'auto', display:'flex', gap:8, paddingTop:12 }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Ask AI anything..." style={{ flex:1, padding:'9px 12px', fontSize:'0.78rem', color:'#e2e8f0', background:'rgba(15,22,40,0.5)', border:'1px solid rgba(80,120,200,0.1)', borderRadius:8, outline:'none' }} />
+        <button onClick={send} disabled={loading} style={{ width:36, height:36, borderRadius:8, border:'none', cursor:'pointer', background:'linear-gradient(135deg,#a78bfa,#7c3aed)', color:'#fff', fontSize:'0.9rem', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function getInitials(nameOrEmail) {
   if (!nameOrEmail) return '?';
@@ -829,50 +1160,129 @@ export default function Dialer() {
   const [activeNav, setActiveNav] = useState('phone');
   const [dialTo, setDialTo] = useState('');
   const [dialName, setDialName] = useState('');
-  const [activeContact, setActiveContact] = useState(null);
   const [vmUnread, setVmUnread] = useState(0);
+  const [msgUnread] = useState(3);
   const [messageTo, setMessageTo] = useState('');
+  const [callLogs, setCallLogs] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [search, setSearch] = useState('');
+  const [aiSummary, setAiSummary] = useState(null);
+  const [aiTasks, setAiTasks] = useState([]);
 
   useEffect(() => {
     api.getVoicemails().then(vms => setVmUnread(vms.filter(v => !v.is_read).length)).catch(() => {});
-  }, [activeNav]);
+    api.getCallLogs().then(data => setCallLogs(Array.isArray(data) ? data : (data?.call_logs || []))).catch(() => {});
+    api.getContacts().then(cs => { if (Array.isArray(cs)) setContacts(cs); }).catch(() => {});
+  }, []);
 
-  const callContact = (c) => { setDialTo(c.phone); setDialName(c.name || c.phone); setActiveNav('voice'); };
-  const videoContact = (c) => { setActiveNav('video'); };
-  const messageContact = (c) => { setMessageTo(c.phone); setActiveNav('message'); };
+  // Fetch AI insight after call ends
+  const prevStatus = useRef(phone.status);
+  useEffect(() => {
+    if (prevStatus.current !== 'ready' && phone.status === 'ready') {
+      api.getCallLogs().then(data => {
+        const logs = Array.isArray(data) ? data : (data?.call_logs || []);
+        setCallLogs(logs);
+        const last = logs[0];
+        if (last?.ai_summary) { setAiSummary(last.ai_summary); try { setAiTasks(JSON.parse(last.tasks || '[]')); } catch { setAiTasks([]); } }
+      }).catch(() => {});
+    }
+    prevStatus.current = phone.status;
+  }, [phone.status]);
 
+  const handleNavChange = (id) => {
+    if (id === 'phone') { setDialTo(''); setDialName(''); }
+    setActiveNav(id);
+  };
+
+  const handleNewCall = () => { setDialTo(''); setDialName(''); setActiveNav('dialpad'); };
   const handleCallBack = (number, name) => { setDialTo(number); setDialName(name || number); setActiveNav('voice'); };
   const handleDialDirect = (number) => { setDialTo(number); setDialName(number); setActiveNav('voice'); };
+  const handleCallFromDetail = (num, name) => { setDialTo(num); setDialName(name || num); setActiveNav('voice'); };
+  const handleMessageFromDetail = (num) => { setMessageTo(num); setActiveNav('messages'); };
 
   const inbound = phone.inboundCall;
-  const showList = HAS_LIST.includes(activeNav);
 
-  // Map mobile tab to active state
-  const mobileTabActive = MOBILE_TABS.find(t => t.id === activeNav) ? activeNav : 'more';
-
-  const userInitials = getInitials(user?.name || user?.email);
-
-  // Current tab label for header
-  const headerLabel = TAB_LABELS[activeNav] || 'Phone';
+  // Determine detail panel content
+  const showContactDetail = selectedItem && activeNav !== 'voice';
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0a0e1a', overflow: 'hidden', position: 'relative', fontFamily: "-apple-system, 'SF Pro Display', Roboto, sans-serif" }}>
+    <div style={{ display:'flex', height:'100vh', background:'#0a0e1a', overflow:'hidden', fontFamily:"'Segoe UI',system-ui,-apple-system,sans-serif", color:'#e2e8f0' }}>
+      <style>{`@keyframes pulse-ai { 0%,100%{ box-shadow:0 0 0 0 rgba(167,139,250,0.4); } 50%{ box-shadow:0 0 0 6px rgba(167,139,250,0); } }`}</style>
 
-      {/* Desktop sidebar */}
-      <div className="hidden sm:flex flex-col">
-        <RCSidebar activeNav={activeNav} setActiveNav={(id) => { if (id === 'voice') { setDialTo(''); setDialName(''); } setActiveNav(id); }} user={user} onLogout={logout} vmUnread={vmUnread} />
-      </div>
+      {/* Sidebar */}
+      <SidebarComp activeNav={activeNav} setActiveNav={handleNavChange} user={user} onLogout={logout} vmUnread={vmUnread} msgUnread={msgUnread} onNewCall={handleNewCall} />
 
-      {/* List panel — desktop only */}
-      <div className="hidden sm:contents">
-        {showList && (
-          <RCListPanel
+      {/* Main area */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        {/* Topbar */}
+        <TopBarComp search={search} setSearch={setSearch} user={user} />
+
+        {/* Content area */}
+        <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+          {/* List panel — always visible */}
+          <ListPanelComp
             activeNav={activeNav}
-            onSelectContact={c => { setActiveContact(c); }}
-            onCallBack={handleCallBack}
-            onSelectMessage={num => { setMessageTo(num); setActiveNav('message'); }}
+            callLogs={callLogs}
+            contacts={contacts}
+            selectedId={selectedItem?.id}
+            onSelect={setSelectedItem}
           />
-        )}
+
+          {/* Detail panel */}
+          <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            {showContactDetail ? (
+              <div style={{ flex:1, overflowY:'auto' }}>
+                <ContactDetailView item={selectedItem} onCall={handleCallFromDetail} onMessage={handleMessageFromDetail} onVideo={() => setActiveNav('video')} />
+              </div>
+            ) : activeNav === 'voice' ? (
+              <VoiceCall phone={phone} dialTo={dialTo} dialName={dialName} onHangup={() => setActiveNav('phone')} />
+            ) : activeNav === 'phone' ? (
+              <PhoneScreen phone={phone} user={user} onDial={handleDialDirect} onCallBack={handleCallBack} vmUnread={vmUnread} />
+            ) : activeNav === 'dialpad' ? (
+              <div style={{ flex:1, overflow:'auto', padding:'28px 32px' }}><Dialpad phone={phone} onDial={handleDialDirect} /></div>
+            ) : activeNav === 'messages' ? (
+              <Messaging initialTo={messageTo} />
+            ) : activeNav === 'video' ? (
+              <VideoCall />
+            ) : activeNav === 'contacts' ? (
+              <ContactsView onCall={c => handleCallFromDetail(c.phone, c.name)} onMessage={c => handleMessageFromDetail(c.phone)} />
+            ) : activeNav === 'history' ? (
+              <CallHistory onCallBack={handleCallBack} />
+            ) : activeNav === 'voicemail' ? (
+              <VoicemailList onCallBack={handleCallBack} />
+            ) : activeNav === 'recordings' ? (
+              <div style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}><RecordingsList /></div>
+            ) : activeNav === 'channels' ? (
+              <ChannelsView />
+            ) : activeNav === 'team' ? (
+              <TeamView />
+            ) : activeNav === 'meetings' ? (
+              <MeetingScheduler />
+            ) : activeNav === 'analytics' ? (
+              <AnalyticsDashboard />
+            ) : activeNav === 'wallboard' ? (
+              <WallboardView />
+            ) : activeNav === 'supervisor' ? (
+              <SupervisorPanel />
+            ) : activeNav === 'ivr' ? (
+              <IVRBuilder />
+            ) : activeNav === 'ai-receptionist' ? (
+              <AIReceptionist />
+            ) : activeNav === 'sms-campaign' ? (
+              <SMSCampaign />
+            ) : activeNav === 'business-hours' ? (
+              <BusinessHours />
+            ) : activeNav === 'admin' ? (
+              <AdminPanel />
+            ) : (
+              <PhoneScreen phone={phone} user={user} onDial={handleDialDirect} onCallBack={handleCallBack} vmUnread={vmUnread} />
+            )}
+          </div>
+
+          {/* AI Panel */}
+          <AIPanel summary={aiSummary} tasks={aiTasks} phone={phone} />
+        </div>
       </div>
 
       {/* Mic permission denied banner */}
@@ -934,124 +1344,6 @@ export default function Dialer() {
         </div>
       )}
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', minWidth: 0, paddingBottom: 0 }} className="sm:pb-0 pb-16">
-        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-
-          {/* RC-style mobile header — matches real RingCentral */}
-          <div className="flex sm:hidden" style={{
-            background: '#0a0e1a', height: '56px', borderBottom: '1px solid #1a2744',
-            alignItems: 'center', justifyContent: 'space-between',
-            padding: '0 16px', flexShrink: 0,
-          }}>
-            {/* Left: user avatar + tab title */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                width: '32px', height: '32px', borderRadius: '50%',
-                background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '12px', fontWeight: 700, color: '#fff', flexShrink: 0,
-              }}>
-                {userInitials}
-              </div>
-              <span style={{ color: '#FFFFFF', fontSize: '17px', fontWeight: 700 }}>
-                {headerLabel}
-              </span>
-            </div>
-            {/* Right: group-add + kebab */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}>
-                <GroupAddIcon size={22} color="#6b84a8" />
-              </button>
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}>
-                <KebabIcon size={22} color="#6b84a8" />
-              </button>
-            </div>
-          </div>
-
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            {activeNav === 'phone' && (
-              <PhoneScreen phone={phone} user={user} onDial={handleDialDirect} onCallBack={handleCallBack} vmUnread={vmUnread} />
-            )}
-            {activeNav === 'voice' && (
-              <VoiceCall phone={phone} dialTo={dialTo} dialName={dialName} onHangup={() => setActiveNav('phone')} />
-            )}
-            {activeNav === 'message' && <Messaging initialTo={messageTo} />}
-            {activeNav === 'contacts' && (
-              <ContactsView onCall={callContact} onMessage={messageContact} />
-            )}
-            {activeNav === 'more' && (
-              <MoreSettings user={user} onLogout={logout} onNavigate={id => setActiveNav(id)} />
-            )}
-            {/* Legacy / desktop views still reachable from sidebar */}
-            {activeNav === 'video' && <VideoCall />}
-            {activeNav === 'recent' && <CallHistory onCallBack={handleCallBack} />}
-            {activeNav === 'voicemail' && <VoicemailList onCallBack={handleCallBack} />}
-            {activeNav === 'analytics' && <AnalyticsDashboard />}
-            {activeNav === 'channels' && <ChannelsView />}
-            {activeNav === 'wallboard' && <WallboardView />}
-            {activeNav === 'ivr' && <IVRBuilder />}
-            {activeNav === 'admin' && <AdminPanel />}
-            {activeNav === 'ai-receptionist' && <AIReceptionist />}
-            {activeNav === 'sms-campaign' && <SMSCampaign />}
-            {activeNav === 'supervisor' && <SupervisorPanel />}
-            {activeNav === 'business-hours' && <BusinessHours />}
-            {activeNav === 'meetings' && <MeetingScheduler />}
-            {activeNav === 'team' && <TeamView />}
-            {activeNav === 'dm' && <DirectMessages />}
-            {activeNav === 'notifications' && <NotificationSettings />}
-          </div>
-        </div>
-
-        {activeContact && HAS_LIST.includes(activeNav) && (
-          <RCContactPanel
-            contact={activeContact}
-            onClose={() => setActiveContact(null)}
-            onCall={() => callContact(activeContact)}
-            onVideo={() => videoContact(activeContact)}
-            onSms={() => messageContact(activeContact)}
-            onEmail={() => window.open('mailto:' + activeContact.email)}
-          />
-        )}
-      </div>
-
-      {/* Mobile bottom nav — 4 tabs */}
-      <div className="flex sm:hidden" style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
-        background: '#0a0e1a', borderTop: '1px solid #1a2744',
-        height: '64px', paddingBottom: 'env(safe-area-inset-bottom)',
-        alignItems: 'center', justifyContent: 'space-around',
-      }}>
-        {MOBILE_TABS.map(({ id, label, icon: Icon }) => {
-          const isActive = id === activeNav || (id === 'phone' && activeNav === 'voice');
-          return (
-            <button
-              key={id}
-              onClick={() => setActiveNav(id)}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: isActive ? '#3b82f6' : '#6b84a8',
-                padding: '4px 8px', minWidth: '60px',
-                position: 'relative',
-              }}
-            >
-              <Icon size={22} color={isActive ? '#3b82f6' : '#6b84a8'} />
-              <span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400, color: isActive ? '#3b82f6' : '#6b84a8' }}>
-                {label}
-              </span>
-              {/* Red badge on Phone tab for missed calls */}
-              {id === 'phone' && vmUnread > 0 && (
-                <div style={{
-                  position: 'absolute', top: '2px', right: '8px',
-                  background: '#F44336', color: '#fff', borderRadius: '10px',
-                  fontSize: '9px', fontWeight: 700, minWidth: '16px', height: '16px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
-                }}>{vmUnread}</div>
-              )}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
