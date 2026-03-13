@@ -306,22 +306,35 @@ function TranscriptPanel({ lines, onClose, provider, onProviderChange }) {
           </div>
         </div>
         {onProviderChange && (
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexShrink: 0 }} role="radiogroup" aria-label="Transcription engine">
             {[
               { id: 'browser', label: 'Browser', sub: 'Chrome only' },
               { id: 'deepgram', label: 'Deepgram', sub: 'All browsers' },
-            ].map(opt => (
-              <button key={opt.id} onClick={() => onProviderChange(opt.id)}
-                style={{
-                  flex: 1, padding: '8px 4px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                  background: provider === opt.id ? '#4f46e5' : '#1a2744',
-                  color: provider === opt.id ? '#fff' : '#6b84a8',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', transition: 'all 0.15s',
-                }}>
-                <span style={{ fontSize: '13px', fontWeight: 600 }}>{opt.label}</span>
-                <span style={{ fontSize: '10px', opacity: 0.7 }}>{opt.sub}</span>
-              </button>
-            ))}
+            ].map(opt => {
+              const isChromium = /Chrome/.test(navigator.userAgent) || /Edg/.test(navigator.userAgent);
+              const disabled = opt.id === 'browser' && !isChromium;
+              return (
+                <button key={opt.id} role="radio" aria-checked={provider === opt.id}
+                  aria-label={`${opt.label} transcription engine — ${opt.sub}`}
+                  disabled={disabled}
+                  title={disabled ? 'Browser speech recognition is only available in Chrome and Edge' : ''}
+                  onClick={() => { if (!disabled) onProviderChange(opt.id); }}
+                  style={{
+                    flex: 1, padding: '8px 4px', borderRadius: '10px', border: 'none',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    opacity: disabled ? 0.4 : 1,
+                    background: disabled ? '#1a2744' : provider === opt.id ? '#4f46e5' : '#1a2744',
+                    color: disabled ? '#3a4a6a' : provider === opt.id ? '#fff' : '#6b84a8',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', transition: 'all 0.15s',
+                    outline: 'none',
+                  }}
+                  onFocus={e => { if (!disabled) e.currentTarget.style.boxShadow = '0 0 0 2px #6366f1'; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = 'none'; }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>{opt.label}</span>
+                  <span style={{ fontSize: '10px', opacity: 0.7 }}>{opt.sub}</span>
+                </button>
+              );
+            })}
           </div>
         )}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>

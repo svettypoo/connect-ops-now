@@ -143,7 +143,7 @@ export default function VideoCall({ contactName, meetingRoom }) {
         </div>
         {showTranscript && status === "active" && (
           <div className="bg-[#0d0d1f] border-t border-white/5 px-4 py-3 max-h-40 overflow-y-auto">
-            <p className="text-xs text-slate-500 mb-2">Live Transcript (Deepgram)</p>
+            <p className="text-xs text-slate-500 mb-2">Live Transcript ({transcription.provider === 'deepgram' ? 'Deepgram' : 'Browser'})</p>
             {transcription.transcript.length === 0 && !transcription.interim ? (
               <p className="text-slate-600 text-xs italic">Listening...</p>
             ) : (
