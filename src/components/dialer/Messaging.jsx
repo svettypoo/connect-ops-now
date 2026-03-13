@@ -41,13 +41,13 @@ export default function Messaging({ initialThread }) {
 
   const refreshThreads = useCallback(() => {
     api.getSmsThreads()
-      .then(t => setThreads(Array.isArray(t) ? t : []))
+      .then(t => setThreads(Array.isArray(t) ? t : (t?.threads || [])))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
     api.getSmsThreads()
-      .then(t => setThreads(Array.isArray(t) ? t : []))
+      .then(t => setThreads(Array.isArray(t) ? t : (t?.threads || [])))
       .catch(() => setThreads([]))
       .finally(() => setLoadingThreads(false));
     const tid = setInterval(refreshThreads, 10000);
@@ -56,8 +56,8 @@ export default function Messaging({ initialThread }) {
 
   const loadMessages = useCallback(async (number, isPolling = false) => {
     try {
-      const msgs = await api.getSmsThread(number);
-      const arr = Array.isArray(msgs) ? msgs : [];
+      const resp = await api.getSmsThread(number);
+      const arr = Array.isArray(resp) ? resp : (resp?.messages || []);
       if (isPolling) {
         const newInbound = arr.filter(m => m.direction === 'inbound').length;
         if (newInbound > lastMsgCountRef.current) {
@@ -91,8 +91,9 @@ export default function Messaging({ initialThread }) {
   const loadSuggestions = async () => {
     setLoadingSugg(true);
     try {
-      const sugg = await api.getSmsReplySuggestions(activeThread.from_number || activeThread.number);
-      setSuggestions(Array.isArray(sugg) ? sugg : []);
+      const resp = await api.getSmsReplySuggestions(activeThread.from_number || activeThread.number);
+      const sugg = Array.isArray(resp) ? resp : (resp?.suggestions || []);
+      setSuggestions(sugg);
     } catch { setSuggestions([]); }
     setLoadingSugg(false);
   };

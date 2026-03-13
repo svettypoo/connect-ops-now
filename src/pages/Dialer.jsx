@@ -604,6 +604,97 @@ function getInitials(nameOrEmail) {
   return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2);
 }
 
+// Format raw transcript into readable paragraphs by splitting on sentence boundaries
+function formatTranscript(text) {
+  if (!text) return '';
+  // Split on sentence-ending punctuation followed by space, or on common speech-to-text patterns
+  const sentences = text
+    .replace(/([.!?])\s+/g, '$1\n')
+    .replace(/\b(hello|hi|hey|okay|all right|so where|so can|you're)\b/gi, '\n$1')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  // Group into paragraphs of ~3-4 sentences
+  const paragraphs = [];
+  for (let i = 0; i < sentences.length; i += 3) {
+    paragraphs.push(sentences.slice(i, i + 3).join(' '));
+  }
+  return paragraphs;
+}
+
+// Transcript display component with formatted text
+function TranscriptBlock({ text, maxHeight = '200px' }) {
+  const paragraphs = formatTranscript(text);
+  return (
+    <div style={{ maxHeight, overflowY: 'auto', scrollbarWidth: 'thin' }}>
+      {paragraphs.map((p, i) => (
+        <p key={i} style={{ margin: i === 0 ? 0 : '8px 0 0', fontSize: '12px', color: '#9ca3af', lineHeight: 1.7 }}>{p}</p>
+      ))}
+    </div>
+  );
+}
+
+// Audio player with download, share, and speed controls
+function RecordingPlayer({ recordingId, isPlaying, onToggle, audioRef }) {
+  const [speed, setSpeed] = useState(1);
+  const speeds = [1, 1.5, 2];
+  const url = api.streamRecording(recordingId);
+
+  const cycleSpeed = (e) => {
+    e.stopPropagation();
+    const nextIdx = (speeds.indexOf(speed) + 1) % speeds.length;
+    const newSpeed = speeds[nextIdx];
+    setSpeed(newSpeed);
+    if (audioRef.current) audioRef.current.playbackRate = newSpeed;
+  };
+
+  const download = (e) => {
+    e.stopPropagation();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recording-${recordingId}.webm`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const share = async (e) => {
+    e.stopPropagation();
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Call Recording', url }); } catch {}
+    } else {
+      await navigator.clipboard.writeText(url);
+      // Brief visual feedback handled by caller if needed
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+      <button onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        style={{ background: 'rgba(59,130,246,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', flexShrink: 0, cursor: 'pointer', color: '#60a5fa', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        title={isPlaying ? 'Stop' : 'Play'}>
+        {isPlaying ? '⏹' : '▶'}
+      </button>
+      <button onClick={cycleSpeed}
+        style={{ background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: '6px', padding: '2px 6px', cursor: 'pointer', color: speed > 1 ? '#60a5fa' : '#6b84a8', fontSize: '10px', fontWeight: 700, minWidth: '32px' }}
+        title="Playback speed">
+        {speed}x
+      </button>
+      <button onClick={download}
+        style={{ background: 'rgba(16,185,129,0.1)', border: 'none', borderRadius: '6px', width: '26px', height: '26px', cursor: 'pointer', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        title="Download">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button onClick={share}
+        style={{ background: 'rgba(139,92,246,0.1)', border: 'none', borderRadius: '6px', width: '26px', height: '26px', cursor: 'pointer', color: '#a78bfa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        title="Share / Copy link">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </button>
+    </div>
+  );
+}
+
 // RecordingsList — fetches /api/recordings and lists them with playback, search, AI summary + transcript expand
 function RecordingsList() {
   const [recordings, setRecordings] = useState([]);
@@ -691,10 +782,12 @@ function RecordingsList() {
             <div key={rec.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 16px', cursor:'pointer' }}
                 onClick={() => setExpandedId(isExpanded ? null : rec.id)}>
-                <button onClick={(e) => { e.stopPropagation(); toggle(rec); }}
-                  style={{ background:'rgba(14,184,255,0.15)', border:'none', borderRadius:'50%', width:'36px', height:'36px', flexShrink:0, cursor:'pointer', color:'#60a5fa', fontSize:'16px', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  {isPlaying ? '⏹' : '▶'}
-                </button>
+                <RecordingPlayer
+                  recordingId={rec.id}
+                  isPlaying={isPlaying}
+                  onToggle={() => toggle(rec)}
+                  audioRef={audioRef}
+                />
                 <div style={{ flex:1, minWidth:0 }}>
                   <p style={{ margin:'0 0 2px', fontSize:'13px', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{rec.title || 'Recording'}</p>
                   <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
@@ -722,9 +815,9 @@ function RecordingsList() {
                     </div>
                   )}
                   {rec.transcript && (
-                    <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:'12px', padding:'12px', maxHeight:'120px', overflowY:'auto' }}>
+                    <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:'12px', padding:'12px' }}>
                       <p style={{ margin:'0 0 6px', fontSize:'10px', color:'#6b84a8', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>Transcript</p>
-                      <p style={{ margin:0, fontSize:'12px', color:'#9ca3af', lineHeight:1.5 }}>{rec.transcript}</p>
+                      <TranscriptBlock text={rec.transcript} maxHeight="160px" />
                     </div>
                   )}
                 </div>
@@ -803,7 +896,7 @@ function TranscriptsList() {
             {isExpanded && (
               <div style={{ padding: '0 16px 16px 64px' }}>
                 <div style={{ background: '#0f1628', borderRadius: '12px', padding: '12px 14px', border: '1px solid #1a2744' }}>
-                  <p style={{ margin: 0, color: '#c8d6e5', fontSize: '13px', lineHeight: 1.6 }}>{log.transcript}</p>
+                  <TranscriptBlock text={log.transcript} maxHeight="300px" />
                 </div>
               </div>
             )}
@@ -1191,6 +1284,7 @@ export default function Dialer() {
   }, [phone.status]);
 
   const handleNavChange = (id) => {
+    if (id === 'video') { window.open('https://meet.stproperties.com', '_blank'); return; }
     if (id === 'phone') { setDialTo(''); setDialName(''); }
     setActiveNav(id);
   };
@@ -1233,7 +1327,7 @@ export default function Dialer() {
           <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
             {showContactDetail ? (
               <div style={{ flex:1, overflowY:'auto' }}>
-                <ContactDetailView item={selectedItem} onCall={handleCallFromDetail} onMessage={handleMessageFromDetail} onVideo={() => setActiveNav('video')} />
+                <ContactDetailView item={selectedItem} onCall={handleCallFromDetail} onMessage={handleMessageFromDetail} onVideo={() => window.open('https://meet.stproperties.com', '_blank')} />
               </div>
             ) : activeNav === 'voice' ? (
               <VoiceCall phone={phone} dialTo={dialTo} dialName={dialName} onHangup={() => setActiveNav('phone')} />

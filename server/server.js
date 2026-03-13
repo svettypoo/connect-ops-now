@@ -290,17 +290,24 @@ app.post('/api/sms/thread/:number/read', requireAuth, (req, res) => {
 app.post('/api/sms/send', requireAuth, async (req, res) => {
   const { to, body } = req.body;
   if (!to || !body) return res.status(400).json({ error: 'to and body required' });
+  // Normalize to E.164: strip everything except digits, prepend +1 if needed
+  let normalized = to.replace(/[^\d+]/g, '');
+  if (!normalized.startsWith('+')) {
+    if (normalized.length === 10) normalized = '+1' + normalized;
+    else if (normalized.length === 11 && normalized.startsWith('1')) normalized = '+' + normalized;
+    else normalized = '+' + normalized;
+  }
   const fromNumber = process.env.TELNYX_FROM_NUMBER || '';
   const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
   try {
     const response = await fetch('https://api.telnyx.com/v2/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.TELNYX_API_KEY}` },
-      body: JSON.stringify({ from: fromNumber, to, text: body, messaging_profile_id: process.env.TELNYX_MESSAGING_PROFILE_ID }),
+      body: JSON.stringify({ from: fromNumber, to: normalized, text: body, ...(process.env.TELNYX_MESSAGING_PROFILE_ID ? { messaging_profile_id: process.env.TELNYX_MESSAGING_PROFILE_ID } : {}) }),
     });
     const data = await response.json();
     if (!response.ok) return res.status(400).json({ error: data.errors?.[0]?.detail || 'Send failed' });
-    const msg = smsOps.create({ user_id: phoneUserId, direction: 'outbound', from_number: fromNumber, to_number: to, body, status: 'sent', telnyx_message_id: data.data?.id || '' });
+    const msg = smsOps.create({ user_id: phoneUserId, direction: 'outbound', from_number: fromNumber, to_number: normalized, body, status: 'sent', telnyx_message_id: data.data?.id || '' });
     res.json(msg);
   } catch (err) {
     res.status(500).json({ error: err.message });

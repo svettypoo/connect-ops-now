@@ -1,6 +1,22 @@
 import { useState, useEffect, useRef } from "react";
-import { PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, Loader2, Trash2, PlayCircle, StopCircle, ChevronDown, ChevronUp, Mic } from "lucide-react";
+import { PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, Loader2, Trash2, PlayCircle, StopCircle, ChevronDown, ChevronUp, Mic, Download, Share2 } from "lucide-react";
 import api from "@/api/inboxAiClient";
+
+// Format raw transcript into readable paragraphs
+function formatTranscript(text) {
+  if (!text) return [];
+  const sentences = text
+    .replace(/([.!?])\s+/g, '$1\n')
+    .replace(/\b(hello|hi|hey|okay|all right|so where|so can|you're)\b/gi, '\n$1')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  const paragraphs = [];
+  for (let i = 0; i < sentences.length; i += 3) {
+    paragraphs.push(sentences.slice(i, i + 3).join(' '));
+  }
+  return paragraphs;
+}
 
 function fmtTime(ts) {
   const d = new Date(ts), now = new Date(), diff = now - d;
@@ -46,6 +62,8 @@ export default function CallHistory({ onCallBack }) {
     setLogs(prev => prev.filter(l => l.id !== id));
   };
 
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+
   const playRecording = (log, e) => {
     e.stopPropagation();
     if (!log.recording_id) return;
@@ -57,10 +75,42 @@ export default function CallHistory({ onCallBack }) {
       if (audioRef.current) audioRef.current.pause();
       const audio = new Audio(url);
       audio.crossOrigin = 'use-credentials';
+      audio.playbackRate = playbackSpeed;
       audio.onended = () => setPlayingId(null);
       audio.play().catch(() => {});
       audioRef.current = audio;
       setPlayingId(log.id);
+    }
+  };
+
+  const cycleSpeed = (e) => {
+    e.stopPropagation();
+    const speeds = [1, 1.5, 2];
+    const next = speeds[(speeds.indexOf(playbackSpeed) + 1) % speeds.length];
+    setPlaybackSpeed(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+
+  const downloadRecording = (log, e) => {
+    e.stopPropagation();
+    if (!log.recording_id) return;
+    const a = document.createElement('a');
+    a.href = api.streamRecording(log.recording_id);
+    a.download = `recording-${log.recording_id}.webm`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const shareRecording = async (log, e) => {
+    e.stopPropagation();
+    if (!log.recording_id) return;
+    const url = api.streamRecording(log.recording_id);
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Call Recording', url }); } catch {}
+    } else {
+      await navigator.clipboard.writeText(url);
     }
   };
 
@@ -119,10 +169,26 @@ export default function CallHistory({ onCallBack }) {
                     <PhoneCall className="w-3.5 h-3.5 text-green-400" />
                   </button>
                   {log.recording_id && (
-                    <button onClick={(e) => playRecording(log, e)}
-                      className="p-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/40 transition-all" title="Play recording">
-                      {playingId === log.id ? <StopCircle className="w-3.5 h-3.5 text-blue-400" /> : <PlayCircle className="w-3.5 h-3.5 text-blue-400" />}
-                    </button>
+                    <>
+                      <button onClick={(e) => playRecording(log, e)}
+                        className="p-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/40 transition-all" title={playingId === log.id ? "Stop" : "Play recording"}>
+                        {playingId === log.id ? <StopCircle className="w-3.5 h-3.5 text-blue-400" /> : <PlayCircle className="w-3.5 h-3.5 text-blue-400" />}
+                      </button>
+                      {playingId === log.id && (
+                        <button onClick={cycleSpeed}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all" title="Playback speed">
+                          {playbackSpeed}x
+                        </button>
+                      )}
+                      <button onClick={(e) => downloadRecording(log, e)}
+                        className="p-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-all" title="Download">
+                        <Download className="w-3.5 h-3.5 text-green-400" />
+                      </button>
+                      <button onClick={(e) => shareRecording(log, e)}
+                        className="p-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 transition-all" title="Share / Copy link">
+                        <Share2 className="w-3.5 h-3.5 text-purple-400" />
+                      </button>
+                    </>
                   )}
                   <button onClick={(e) => { e.stopPropagation(); deleteLog(log.id, e); }}
                     className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 transition-all" title="Delete">
@@ -144,9 +210,11 @@ export default function CallHistory({ onCallBack }) {
                     </div>
                   )}
                   {log.transcript && (
-                    <div className="bg-white/5 rounded-xl p-3 max-h-40 overflow-y-auto">
+                    <div className="bg-white/5 rounded-xl p-3 max-h-60 overflow-y-auto">
                       <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1.5">Transcript</p>
-                      <p className="text-xs text-slate-400 leading-relaxed">{log.transcript}</p>
+                      {formatTranscript(log.transcript).map((para, i) => (
+                        <p key={i} className="text-xs text-slate-400 leading-relaxed" style={{ marginTop: i > 0 ? '8px' : 0 }}>{para}</p>
+                      ))}
                     </div>
                   )}
                 </div>
