@@ -219,11 +219,13 @@ app.post('/api/auth/login', async (req, res) => {
   let user = null;
   const isStProperties = email.toLowerCase().endsWith('@stproperties.com');
 
-  if (isStProperties) {
-    // Try Zoho IMAP first
-    const zohoOk = await zohoImapAuth(email, password).catch(() => false);
-    if (zohoOk) {
-      // Auto-provision user in local DB on first login
+  // Try local DB first (seeded users + previously provisioned)
+  user = userOps.verify(email, password);
+
+  // For @stproperties.com, fall back to mail server IMAP auth + auto-provision
+  if (!user && isStProperties) {
+    const imapOk = await zohoImapAuth(email, password).catch(() => false);
+    if (imapOk) {
       user = userOps.findByEmail(email);
       if (!user) {
         const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -231,10 +233,6 @@ app.post('/api/auth/login', async (req, res) => {
         user = userOps.findByEmail(email);
       }
     }
-    // Fallback: local DB password check
-    if (!user) user = userOps.verify(email, password);
-  } else {
-    user = userOps.verify(email, password);
   }
 
   if (!user) return res.status(401).json({ error: 'Invalid email or password' });
