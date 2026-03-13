@@ -510,7 +510,7 @@ export function usePhone() {
     }
     setStatus('ready');
     resetCallState();
-  }, [resetCallState, stopRecording]);
+  }, [resetCallState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleMute = useCallback(() => {
     const call = callRef.current;
