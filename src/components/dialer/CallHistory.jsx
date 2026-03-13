@@ -63,6 +63,29 @@ export default function CallHistory({ onCallBack }) {
   };
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [playProgress, setPlayProgress] = useState(0);
+  const [playCurrentTime, setPlayCurrentTime] = useState(0);
+  const [playDuration, setPlayDuration] = useState(0);
+  const progressTimerRef = useRef(null);
+
+  const startProgressTracking = () => {
+    clearInterval(progressTimerRef.current);
+    progressTimerRef.current = setInterval(() => {
+      const a = audioRef.current;
+      if (a && a.duration && isFinite(a.duration)) {
+        setPlayProgress(a.currentTime / a.duration);
+        setPlayCurrentTime(a.currentTime);
+        setPlayDuration(a.duration);
+      }
+    }, 200);
+  };
+
+  const stopProgressTracking = () => {
+    clearInterval(progressTimerRef.current);
+    setPlayProgress(0);
+    setPlayCurrentTime(0);
+    setPlayDuration(0);
+  };
 
   const playRecording = (log, e) => {
     e.stopPropagation();
@@ -71,16 +94,36 @@ export default function CallHistory({ onCallBack }) {
     if (playingId === log.id) {
       audioRef.current?.pause();
       setPlayingId(null);
+      stopProgressTracking();
     } else {
       if (audioRef.current) audioRef.current.pause();
+      stopProgressTracking();
       const audio = new Audio(url);
       audio.crossOrigin = 'use-credentials';
       audio.playbackRate = playbackSpeed;
-      audio.onended = () => setPlayingId(null);
+      audio.onended = () => { setPlayingId(null); stopProgressTracking(); };
       audio.play().catch(() => {});
       audioRef.current = audio;
       setPlayingId(log.id);
+      startProgressTracking();
     }
+  };
+
+  const seekRecording = (e) => {
+    e.stopPropagation();
+    const bar = e.currentTarget;
+    const rect = bar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    if (audioRef.current && isFinite(audioRef.current.duration)) {
+      audioRef.current.currentTime = pct * audioRef.current.duration;
+      setPlayProgress(pct);
+    }
+  };
+
+  const fmtPlayTime = (secs) => {
+    if (!secs || !isFinite(secs)) return '0:00';
+    const m = Math.floor(secs / 60), s = Math.floor(secs % 60);
+    return m + ':' + String(s).padStart(2, '0');
   };
 
   const cycleSpeed = (e) => {
@@ -201,6 +244,31 @@ export default function CallHistory({ onCallBack }) {
                   )}
                 </div>
               </div>
+              {/* Progress bar when playing this recording */}
+              {playingId === log.id && log.recording_id && (
+                <div className="flex items-center gap-2 px-4 pb-2" onClick={e => e.stopPropagation()}>
+                  <span className="text-[9px] text-slate-500 min-w-[28px] tabular-nums">{fmtPlayTime(playCurrentTime)}</span>
+                  <div
+                    onClick={seekRecording}
+                    className="flex-1 h-1.5 bg-white/8 rounded-full cursor-pointer relative overflow-hidden"
+                    title="Click to seek"
+                  >
+                    <div className="absolute top-0 left-0 h-full rounded-full" style={{
+                      width: (playProgress * 100) + '%',
+                      background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                      transition: 'width 0.15s linear',
+                    }} />
+                    <div className="absolute rounded-full bg-[#60a5fa]" style={{
+                      top: '-1.5px',
+                      left: `calc(${playProgress * 100}% - 4px)`,
+                      width: '8px', height: '8px',
+                      boxShadow: '0 0 4px rgba(96,165,250,0.5)',
+                      transition: 'left 0.15s linear',
+                    }} />
+                  </div>
+                  <span className="text-[9px] text-slate-500 min-w-[28px] text-right tabular-nums">{fmtPlayTime(playDuration)}</span>
+                </div>
+              )}
               {isExpanded && (
                 <div className="px-4 pb-4 space-y-2">
                   {log.ai_summary && (

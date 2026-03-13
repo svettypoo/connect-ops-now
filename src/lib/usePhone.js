@@ -55,6 +55,8 @@ export function usePhone() {
   const recorderRef     = useRef(null);   // MediaRecorder for call recording
   const recChunksRef    = useRef([]);     // accumulated recording chunks
   const recAudioCtxRef  = useRef(null);   // AudioContext used for mixing recording
+  const noiseCtxRef     = useRef(null);   // AudioContext for noise processing pipeline
+  const cleanStreamRef  = useRef(null);   // processed mic MediaStream (noise-gated)
   const timerRef        = useRef(null);
   const startTimeRef    = useRef(null);
   const mountedRef      = useRef(true);
@@ -128,6 +130,69 @@ export function usePhone() {
     }
   }, []);
 
+  // ── Noise processing pipeline ─────────────────────────────────────────────────
+  // Creates an AudioContext chain: mic → highpass (cut <85Hz rumble) → noise gate
+  // (silence anything below speech threshold) → analyser → output stream.
+  // The processed stream replaces the raw mic on the active call.
+
+  function createNoiseProcessor(rawMicStream) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      noiseCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(rawMicStream);
+
+      // 1) High-pass filter — cut rumble below 85 Hz (fans, AC, traffic)
+      const highpass = ctx.createBiquadFilter();
+      highpass.type = 'highpass';
+      highpass.frequency.value = 85;
+      highpass.Q.value = 0.7;
+
+      // 2) Low-pass filter — cut hiss above 8 kHz (most speech energy is below 4 kHz)
+      const lowpass = ctx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.value = 8000;
+      lowpass.Q.value = 0.5;
+
+      // 3) Compressor as a noise gate — squash quiet sounds aggressively
+      //    threshold: -50 dB means anything below conversational speech gets compressed
+      //    ratio 12:1 makes quiet noise nearly silent
+      //    fast attack catches transients, slow release keeps speech natural
+      const gate = ctx.createDynamicsCompressor();
+      gate.threshold.value = -50;  // dB — speech is typically -30 to -10 dB
+      gate.knee.value = 5;
+      gate.ratio.value = 12;
+      gate.attack.value = 0.003;   // 3ms — fast attack
+      gate.release.value = 0.25;   // 250ms — natural release for speech
+
+      // 4) Make-up gain to compensate for compression
+      const makeupGain = ctx.createGain();
+      makeupGain.gain.value = 1.5;
+
+      // Chain: source → highpass → lowpass → gate → makeup → destination
+      const dest = ctx.createMediaStreamDestination();
+      source.connect(highpass);
+      highpass.connect(lowpass);
+      lowpass.connect(gate);
+      gate.connect(makeupGain);
+      makeupGain.connect(dest);
+
+      cleanStreamRef.current = dest.stream;
+      console.log('[Phone] Noise processing pipeline active (highpass 85Hz, lowpass 8kHz, gate -50dB)');
+      return dest.stream;
+    } catch (e) {
+      console.warn('[Phone] Noise processing setup failed, using raw mic:', e.message);
+      return rawMicStream; // fallback to raw
+    }
+  }
+
+  function teardownNoiseProcessor() {
+    if (noiseCtxRef.current && noiseCtxRef.current.state !== 'closed') {
+      noiseCtxRef.current.close().catch(() => {});
+    }
+    noiseCtxRef.current = null;
+    cleanStreamRef.current = null;
+  }
+
   // ── Level meters ─────────────────────────────────────────────────────────────
 
   function setupLevelMeters(remoteStream, localStream) {
@@ -190,6 +255,7 @@ export function usePhone() {
   const resetCallState = useCallback(() => {
     stopTimer();
     teardownLevelMeters();
+    teardownNoiseProcessor();
     callRef.current = null;
     setElapsed(0);
     setIsMuted(false);
@@ -232,11 +298,29 @@ export function usePhone() {
       setInboundCall(null);
       setStatus('active');
       startTimer();
-      // Wire up level meters + auto-start recording
+      // Wire up noise processing, level meters + auto-start recording
       // Give the SDK a moment to attach streams
       setTimeout(() => {
         const call = callRef.current;
         if (call) {
+          // Apply noise processing to outgoing mic audio
+          if (call.localStream) {
+            const cleanStream = createNoiseProcessor(call.localStream);
+            // Replace mic track on the peer connection with the processed one
+            try {
+              const pc = call.peer?.instance; // RTCPeerConnection
+              if (pc) {
+                const cleanTrack = cleanStream.getAudioTracks()[0];
+                const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
+                if (sender && cleanTrack) {
+                  sender.replaceTrack(cleanTrack);
+                  console.log('[Phone] Replaced mic track with noise-processed stream');
+                }
+              }
+            } catch (e) {
+              console.warn('[Phone] Could not replace mic track:', e.message);
+            }
+          }
           setupLevelMeters(call.remoteStream, call.localStream);
           startRecording(call.remoteStream, call.localStream);
         }
