@@ -231,7 +231,7 @@ app.post('/api/auth/login', async (req, res) => {
         user = userOps.findByEmail(email);
       }
     }
-    // Fallback: local DB (for seeded hr@ account whose password may not match Zoho)
+    // Fallback: local DB password check
     if (!user) user = userOps.verify(email, password);
   } else {
     user = userOps.verify(email, password);
@@ -1769,23 +1769,33 @@ if (ensureAdminUser) ensureAdminUser();
 (async () => {
   try {
     const { v4: uuidv4 } = require('uuid');
+    const bcrypt = require('bcryptjs');
     const seeds = [
-      { email: 'hr@stproperties.com', password: 'Partycard', name: 'Svet Pargov' },
-      { email: 'line2@stproperties.com', password: 'Partycard', name: 'Line 2' },
+      { email: 'svet@stproperties.com', password: 'Partycard123*', name: 'Svet Pargov', oldEmail: 'hr@stproperties.com' },
+      { email: 'line2@stproperties.com', password: 'Partycard123*', name: 'Line 2' },
     ];
     for (const s of seeds) {
+      const hash = bcrypt.hashSync(s.password, 10);
+      // Migrate old email if needed
+      if (s.oldEmail) {
+        const old = db.prepare('SELECT id FROM users WHERE email=?').get(s.oldEmail);
+        if (old) {
+          db.prepare('UPDATE users SET email=?, password_hash=?, name=? WHERE id=?').run(s.email, hash, s.name, old.id);
+          console.log(`[Seed] Migrated ${s.oldEmail} → ${s.email}`);
+        }
+      }
       const exists = db.prepare('SELECT id FROM users WHERE email=?').get(s.email);
       if (!exists) {
         userOps.create(s.email, s.password, s.name);
         console.log(`[Seed] Created user: ${s.email}`);
       } else {
-        db.prepare('UPDATE users SET name=? WHERE email=? AND name IN (?,?)').run(s.name, s.email, 'Admin', 'HR Admin');
+        db.prepare('UPDATE users SET name=?, password_hash=? WHERE email=?').run(s.name, hash, s.email);
       }
     }
     // Seed phone credential for admin user
     const fromNum = process.env.TELNYX_FROM_NUMBER;
     if (fromNum) {
-      const adminUser = db.prepare('SELECT id FROM users WHERE email=?').get('hr@stproperties.com');
+      const adminUser = db.prepare('SELECT id FROM users WHERE email=?').get('svet@stproperties.com');
       if (adminUser) {
         const credExists = db.prepare('SELECT id FROM phone_credentials WHERE user_id=?').get(adminUser.id);
         if (!credExists) {
