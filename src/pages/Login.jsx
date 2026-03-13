@@ -3,23 +3,31 @@ import { useAuth } from "@/lib/AuthContext";
 import { Mail, Lock, Eye, EyeOff, Phone } from "lucide-react";
 
 const LS_KEY = "con_remember";
+const LS_LAST_EMAIL = "con_last_email";
 
 export default function LoginPage() {
   const { login, authError } = useAuth();
-  const [email, setEmail] = useState("hr@stproperties.com");
-  const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
+  const [email, setEmail] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+      if (saved?.email) return saved.email;
+    } catch {}
+    return localStorage.getItem(LS_LAST_EMAIL) || "";
+  });
+  const [password, setPassword] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+      if (saved?.password) return saved.password;
+    } catch {}
+    return "";
+  });
+  const [remember, setRemember] = useState(() => {
+    try { return !!JSON.parse(localStorage.getItem(LS_KEY) || "null")?.email; } catch { return false; }
+  });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const canvasRef = useRef(null);
-
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
-      if (saved?.email) { setEmail(saved.email); setPassword(saved.password || ""); setRemember(true); }
-    } catch {}
-  }, []);
 
   // Starfield
   useEffect(() => {
@@ -56,6 +64,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
+      localStorage.setItem(LS_LAST_EMAIL, email);
       if (remember) {
         localStorage.setItem(LS_KEY, JSON.stringify({ email, password }));
       } else {
