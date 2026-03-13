@@ -120,6 +120,7 @@ export default function VideoCall({ contactName, meetingRoom }) {
           </button>
         </div>
       ) : (
+        <>
         <div className="relative">
           <div ref={containerRef} style={{ height: 480, minHeight: 400 }} />
           {status === "loading" && (
@@ -158,6 +159,7 @@ export default function VideoCall({ contactName, meetingRoom }) {
             )}
           </div>
         )}
+        </>
       )}
       {status === "idle" && elapsed > 0 && (
         <CallNotes sessionId={sessionId} callType="video" durationMinutes={Math.round(elapsed / 60)} />
