@@ -210,14 +210,6 @@ function requireAI(req, res, next) {
 app.get('/api/health', (req, res) => res.json({ ok: !DB_LOAD_ERROR, node: process.version, db: DB_LOAD_ERROR || 'ok' }));
 app.get('/health',     (req, res) => res.json({ ok: !DB_LOAD_ERROR, node: process.version, db: DB_LOAD_ERROR || 'ok' }));
 
-// ─── Debug: DB users (temporary) ──────────────────────────────────────────────
-app.get('/api/debug/users', (req, res) => {
-  try {
-    const users = db.prepare('SELECT id, email, name, password_hash, created_at FROM users').all();
-    res.json(users.map(u => ({ ...u, password_hash: u.password_hash ? `${u.password_hash.substring(0, 10)}...(${u.password_hash.length} chars)` : 'EMPTY' })));
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 // ─── Routes: Auth ─────────────────────────────────────────────────────────────
 
 app.post('/api/auth/login', async (req, res) => {
