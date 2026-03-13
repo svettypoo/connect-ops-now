@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Video, Phone, PhoneOff, X } from "lucide-react";
+import { Video, Phone, PhoneOff, X, FileText } from "lucide-react";
 import api from "@/api/inboxAiClient";
 import CallNotes from "@/components/dialer/CallNotes";
+import useTranscription from "@/hooks/useTranscription";
 
 const JAAS_APP_ID = "vpaas-magic-cookie-e866a734fd5742ea83b9df9d3fab8807";
 
@@ -11,9 +12,11 @@ export default function VideoCall({ contactName, meetingRoom }) {
   const [elapsed, setElapsed] = useState(0);
   const [roomName, setRoomName] = useState(meetingRoom || "");
   const [error, setError] = useState(null);
+  const [showTranscript, setShowTranscript] = useState(false);
   const containerRef = useRef(null);
   const apiRef = useRef(null);
   const timerRef = useRef(null);
+  const transcription = useTranscription();
 
   const startTimer = () => {
     const t0 = Date.now();
@@ -64,7 +67,7 @@ export default function VideoCall({ contactName, meetingRoom }) {
       });
       apiRef.current = api2;
 
-      api2.addEventListener("videoConferenceJoined", () => { setStatus("active"); startTimer(); });
+      api2.addEventListener("videoConferenceJoined", () => { setStatus("active"); startTimer(); transcription.start(); });
       api2.addEventListener("videoConferenceLeft", endCall);
       api2.addEventListener("errorOccurred", (e) => {
         console.error("Jitsi error:", e);
@@ -78,6 +81,7 @@ export default function VideoCall({ contactName, meetingRoom }) {
 
   const endCall = () => {
     clearInterval(timerRef.current);
+    transcription.stop();
     try { apiRef.current?.removeEventListener("videoConferenceJoined"); } catch {}
     try { apiRef.current?.removeEventListener("videoConferenceLeft"); } catch {}
     try { apiRef.current?.removeEventListener("errorOccurred"); } catch {}
@@ -129,7 +133,31 @@ export default function VideoCall({ contactName, meetingRoom }) {
               <span className="text-xs text-white font-mono">{fmt(elapsed)}</span>
             </div>
           )}
+          {status === "active" && (
+            <button onClick={() => setShowTranscript(v => !v)}
+              className={"absolute top-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all " +
+                (showTranscript ? "bg-blue-600 text-white" : "bg-black/60 text-slate-300 hover:text-white")}>
+              <FileText className="w-3.5 h-3.5" /> Transcript
+            </button>
+          )}
         </div>
+        {showTranscript && status === "active" && (
+          <div className="bg-[#0d0d1f] border-t border-white/5 px-4 py-3 max-h-40 overflow-y-auto">
+            <p className="text-xs text-slate-500 mb-2">Live Transcript (Deepgram)</p>
+            {transcription.transcript.length === 0 && !transcription.interim ? (
+              <p className="text-slate-600 text-xs italic">Listening...</p>
+            ) : (
+              <div className="space-y-1">
+                {transcription.transcript.map((line, i) => (
+                  <p key={i} className="text-sm text-slate-300">{line}</p>
+                ))}
+                {transcription.interim && (
+                  <p className="text-sm text-slate-500 italic">{transcription.interim}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       )}
       {status === "idle" && elapsed > 0 && (
         <CallNotes sessionId={sessionId} callType="video" durationMinutes={Math.round(elapsed / 60)} />
