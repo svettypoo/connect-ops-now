@@ -482,6 +482,22 @@ export function usePhone() {
   useEffect(() => {
     mountedRef.current = true;
 
+    // Fetch phone number on mount regardless of mic permissions
+    (async () => {
+      try {
+        const base = getServerBase();
+        const headers = { 'Content-Type': 'application/json' };
+        const sessionToken = localStorage.getItem('con_session_token')
+          || document.cookie.match(/session=([^;]+)/)?.[1];
+        if (sessionToken) headers['x-session'] = sessionToken;
+        const resp = await fetch(`${base}/api/phone/webrtc-token`, { headers, credentials: 'include' });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.phone_number && mountedRef.current) setPhoneNumber(data.phone_number);
+        }
+      } catch {}
+    })();
+
     (async () => {
       if (!Capacitor.isNativePlatform()) {
         const perm = await checkMicPermission();
