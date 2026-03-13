@@ -1704,7 +1704,7 @@ global._sendPushToUser = sendPushToUser;
 
 // ─── Transcription service config ─────────────────────────────────────────────
 
-let _transcriptionProvider = process.env.TRANSCRIPTION_PROVIDER || (process.env.DEEPGRAM_API_KEY ? 'deepgram' : 'browser');
+let _transcriptionProvider = process.env.TRANSCRIPTION_PROVIDER || 'deepgram';
 
 app.get('/api/transcription/config', requireAuth, (req, res) => {
   res.json({ provider: _transcriptionProvider });

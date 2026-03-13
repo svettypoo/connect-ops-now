@@ -10,7 +10,8 @@ export default function AdminPanel() {
   const [form, setForm] = useState({ email: "", name: "" });
   const [inviting, setInviting] = useState(false);
   const [msg, setMsg] = useState("");
-  const [transcriptionProvider, setTranscriptionProvider] = useState("browser");
+  const [transcriptionProvider, setTranscriptionProvider] = useState("deepgram");
+  const [isChromeBrowser] = useState(() => !!(window.SpeechRecognition || window.webkitSpeechRecognition));
   const [transcriptionLoading, setTranscriptionLoading] = useState(false);
 
   const loadUsers = () => {
@@ -176,16 +177,18 @@ export default function AdminPanel() {
               Choose the engine used for live call transcription. Browser mode works only in Chrome. Deepgram works in all browsers with higher accuracy.
             </p>
             <div className="flex gap-2">
-              <button
-                onClick={() => switchTranscription("browser")}
-                disabled={transcriptionLoading}
-                className={"flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all border " +
-                  (transcriptionProvider === "browser"
-                    ? "bg-[#3b82f6] text-white border-[#3b82f6]"
-                    : "bg-white/5 text-slate-400 border-white/10 hover:text-white hover:border-white/20")}
-              >
-                Browser (Chrome only)
-              </button>
+              {isChromeBrowser && (
+                <button
+                  onClick={() => switchTranscription("browser")}
+                  disabled={transcriptionLoading}
+                  className={"flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all border " +
+                    (transcriptionProvider === "browser"
+                      ? "bg-[#3b82f6] text-white border-[#3b82f6]"
+                      : "bg-white/5 text-slate-400 border-white/10 hover:text-white hover:border-white/20")}
+                >
+                  Browser (Chrome only)
+                </button>
+              )}
               <button
                 onClick={() => switchTranscription("deepgram")}
                 disabled={transcriptionLoading}

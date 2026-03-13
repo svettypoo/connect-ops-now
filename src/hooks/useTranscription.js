@@ -14,13 +14,13 @@ export default function useTranscription() {
   const [transcript, setTranscript] = useState([]);
   const [interim, setInterim] = useState('');
   const [isListening, setIsListening] = useState(false);
-  const [provider, setProvider] = useState('browser');
+  const [provider, setProvider] = useState('deepgram');
 
   const recognitionRef = useRef(null);
   const wsRef = useRef(null);
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
-  const providerRef = useRef('browser');
+  const providerRef = useRef('deepgram');
 
   // Fetch config on mount to know which provider is active
   useEffect(() => {
@@ -83,8 +83,7 @@ export default function useTranscription() {
       // Get API key from server
       const tokenData = await api.getTranscriptionToken();
       if (!tokenData?.key) {
-        console.warn('[Transcription] No Deepgram key returned, falling back to browser');
-        startBrowser();
+        console.warn('[Transcription] No Deepgram key returned — transcription unavailable');
         return;
       }
 
@@ -148,8 +147,7 @@ export default function useTranscription() {
         }
       };
     } catch (err) {
-      console.warn('[Transcription] Deepgram start failed, falling back to browser:', err.message);
-      startBrowser();
+      console.warn('[Transcription] Deepgram start failed:', err.message);
     }
   }, [startBrowser]);
 
