@@ -199,5 +199,10 @@ export default function useTranscription() {
     };
   }, []); // eslint-disable-line
 
-  return { start, stop, transcript, setTranscript, interim, isListening, provider };
+  const switchProvider = useCallback((id) => {
+    setProvider(id);
+    providerRef.current = id;
+  }, []);
+
+  return { start, stop, transcript, setTranscript, interim, isListening, provider, setProvider: switchProvider };
 }

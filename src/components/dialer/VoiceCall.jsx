@@ -283,7 +283,7 @@ function DtmfOverlay({ onClose, onKey }) {
 }
 
 // ── Transcript panel ───────────────────────────────────────────────────────
-function TranscriptPanel({ lines, onClose }) {
+function TranscriptPanel({ lines, onClose, provider, onProviderChange }) {
   const bottomRef = useRef(null);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [lines]);
 
@@ -295,7 +295,7 @@ function TranscriptPanel({ lines, onClose }) {
         style={{ width: '100%', background: '#0a0e1a', borderRadius: '20px 20px 0 0', padding: '20px 16px 32px', maxHeight: '60vh', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexShrink: 0 }}>
           <span style={{ color: '#FFFFFF', fontSize: '16px', fontWeight: 600 }}>Live Transcript</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F44336', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
@@ -305,6 +305,25 @@ function TranscriptPanel({ lines, onClose }) {
             </button>
           </div>
         </div>
+        {onProviderChange && (
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexShrink: 0 }}>
+            {[
+              { id: 'browser', label: 'Browser', sub: 'Chrome only' },
+              { id: 'deepgram', label: 'Deepgram', sub: 'All browsers' },
+            ].map(opt => (
+              <button key={opt.id} onClick={() => onProviderChange(opt.id)}
+                style={{
+                  flex: 1, padding: '8px 4px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                  background: provider === opt.id ? '#4f46e5' : '#1a2744',
+                  color: provider === opt.id ? '#fff' : '#6b84a8',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', transition: 'all 0.15s',
+                }}>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>{opt.label}</span>
+                <span style={{ fontSize: '10px', opacity: 0.7 }}>{opt.sub}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {lines.length === 0 && (
             <p style={{ color: '#243352', fontSize: '14px', textAlign: 'center', paddingTop: '24px' }}>Transcript will appear here…</p>
@@ -582,7 +601,16 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
         {/* Overlays */}
         {showDtmf && <DtmfOverlay onClose={() => setShowDtmf(false)} onKey={sendDtmf} />}
         {showTransfer && <TransferDialog onClose={() => setShowTransfer(false)} onTransfer={dest => phone.blindTransfer(dest)} />}
-        {showTranscript && <TranscriptPanel lines={transcript} onClose={() => setShowTranscript(false)} />}
+        {showTranscript && <TranscriptPanel lines={transcript} onClose={() => setShowTranscript(false)}
+          provider={transcription.provider}
+          onProviderChange={async (id) => {
+            try {
+              await api.setTranscriptionConfig(id);
+              transcription.setProvider(id);
+              if (transcription.isListening) { transcription.stop(); setTimeout(() => transcription.start(), 300); }
+            } catch (e) { console.error('[Provider switch]', e); }
+          }}
+        />}
 
         {/* Status + timer */}
         <div style={{ textAlign: 'center', marginBottom: '8px' }}>
