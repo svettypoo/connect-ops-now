@@ -52,6 +52,9 @@ export function usePhone() {
   const analyserMicRef  = useRef(null);   // AnalyserNode for mic levels
   const analyserRemRef  = useRef(null);   // AnalyserNode for remote levels
   const audioCtxRef     = useRef(null);   // AudioContext for level analysis
+  const recorderRef     = useRef(null);   // MediaRecorder for call recording
+  const recChunksRef    = useRef([]);     // accumulated recording chunks
+  const recAudioCtxRef  = useRef(null);   // AudioContext used for mixing recording
   const timerRef        = useRef(null);
   const startTimeRef    = useRef(null);
   const mountedRef      = useRef(true);
@@ -227,11 +230,13 @@ export function usePhone() {
       setInboundCall(null);
       setStatus('active');
       startTimer();
-      // Wire up level meters to the call's audio streams
+      // Wire up level meters + auto-start recording
       // Give the SDK a moment to attach streams
       setTimeout(() => {
-        if (callRef.current) {
-          setupLevelMeters(callRef.current.remoteStream, callRef.current.localStream);
+        const call = callRef.current;
+        if (call) {
+          setupLevelMeters(call.remoteStream, call.localStream);
+          startRecording(call.remoteStream, call.localStream);
         }
       }, 500);
       return;
@@ -251,6 +256,13 @@ export function usePhone() {
 
     if (state === 'hangup' || state === 'destroy' || state === 'purge') {
       stopRingtone();
+      // Stop recording — upload happens async in background
+      const endedAt = new Date().toISOString();
+      if (callMetaRef.current) {
+        const dur = Math.round((new Date(endedAt) - new Date(callMetaRef.current.startedAt)) / 1000);
+        callMetaRef.current.duration = dur;
+      }
+      stopRecording(); // fire-and-forget upload
       // Log the completed call
       const meta = callMetaRef.current;
       if (meta && meta.startedAt) {
@@ -405,6 +417,8 @@ export function usePhone() {
       mountedRef.current = false;
       stopTimer();
       teardownLevelMeters();
+      if (recorderRef.current) { try { recorderRef.current.stop(); } catch {} recorderRef.current = null; }
+      try { recAudioCtxRef.current?.close(); } catch {} recAudioCtxRef.current = null;
       document.removeEventListener('visibilitychange', onVisible);
       if (navigator.mediaDevices) navigator.mediaDevices.removeEventListener('devicechange', refreshDevices);
       if (clientRef.current) {
@@ -487,13 +501,16 @@ export function usePhone() {
 
   const hangup = useCallback((transcript) => {
     stopRingtone();
-    // Attach transcript to meta so it gets logged on hangup
     if (transcript && callMetaRef.current) callMetaRef.current._transcript = transcript;
     const call = callRef.current;
     if (call) { try { call.hangup(); } catch {} }
+    else {
+      // If SDK didn't fire hangup event, still stop recording + log manually
+      stopRecording();
+    }
     setStatus('ready');
     resetCallState();
-  }, [resetCallState]);
+  }, [resetCallState, stopRecording]);
 
   const toggleMute = useCallback(() => {
     const call = callRef.current;
@@ -525,12 +542,80 @@ export function usePhone() {
 
   const blindTransfer = useCallback(() => hangup(), [hangup]);
 
-  // Recording not used in WebRTC mode (Call Control recording requires server-side)
-  const startRecording  = useCallback(() => {}, []);
-  const stopRecording   = useCallback(async () => null, []);
-  const toggleRecording = useCallback(() => {}, []);
-  const [isRecording]   = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [callControlId] = useState(null);
+
+  // ── Browser-side call recording ──────────────────────────────────────────────
+
+  const startRecording = useCallback((remoteStream, localStream) => {
+    if (recorderRef.current) return; // already recording
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      recAudioCtxRef.current = ctx;
+      const dest = ctx.createMediaStreamDestination();
+      if (remoteStream) ctx.createMediaStreamSource(remoteStream).connect(dest);
+      if (localStream)  ctx.createMediaStreamSource(localStream).connect(dest);
+
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
+        .find(t => MediaRecorder.isTypeSupported(t)) || '';
+      const rec = new MediaRecorder(dest.stream, mimeType ? { mimeType } : {});
+      recChunksRef.current = [];
+      rec.ondataavailable = e => { if (e.data?.size > 0) recChunksRef.current.push(e.data); };
+      rec.start(1000);
+      recorderRef.current = rec;
+      setIsRecording(true);
+      console.log('[Phone] Recording started, mimeType:', mimeType || 'default');
+    } catch (e) {
+      console.warn('[Phone] Recording start failed:', e.message);
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    const rec = recorderRef.current;
+    if (!rec || rec.state === 'inactive') return Promise.resolve(null);
+    return new Promise(resolve => {
+      rec.onstop = async () => {
+        recorderRef.current = null;
+        setIsRecording(false);
+        try { recAudioCtxRef.current?.close(); } catch {} recAudioCtxRef.current = null;
+        const chunks = recChunksRef.current;
+        recChunksRef.current = [];
+        if (!chunks.length) { resolve(null); return; }
+        const blob = new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' });
+        const meta = callMetaRef.current || {};
+        try {
+          const form = new FormData();
+          form.append('recording', blob, 'call.webm');
+          form.append('from_number', meta.from || '+15878643090');
+          form.append('to_number', meta.to || '');
+          form.append('duration', String(meta.duration || 0));
+          const sessionToken = localStorage.getItem('con_session_token');
+          const headers = {};
+          if (sessionToken) headers['x-session'] = sessionToken;
+          const base = Capacitor.isNativePlatform() ? 'https://phone.stproperties.com' : '';
+          const r = await fetch(`${base}/api/phone/upload-recording`, {
+            method: 'POST', credentials: 'include', headers, body: form,
+          });
+          const data = await r.json();
+          console.log('[Phone] Recording uploaded, id:', data.recording_id);
+          resolve(data.recording_id || null);
+        } catch (e) {
+          console.warn('[Phone] Recording upload failed:', e.message);
+          resolve(null);
+        }
+      };
+      rec.stop();
+    });
+  }, []);
+
+  const toggleRecording = useCallback(() => {
+    if (recorderRef.current) {
+      stopRecording();
+    } else {
+      const call = callRef.current;
+      if (call) startRecording(call.remoteStream, call.localStream);
+    }
+  }, [startRecording, stopRecording]);
 
   const fmtElapsed = () => {
     const m = Math.floor(elapsed / 60), s = elapsed % 60;
