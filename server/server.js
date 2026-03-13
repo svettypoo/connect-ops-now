@@ -1765,8 +1765,8 @@ function safeJson(str, fallback) {
 
 if (ensureAdminUser) ensureAdminUser();
 
-// Auto-seed users
-(async () => {
+// Auto-seed users (synchronous — must run before server accepts requests)
+{
   try {
     const { v4: uuidv4 } = require('uuid');
     const bcrypt = require('bcryptjs');
@@ -1776,10 +1776,12 @@ if (ensureAdminUser) ensureAdminUser();
     ];
     for (const s of seeds) {
       const hash = bcrypt.hashSync(s.password, 10);
-      // Migrate old email if needed
+      // Migrate old email → new email
       if (s.oldEmail) {
         const old = db.prepare('SELECT id FROM users WHERE email=?').get(s.oldEmail);
         if (old) {
+          // Delete new email if it already exists (avoid unique constraint)
+          db.prepare('DELETE FROM users WHERE email=? AND id!=?').run(s.email, old.id);
           db.prepare('UPDATE users SET email=?, password_hash=?, name=? WHERE id=?').run(s.email, hash, s.name, old.id);
           console.log(`[Seed] Migrated ${s.oldEmail} → ${s.email}`);
         }
@@ -1790,6 +1792,7 @@ if (ensureAdminUser) ensureAdminUser();
         console.log(`[Seed] Created user: ${s.email}`);
       } else {
         db.prepare('UPDATE users SET name=?, password_hash=? WHERE email=?').run(s.name, hash, s.email);
+        console.log(`[Seed] Updated user: ${s.email}`);
       }
     }
     // Seed phone credential for admin user
@@ -1815,7 +1818,7 @@ if (ensureAdminUser) ensureAdminUser();
       }
     }
   } catch (e) { console.warn('[Seed] Auto-seed failed:', e.message); }
-})();
+}
 
 const httpServer = http.createServer(app);
 
