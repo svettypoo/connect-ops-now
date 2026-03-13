@@ -860,7 +860,7 @@ export default function Dialer() {
 
       {/* Desktop sidebar */}
       <div className="hidden sm:flex flex-col">
-        <RCSidebar activeNav={activeNav} setActiveNav={setActiveNav} user={user} onLogout={logout} vmUnread={vmUnread} />
+        <RCSidebar activeNav={activeNav} setActiveNav={(id) => { if (id === 'voice') { setDialTo(''); setDialName(''); } setActiveNav(id); }} user={user} onLogout={logout} vmUnread={vmUnread} />
       </div>
 
       {/* List panel — desktop only */}
