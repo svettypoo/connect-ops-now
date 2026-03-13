@@ -120,26 +120,43 @@ app.get('/architecture', (req, res) => {
 
 const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || '';
 
+// Supabase ES256 public key (from JWKS endpoint) for JWT verification
+const SUPABASE_ES256_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEXOD4KOl+pwQ0+GD5rvMJT2ntE0Df
+hEKsAkWOBkGir28CMNGwbxH1/ClFKahJLvoXKblRyB5v7GIbDIcnYkBGAA==
+-----END PUBLIC KEY-----`;
+
 // Verify a Supabase JWT and auto-provision user in local DB
 function verifySupabaseJWT(authHeader) {
-  if (!SUPABASE_JWT_SECRET || !authHeader) return null;
+  if (!authHeader) return null;
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
   if (!match) return null;
+  const token = match[1];
+
+  // Try ES256 (current Supabase signing) first, then HS256 (legacy)
+  let payload = null;
   try {
-    const payload = jwt.verify(match[1], SUPABASE_JWT_SECRET, { algorithms: ['HS256'] });
-    if (!payload.email) return null;
-    // Auto-provision user in local DB if needed
-    let user = userOps.findByEmail(payload.email);
-    if (!user) {
-      const name = payload.user_metadata?.full_name
-        || payload.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      userOps.createFromZoho(payload.email, name);
-      user = userOps.findByEmail(payload.email);
-    }
-    return user;
+    payload = jwt.verify(token, SUPABASE_ES256_PUBLIC_KEY, { algorithms: ['ES256'] });
   } catch {
-    return null;
+    if (SUPABASE_JWT_SECRET) {
+      try {
+        payload = jwt.verify(token, SUPABASE_JWT_SECRET, { algorithms: ['HS256'] });
+      } catch { return null; }
+    } else {
+      return null;
+    }
   }
+
+  if (!payload || !payload.email) return null;
+  // Auto-provision user in local DB if needed
+  let user = userOps.findByEmail(payload.email);
+  if (!user) {
+    const name = payload.user_metadata?.full_name
+      || payload.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    userOps.createFromZoho(payload.email, name);
+    user = userOps.findByEmail(payload.email);
+  }
+  return user;
 }
 
 function requireAuth(req, res, next) {
