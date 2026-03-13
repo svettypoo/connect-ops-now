@@ -1300,10 +1300,16 @@ export default function Dialer() {
   // Determine detail panel content
   const showContactDetail = selectedItem && activeNav !== 'voice';
 
+  const mobileTabActive = activeNav === 'voice' ? 'phone' : ['phone','messages','contacts'].includes(activeNav) ? activeNav : 'more';
+  const mobileLabel = ({ phone:'Phone', voice:'Phone', messages:'Messages', contacts:'Contacts', history:'Recents', voicemail:'Voicemail', more:'More' })[activeNav] || 'Phone';
+  const userInitials = ((user?.name || user?.email || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2));
+
   return (
-    <div style={{ display:'flex', height:'100vh', background:'#0a0e1a', overflow:'hidden', fontFamily:"'Segoe UI',system-ui,-apple-system,sans-serif", color:'#e2e8f0' }}>
+    <div style={{ height:'100vh', background:'#0a0e1a', overflow:'hidden', fontFamily:"'Segoe UI',system-ui,-apple-system,sans-serif", color:'#e2e8f0' }}>
       <style>{`@keyframes pulse-ai { 0%,100%{ box-shadow:0 0 0 0 rgba(167,139,250,0.4); } 50%{ box-shadow:0 0 0 6px rgba(167,139,250,0); } }`}</style>
 
+      {/* ── DESKTOP layout (≥640px) ─────────────────────── */}
+      <div className="hidden sm:flex" style={{ height:'100%' }}>
       {/* Sidebar */}
       <SidebarComp activeNav={activeNav} setActiveNav={handleNavChange} user={user} onLogout={logout} vmUnread={vmUnread} msgUnread={msgUnread} onNewCall={handleNewCall} />
 
@@ -1376,6 +1382,79 @@ export default function Dialer() {
 
           {/* AI Panel */}
           <AIPanel summary={aiSummary} tasks={aiTasks} phone={phone} />
+        </div>
+      </div>
+
+      {/* ── MOBILE layout (<640px) ─────────────────────── */}
+      <div className="sm:hidden" style={{ height:'100%', display:'flex', flexDirection:'column', background:'#0a0e1a' }}>
+        {/* Mobile header — 56px */}
+        <div style={{ height:56, flexShrink:0, background:'#0f1629', borderBottom:'1px solid #1a2744', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 16px' }}>
+          <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#1e3a5f,#2d6a9f)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#7dd3fc' }}>
+            {userInitials}
+          </div>
+          <span style={{ fontWeight:600, fontSize:16, color:'#e2e8f0' }}>{mobileLabel}</span>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            {phone.status === 'registered' ? (
+              <div style={{ width:8, height:8, borderRadius:'50%', background:'#4ade80' }} title="Connected" />
+            ) : (
+              <div style={{ width:8, height:8, borderRadius:'50%', background:'#f87171' }} title="Disconnected" />
+            )}
+            <button onClick={() => setActiveNav('more')} style={{ background:'none', border:'none', color:'#6b84a8', cursor:'pointer', padding:4 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile content */}
+        <div style={{ flex:1, overflow:'hidden', position:'relative' }}>
+          {activeNav === 'voice' ? (
+            <VoiceCall phone={phone} dialTo={dialTo} dialName={dialName} onHangup={() => setActiveNav('phone')} />
+          ) : activeNav === 'messages' ? (
+            <Messaging initialTo={messageTo} />
+          ) : activeNav === 'contacts' ? (
+            <ContactsView onCall={c => handleCallFromDetail(c.phone, c.name)} onMessage={c => handleMessageFromDetail(c.phone)} />
+          ) : activeNav === 'history' ? (
+            <CallHistory onCallBack={handleCallBack} />
+          ) : activeNav === 'voicemail' ? (
+            <VoicemailList onCallBack={handleCallBack} />
+          ) : activeNav === 'more' ? (
+            <MoreSettings user={user} onLogout={logout} />
+          ) : (
+            <PhoneScreen phone={phone} user={user} onDial={handleDialDirect} onCallBack={handleCallBack} vmUnread={vmUnread} />
+          )}
+        </div>
+
+        {/* Mobile bottom nav — 64px */}
+        <div style={{ height:64, flexShrink:0, background:'#0f1629', borderTop:'1px solid #1a2744', display:'flex', alignItems:'center', justifyContent:'space-around', paddingBottom:'env(safe-area-inset-bottom,0px)' }}>
+          {[
+            { id:'phone', label:'Phone', badge: vmUnread > 0 ? vmUnread : 0, icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8 19.79 19.79 0 01.12 2.18 2 2 0 012.11 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+            )},
+            { id:'messages', label:'Messages', badge: msgUnread > 0 ? msgUnread : 0, icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            )},
+            { id:'contacts', label:'Contacts', badge:0, icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            )},
+            { id:'more', label:'More', badge:0, icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            )},
+          ].map(tab => {
+            const isActive = mobileTabActive === tab.id;
+            return (
+              <button key={tab.id} onClick={() => setActiveNav(tab.id === 'phone' ? 'voice' : tab.id)}
+                style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', border:'none', cursor:'pointer', color: isActive ? '#3b82f6' : '#6b84a8', position:'relative', height:'100%' }}>
+                <div style={{ position:'relative' }}>
+                  {tab.icon}
+                  {tab.badge > 0 && (
+                    <span style={{ position:'absolute', top:-4, right:-6, background:'#ef4444', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:9, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{tab.badge > 9 ? '9+' : tab.badge}</span>
+                  )}
+                </div>
+                <span style={{ fontSize:10, fontWeight: isActive ? 600 : 400 }}>{tab.label}</span>
+                {isActive && <div style={{ position:'absolute', bottom:0, left:'25%', right:'25%', height:2, background:'#3b82f6', borderRadius:1 }} />}
+              </button>
+            );
+          })}
         </div>
       </div>
 
