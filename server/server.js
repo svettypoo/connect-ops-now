@@ -858,8 +858,25 @@ app.get('/api/phone/webrtc-token', requireAuth, async (req, res) => {
   try {
     const apiKey = process.env.TELNYX_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'TELNYX_API_KEY not set' });
+
+    // Resolve per-user credential ID
+    const email = req.user.email || '';
+    let key = email.split('@')[0] || 'hr';
+    if (!TELNYX_CRED_IDS[key]) key = 'hr';
+    const credId = TELNYX_CRED_IDS[key] || TELNYX_CREDENTIAL_ID;
+
+    // Get or create phone credential record
+    let dbCred = phoneOps.get(req.user.user_id);
+    if (!dbCred) {
+      dbCred = phoneOps.upsert(req.user.user_id, {
+        telnyx_cred_id: credId,
+        telnyx_sip_user: key,
+        phone_number: process.env.TELNYX_FROM_NUMBER || '+15878643090',
+      });
+    }
+
     const response = await fetch(
-      `https://api.telnyx.com/v2/telephony_credentials/${TELNYX_CREDENTIAL_ID}/token`,
+      `https://api.telnyx.com/v2/telephony_credentials/${credId}/token`,
       { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` } }
     );
     if (!response.ok) {
@@ -867,7 +884,10 @@ app.get('/api/phone/webrtc-token', requireAuth, async (req, res) => {
       return res.status(502).json({ error: `Telnyx error ${response.status}`, detail: text.slice(0, 200) });
     }
     const token = await response.text(); // Telnyx returns raw JWT, not JSON
-    res.json({ token: token.trim() });
+    res.json({
+      token: token.trim(),
+      phone_number: dbCred.phone_number || process.env.TELNYX_FROM_NUMBER || '+15878643090',
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

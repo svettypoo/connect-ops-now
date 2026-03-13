@@ -36,7 +36,7 @@ export function usePhone() {
   const [isMuted,       setIsMuted]       = useState(false);
   const [isOnHold,      setIsOnHold]      = useState(false);
   const [inboundCall,   setInboundCall]   = useState(null);
-  const [phoneNumber]                     = useState('+15878643090');
+  const [phoneNumber, setPhoneNumber]      = useState('+15878643090');
   const [micDenied,     setMicDenied]     = useState(false);
   const [micStatus,     setMicStatus]     = useState('prompt');
   const [lastError,     setLastError]     = useState(null);
@@ -402,6 +402,7 @@ export function usePhone() {
       if (!resp.ok) throw new Error(`Token fetch failed: ${resp.status}`);
       const data = await resp.json();
       token = data.token;
+      if (data.phone_number) setPhoneNumber(data.phone_number);
     } catch (e) {
       console.error('[Phone] Failed to get WebRTC token:', e.message);
       isConnectingRef.current = false;
