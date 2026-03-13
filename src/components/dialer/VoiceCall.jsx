@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 
 import CallNotes from "@/components/dialer/CallNotes";
 import api from "@/api/inboxAiClient";
+import useTranscription from "@/hooks/useTranscription";
 
 // ── icons ──────────────────────────────────────────────────────────────────
 const Ic = ({ d, size = 24, color = "currentColor", fill = "none", strokeWidth = 2 }) => (
@@ -403,13 +404,13 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   const [showTransfer, setShowTransfer] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [sessionId] = useState(() => 'voice-' + Date.now());
-  const [transcript, setTranscript] = useState([]);
+  const transcription = useTranscription();
+  const { transcript, setTranscript, interim } = transcription;
   const [isDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
   const [aiChips, setAiChips] = useState(null); // { tasks, email_draft, summary }
   const [aiLoading, setAiLoading] = useState(false);
   const [dismissedChips, setDismissedChips] = useState([]);
   const [showEmailDraft, setShowEmailDraft] = useState(false);
-  const recognitionRef = useRef(null);
   const { callControlId } = phone;
 
   // Auto-navigate back when call ends/fails (status snaps to 'ready' with no elapsed)
@@ -448,20 +449,8 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
     }
   }, [phone.status, phone.callControlId]); // eslint-disable-line
 
-  function startTranscription() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-    const r = new SR();
-    r.continuous = true; r.interimResults = true; r.lang = 'en-US';
-    r.onresult = (e) => {
-      const finals = Array.from(e.results).filter(x => x.isFinal).map(x => x[0].transcript.trim()).filter(Boolean);
-      if (finals.length) setTranscript(prev => [...prev, ...finals]);
-    };
-    r.start();
-    recognitionRef.current = r;
-  }
-
-  function stopTranscription() { recognitionRef.current?.stop(); recognitionRef.current = null; }
+  function startTranscription() { transcription.start(); }
+  function stopTranscription() { transcription.stop(); }
 
   const handleHangup = () => {
     stopTranscription();

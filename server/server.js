@@ -1664,6 +1664,35 @@ async function sendPushToUser(userId, payload) {
 
 global._sendPushToUser = sendPushToUser;
 
+// ─── Transcription service config ─────────────────────────────────────────────
+
+let _transcriptionProvider = process.env.TRANSCRIPTION_PROVIDER || 'browser';
+
+app.get('/api/transcription/config', requireAuth, (req, res) => {
+  res.json({ provider: _transcriptionProvider });
+});
+
+app.post('/api/transcription/config', requireAuth, (req, res) => {
+  const { provider } = req.body;
+  if (!provider || !['browser', 'deepgram'].includes(provider)) {
+    return res.status(400).json({ error: 'provider must be "browser" or "deepgram"' });
+  }
+  _transcriptionProvider = provider;
+  console.log(`[Transcription] Provider switched to: ${provider}`);
+  res.json({ ok: true, provider: _transcriptionProvider });
+});
+
+app.post('/api/transcription/token', requireAuth, (req, res) => {
+  if (_transcriptionProvider !== 'deepgram') {
+    return res.status(400).json({ error: 'Deepgram not active. Current provider: ' + _transcriptionProvider });
+  }
+  const key = process.env.DEEPGRAM_API_KEY;
+  if (!key) {
+    return res.status(500).json({ error: 'DEEPGRAM_API_KEY not configured on server' });
+  }
+  res.json({ key });
+});
+
 // ─── Admin routes ─────────────────────────────────────────────────────────────
 
 app.get('/api/admin/users', requireAuth, (req, res) => {

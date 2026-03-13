@@ -105,6 +105,9 @@ export const api = {
   deleteRecording: (id) => request('DELETE', '/api/recordings/' + id),
   postCallInsights: (data) => request('POST', '/api/ai/post-call-insights', data),
   getCallInsights: (callLogId) => request('GET', '/api/ai/call-insights/' + callLogId),
+  getTranscriptionConfig: () => request('GET', '/api/transcription/config'),
+  setTranscriptionConfig: (provider) => request('POST', '/api/transcription/config', { provider }),
+  getTranscriptionToken: () => request('POST', '/api/transcription/token'),
 };
 
 export default api;

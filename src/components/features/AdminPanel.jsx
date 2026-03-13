@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Shield, Phone, Plus, X } from "lucide-react";
+import { Shield, Phone, Plus, X, Settings } from "lucide-react";
 import api from "@/api/inboxAiClient";
 
 export default function AdminPanel() {
@@ -10,6 +10,8 @@ export default function AdminPanel() {
   const [form, setForm] = useState({ email: "", name: "" });
   const [inviting, setInviting] = useState(false);
   const [msg, setMsg] = useState("");
+  const [transcriptionProvider, setTranscriptionProvider] = useState("browser");
+  const [transcriptionLoading, setTranscriptionLoading] = useState(false);
 
   const loadUsers = () => {
     setLoading(true);
@@ -20,6 +22,24 @@ export default function AdminPanel() {
   };
 
   useEffect(() => { if (tab === "users") loadUsers(); }, [tab]);
+
+  useEffect(() => {
+    if (tab === "settings") {
+      api.getTranscriptionConfig()
+        .then(d => { if (d?.provider) setTranscriptionProvider(d.provider); })
+        .catch(() => {});
+    }
+  }, [tab]);
+
+  const switchTranscription = async (provider) => {
+    setTranscriptionLoading(true);
+    try {
+      await api.setTranscriptionConfig(provider);
+      setTranscriptionProvider(provider);
+      setMsg("Transcription switched to " + (provider === "deepgram" ? "Deepgram (all browsers)" : "Browser (Chrome only)"));
+    } catch (e) { setMsg("Error: " + e.message); }
+    setTranscriptionLoading(false);
+  };
 
   const invite = async () => {
     if (!form.email || !form.name) return;
@@ -41,8 +61,8 @@ export default function AdminPanel() {
         <h2 className="text-xl font-bold">Admin Panel</h2>
       </div>
 
-      <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit">
-        {["users","numbers","roles"].map(t => (
+      <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit flex-wrap">
+        {["users","numbers","roles","settings"].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={"px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-all " + (tab === t ? "bg-[#3b82f6] text-white" : "text-slate-400 hover:text-white")}>
             {t === "numbers" ? "Phone Numbers" : t.charAt(0).toUpperCase() + t.slice(1)}
@@ -142,6 +162,45 @@ export default function AdminPanel() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === "settings" && (
+        <div className="space-y-4">
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <div className="flex items-center gap-2 mb-3">
+              <Settings className="w-4 h-4 text-[#60a5fa]" />
+              <h3 className="font-semibold text-sm">Transcription Service</h3>
+            </div>
+            <p className="text-slate-400 text-xs mb-3">
+              Choose the engine used for live call transcription. Browser mode works only in Chrome. Deepgram works in all browsers with higher accuracy.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => switchTranscription("browser")}
+                disabled={transcriptionLoading}
+                className={"flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all border " +
+                  (transcriptionProvider === "browser"
+                    ? "bg-[#3b82f6] text-white border-[#3b82f6]"
+                    : "bg-white/5 text-slate-400 border-white/10 hover:text-white hover:border-white/20")}
+              >
+                Browser (Chrome only)
+              </button>
+              <button
+                onClick={() => switchTranscription("deepgram")}
+                disabled={transcriptionLoading}
+                className={"flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all border " +
+                  (transcriptionProvider === "deepgram"
+                    ? "bg-[#3b82f6] text-white border-[#3b82f6]"
+                    : "bg-white/5 text-slate-400 border-white/10 hover:text-white hover:border-white/20")}
+              >
+                Deepgram (all browsers)
+              </button>
+            </div>
+            {transcriptionLoading && (
+              <p className="text-slate-500 text-xs mt-2">Switching...</p>
+            )}
+          </div>
         </div>
       )}
     </div>
