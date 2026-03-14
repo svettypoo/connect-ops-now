@@ -37,6 +37,7 @@ db.exec(`
     telnyx_cred_id  TEXT,
     telnyx_sip_user TEXT,
     phone_number    TEXT,
+    ring_timeout    INTEGER DEFAULT 20,
     created_at      TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
@@ -187,6 +188,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS call_logs (
 try { db.exec(`ALTER TABLE call_logs ADD COLUMN transcript TEXT DEFAULT ''`); } catch {}
 try { db.exec(`ALTER TABLE call_logs ADD COLUMN ai_summary TEXT DEFAULT ''`); } catch {}
 try { db.exec(`ALTER TABLE call_logs ADD COLUMN is_voicemail INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { db.exec(`ALTER TABLE phone_credentials ADD COLUMN ring_timeout INTEGER DEFAULT 20`); } catch {}
 
 // ─── Call insights (post-call AI chips) ───────────────────────────────────────
 db.exec(`CREATE TABLE IF NOT EXISTS call_insights (

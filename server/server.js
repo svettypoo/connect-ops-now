@@ -1160,11 +1160,13 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
             data: { type: 'incoming_call', from: fromNum, caller_name: callerName, call_control_id: callControlId },
           }).catch(() => {});
         }
-        // Voicemail fallback after 20s if not answered
+        // Voicemail fallback after ring_timeout seconds if not answered
+        const ringTimeoutSec = cred?.ring_timeout || 20;
+        console.log('[Phone webhook] ring timeout for', toNum, ':', ringTimeoutSec, 'seconds');
         const vmTimeout = setTimeout(async () => {
           const pending = _pendingInboundCalls[callControlId];
           if (pending && !pending.answered) {
-            console.log('[Phone webhook] no answer after 20s — voicemail fallback for', callControlId);
+            console.log('[Phone webhook] no answer after', ringTimeoutSec, 's — voicemail fallback for', callControlId);
             delete _pendingInboundCalls[callControlId];
             broadcastCallEvent(userId, { type: 'call.missed', callControlId, from: fromNum, callerName });
             const clogForVm = callLogOps.findByCallControlId(callControlId);
@@ -1172,7 +1174,7 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
             await telnyxRest('POST', `/calls/${callControlId}/actions/answer`, {}).catch(() => {});
             _voicemailCalls[callControlId] = { userId, fromNumber: fromNum, fromName: callerName, startedAt: Date.now(), answered: false, _answeredByBackend: true };
           }
-        }, 20000);
+        }, ringTimeoutSec * 1000);
         _pendingInboundCalls[callControlId]._vmTimeout = vmTimeout;
         return;
       }
@@ -2018,12 +2020,12 @@ app.post('/api/admin/phone-lines', requireAuth, (req, res) => {
 });
 
 app.patch('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
-  const { phone_number, telnyx_cred_id, telnyx_sip_user } = req.body;
+  const { phone_number, telnyx_cred_id, telnyx_sip_user, ring_timeout } = req.body;
   try {
     const existing = db.prepare('SELECT * FROM phone_credentials WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'not found' });
-    db.prepare('UPDATE phone_credentials SET phone_number=?, telnyx_cred_id=?, telnyx_sip_user=? WHERE id=?')
-      .run(phone_number ?? existing.phone_number, telnyx_cred_id ?? existing.telnyx_cred_id, telnyx_sip_user ?? existing.telnyx_sip_user, req.params.id);
+    db.prepare('UPDATE phone_credentials SET phone_number=?, telnyx_cred_id=?, telnyx_sip_user=?, ring_timeout=? WHERE id=?')
+      .run(phone_number ?? existing.phone_number, telnyx_cred_id ?? existing.telnyx_cred_id, telnyx_sip_user ?? existing.telnyx_sip_user, ring_timeout ?? existing.ring_timeout ?? 20, req.params.id);
     res.json(db.prepare('SELECT pc.*, u.email, u.name FROM phone_credentials pc JOIN users u ON u.id = pc.user_id WHERE pc.id=?').get(req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -2033,6 +2035,19 @@ app.delete('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
     db.prepare('DELETE FROM phone_credentials WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── Per-user ring timeout (voicemail delay) setting ─────────────────────────
+app.get('/api/phone/ring-timeout', requireAuth, (req, res) => {
+  const cred = db.prepare('SELECT ring_timeout FROM phone_credentials WHERE user_id=?').get(req.user.id);
+  res.json({ ring_timeout: cred?.ring_timeout ?? 20 });
+});
+
+app.patch('/api/phone/ring-timeout', requireAuth, (req, res) => {
+  const { ring_timeout } = req.body;
+  const val = Math.max(5, Math.min(120, parseInt(ring_timeout) || 20));
+  db.prepare('UPDATE phone_credentials SET ring_timeout=? WHERE user_id=?').run(val, req.user.id);
+  res.json({ ring_timeout: val });
 });
 
 // Fetch available Telnyx phone numbers and credential connections

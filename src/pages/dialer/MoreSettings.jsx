@@ -7,12 +7,15 @@ import {
   SignOutIcon, ChevronRight,
 } from './icons';
 import AudioDeviceSettings from './AudioDeviceSettings';
+import VoicemailSettings from './VoicemailSettings';
 
 // MoreSettings: vertical scrollable settings/profile list — matches real RC "More" tab
 export default function MoreSettings({ user, onLogout, onNavigate }) {
   const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [showVoicemailSettings, setShowVoicemailSettings] = useState(false);
 
   if (showAudioSettings) return <AudioDeviceSettings onBack={() => setShowAudioSettings(false)} />;
+  if (showVoicemailSettings) return <VoicemailSettings onBack={() => setShowVoicemailSettings(false)} />;
 
   const userInitials = getInitials(user?.name || user?.email);
   const userName = user?.name || user?.email || 'User';
@@ -97,6 +100,7 @@ export default function MoreSettings({ user, onLogout, onNavigate }) {
             key={`${item.id}-${i}`}
             onClick={() => {
               if (item.id === 'audio-devices') { setShowAudioSettings(true); return; }
+              if (item.id === 'voicemail-settings') { setShowVoicemailSettings(true); return; }
               if (['message', 'contacts'].includes(item.id)) onNavigate && onNavigate(item.id);
             }}
             style={{ ...itemStyle }}
