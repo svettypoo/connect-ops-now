@@ -650,6 +650,17 @@ app.post('/api/call-logs', requireAuth, (req, res) => {
   if (!callLogOps) return res.status(503).json({ error: 'DB not ready' });
   const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
   const { direction, from_number, to_number, from_name, to_name, status, call_type, duration, started_at, ended_at, transcript, ai_summary, recording_url } = req.body;
+
+  // Drop client-created logs for SIP transfer/bridge legs
+  const isSipish = (s) => !s || s.startsWith('sip:') || s.startsWith('gencred') || s.includes('@sip.telnyx.com');
+  const ourNumbers = [process.env.TELNYX_FROM_NUMBER || '+15878643090'];
+  const cleanNum = (n) => (n || '').replace(/^\+?1?(\d{10})$/, '+1$1');
+  const isSelfCall = direction === 'inbound' && ourNumbers.some(n => cleanNum(from_number) === n || from_number === n.replace('+', ''));
+  if (isSipish(from_number) || isSipish(to_number) || isSelfCall) {
+    console.log('[CallLog] dropping client-created SIP/self log:', direction, from_number, '->', to_number);
+    return res.json({ id: 'dropped', ok: true });
+  }
+
   const dir = direction || 'outbound';
   const dur = duration || 0;
   const resolvedStatus = status || call_type || (dur === 0 && dir === 'inbound' ? 'missed' : 'ended');
