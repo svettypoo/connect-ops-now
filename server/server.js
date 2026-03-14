@@ -1780,6 +1780,19 @@ app.get('/api/recordings', requireAuth, (req, res) => {
   res.json({ recordings: merged });
 });
 
+// POST /api/recordings — create a recording (for seeding/testing)
+app.post('/api/recordings', requireAuth, (req, res) => {
+  const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
+  const { title, filename, duration, size, transcript, ai_summary, storage_url } = req.body;
+  const rec = recordingOps.create({
+    userId: phoneUserId, title: title || 'Untitled Recording',
+    filename: filename || 'recording.webm', duration: duration || 0,
+    size: size || 0, transcript: transcript || '', storageUrl: storage_url || '',
+  });
+  if (ai_summary) recordingOps.update(rec.id, phoneUserId, { ai_summary });
+  res.json(rec);
+});
+
 app.get('/api/recordings/:id', requireAuth, (req, res) => {
   const rec = recordingOps.getById(req.params.id);
   const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
