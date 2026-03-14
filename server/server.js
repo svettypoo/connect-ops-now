@@ -1184,6 +1184,7 @@ app.post('/api/phone/make-call', express.json(), requireAuth, async (req, res) =
       connection_id: '2911967655273432744',
       to: dest,
       from: fromNumber,
+      from_display_name: 'S&T Properties',
       webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
       timeout_secs: 60,
     });

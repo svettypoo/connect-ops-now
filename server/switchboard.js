@@ -118,6 +118,7 @@ async function handleMakeCall(ws, sessionId, to, name) {
       connection_id: CALL_CONTROL_APP_ID,
       to,
       from: FROM_NUMBER(),
+      from_display_name: 'S&T Properties',
       webhook_url: `${WEBHOOK_BASE}/api/phone/switchboard-webhook`,
       client_state: clientState,
       timeout_secs: 30,
