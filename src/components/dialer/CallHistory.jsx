@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, Loader2, Trash2, PlayCircle, StopCircle, ChevronDown, ChevronUp, Mic, Download, Share2 } from "lucide-react";
+import { PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, Loader2, Trash2, PlayCircle, StopCircle, ChevronDown, ChevronUp, Mic, Download, Share2, Search, X, BarChart3 } from "lucide-react";
 import api from "@/api/inboxAiClient";
 
 // Format raw transcript into readable paragraphs
@@ -20,14 +20,35 @@ function formatTranscript(text) {
 
 function fmtTime(ts) {
   const d = new Date(ts), now = new Date(), diff = now - d;
+  if (diff < 60000) return "Just now";
   if (diff < 3600000) return Math.round(diff/60000) + "m ago";
   if (diff < 86400000) return Math.round(diff/3600000) + "h ago";
-  return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  return d.toLocaleDateString("en-US",{month:"short",day:"numeric"}) + " " + d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
 }
 function fmtDur(secs) {
   if (!secs) return "";
   const m = Math.floor(secs/60), s = secs%60;
   return String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0");
+}
+
+// Date grouping helper
+function getDateGroup(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 7);
+
+  if (d >= today) return "Today";
+  if (d >= yesterday) return "Yesterday";
+  if (d >= weekAgo) return "This Week";
+  return "Older";
+}
+
+// Contact initials
+function getInitials(name) {
+  if (!name || name === "Unknown") return "?";
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
 
 const FILTERS = [
@@ -43,9 +64,13 @@ export default function CallHistory({ onCallBack }) {
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const audioRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => { loadLogs(); }, [filter]);
+  useEffect(() => { if (showSearch && searchRef.current) searchRef.current.focus(); }, [showSearch]);
 
   const loadLogs = async () => {
     setLoading(true);
@@ -164,47 +189,153 @@ export default function CallHistory({ onCallBack }) {
     return <PhoneOutgoing className={cls + " text-[#60a5fa]"} />;
   };
 
+  // Filter logs by search query
+  const filteredLogs = logs.filter(log => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const name = (log.direction === "inbound" ? log.from_name : log.to_name) || "";
+    const number = (log.direction === "inbound" ? log.from_number : log.to_number) || "";
+    return name.toLowerCase().includes(q) || number.includes(q);
+  });
+
+  // Group logs by date
+  const groupedLogs = [];
+  let currentGroup = null;
+  filteredLogs.forEach(log => {
+    const group = getDateGroup(log.started_at || log.created_at);
+    if (group !== currentGroup) {
+      currentGroup = group;
+      groupedLogs.push({ type: 'header', label: group });
+    }
+    groupedLogs.push({ type: 'log', data: log });
+  });
+
+  // Quick stats
+  const totalCalls = logs.length;
+  const missedCalls = logs.filter(l => l.status === "missed").length;
+  const avgDuration = totalCalls > 0 ? Math.round(logs.reduce((s, l) => s + (l.duration || 0), 0) / totalCalls) : 0;
+  const withRecording = logs.filter(l => l.recording_id).length;
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex gap-1 px-4 py-3 border-b border-white/5">
+      {/* Stats strip */}
+      {totalCalls > 0 && !showSearch && (
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5 bg-white/[0.02]">
+          <div className="flex items-center gap-1.5">
+            <BarChart3 className="w-3 h-3 text-slate-500" />
+            <span className="text-[10px] text-slate-500">{totalCalls} calls</span>
+          </div>
+          {missedCalls > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+              <span className="text-[10px] text-red-400/80">{missedCalls} missed</span>
+            </div>
+          )}
+          {avgDuration > 0 && (
+            <span className="text-[10px] text-slate-600">avg {fmtDur(avgDuration)}</span>
+          )}
+          {withRecording > 0 && (
+            <div className="flex items-center gap-1 ml-auto">
+              <Mic className="w-2.5 h-2.5 text-slate-600" />
+              <span className="text-[10px] text-slate-600">{withRecording}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search bar */}
+      {showSearch && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-white/[0.02]">
+          <Search className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by name or number..."
+            className="flex-1 bg-transparent text-sm text-white placeholder-slate-600 outline-none"
+          />
+          <button onClick={() => { setShowSearch(false); setSearchQuery(""); }}
+            className="p-1 rounded hover:bg-white/10 transition-all">
+            <X className="w-3.5 h-3.5 text-slate-500" />
+          </button>
+        </div>
+      )}
+
+      {/* Filter tabs + search toggle */}
+      <div className="flex items-center gap-1 px-4 py-3 border-b border-white/5">
         {FILTERS.map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.id ? "bg-[#3b82f6]/30 text-[#60a5fa]" : "text-slate-500 hover:text-slate-300"}`}>
             {f.label}
+            {f.id === "missed" && missedCalls > 0 && (
+              <span className="ml-1 px-1 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[9px]">{missedCalls}</span>
+            )}
           </button>
         ))}
+        <button onClick={() => setShowSearch(!showSearch)}
+          className={`ml-auto p-1.5 rounded-lg transition-all ${showSearch ? "bg-[#3b82f6]/20 text-[#60a5fa]" : "text-slate-600 hover:text-slate-400"}`}
+          title="Search calls">
+          <Search className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {loading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-slate-500 animate-spin" /></div>}
-        {!loading && logs.length === 0 && <p className="text-slate-600 text-sm text-center py-12">No calls</p>}
-        {logs.map(log => {
+        {!loading && filteredLogs.length === 0 && (
+          <div className="text-center py-12">
+            <PhoneCall className="w-8 h-8 text-slate-700 mx-auto mb-3" />
+            <p className="text-slate-600 text-sm">{searchQuery ? "No matching calls" : "No calls"}</p>
+            {searchQuery && <p className="text-slate-700 text-xs mt-1">Try a different search term</p>}
+          </div>
+        )}
+        {groupedLogs.map((item, idx) => {
+          if (item.type === 'header') {
+            return (
+              <div key={'h-' + item.label} className="px-4 py-2 bg-white/[0.02]">
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{item.label}</span>
+              </div>
+            );
+          }
+          const log = item.data;
           const name = (log.direction === "inbound" ? log.from_name : log.to_name) || (log.direction === "inbound" ? log.from_number : log.to_number) || "Unknown";
           const number = log.direction === "inbound" ? log.from_number : log.to_number;
           const isExpanded = expandedId === log.id;
           const hasSummary = log.ai_summary || log.transcript;
+          const initials = getInitials(name);
+          const avatarHue = (name || "U").charCodeAt(0) * 7 % 360;
           return (
             <div key={log.id} className="border-b border-white/3">
               <div
                 className="flex items-center gap-3 px-4 py-3 hover:bg-white/4 transition-all cursor-pointer"
                 onClick={() => hasSummary && setExpandedId(isExpanded ? null : log.id)}
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  log.status === "missed" ? "bg-red-500/15" : log.direction === "inbound" ? "bg-green-500/15" : "bg-[#3b82f6]/15"
-                }`}>
-                  <DirIcon dir={log.direction} status={log.status} />
+                {/* Avatar with direction indicator */}
+                <div className="relative flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                    style={{ background: `hsl(${avatarHue}, 50%, 35%)` }}>
+                    {initials}
+                  </div>
+                  <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ${
+                    log.status === "missed" ? "bg-red-500/30" : log.direction === "inbound" ? "bg-green-500/30" : "bg-[#3b82f6]/30"
+                  }`}>
+                    <DirIcon dir={log.direction} status={log.status} />
+                  </div>
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className={`text-sm font-medium truncate ${log.status === "missed" ? "text-red-400" : "text-white"}`}>{name}</p>
                     {log.recording_id && <Mic className="w-3 h-3 text-slate-500 flex-shrink-0" />}
                     {log.ai_summary && <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-medium flex-shrink-0">AI</span>}
                   </div>
-                  <p className="text-xs text-slate-500">{number}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-slate-500">{number}</p>
+                    {log.duration > 0 && <span className="text-[10px] text-slate-600">{fmtDur(log.duration)}</span>}
+                  </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <span className="text-[10px] text-slate-600">{fmtTime(log.started_at || log.created_at)}</span>
-                  {log.duration > 0 && <span className="text-[10px] text-slate-600">{fmtDur(log.duration)}</span>}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button onClick={(e) => { e.stopPropagation(); onCallBack?.(number, name); }}

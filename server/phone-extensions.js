@@ -176,7 +176,24 @@ module.exports = function registerExtensions(app, requireAuth, dbInstance, ai, t
       GROUP BY from_number ORDER BY calls DESC LIMIT 5
     `).all(uid, since);
 
-    res.json({ total, missed, avgDuration: Math.round(avgDur), smsSent, daily, inbound, outbound, topCallers });
+    // Hourly breakdown (peak hours)
+    const hourly = [];
+    for (let h = 0; h < 24; h++) {
+      const padH = String(h).padStart(2, '0');
+      const count = db.prepare(`SELECT COUNT(*) as n FROM call_logs WHERE user_id=? AND started_at >= ? AND strftime('%H', started_at) = ?`).get(uid, since, padH)?.n || 0;
+      hourly.push({ hour: h, calls: count });
+    }
+
+    // Average response time (time from ring to answer for inbound calls)
+    const avgResponse = db.prepare(`
+      SELECT AVG(CAST((julianday(answered_at) - julianday(started_at)) * 86400 AS INTEGER)) as avg_secs
+      FROM call_logs WHERE user_id=? AND direction='inbound' AND answered_at IS NOT NULL AND started_at >= ?
+    `).get(uid, since)?.avg_secs || 0;
+
+    // Voicemail count
+    const voicemails = db.prepare(`SELECT COUNT(*) as n FROM voicemails WHERE user_id=? AND created_at >= ?`).get(uid, since)?.n || 0;
+
+    res.json({ total, missed, avgDuration: Math.round(avgDur), smsSent, daily, inbound, outbound, topCallers, hourly, avgResponse: Math.round(avgResponse), voicemails });
   });
 
   app.get('/api/analytics/agents', requireAuth, (req, res) => {
@@ -470,6 +487,20 @@ Respond with JSON only: { "score": <avg 0-100>, "breakdown": { "professionalism"
     const id = uuidv4();
     db.prepare('INSERT INTO users (id,email,password_hash,name) VALUES (?,?,?,?)').run(id, email, hash, name);
     res.json({ id, email, name, message: 'User created. Temporary password: TempPass123!' });
+  });
+
+  app.patch('/api/admin/users/:id', requireAuth, async (req, res) => {
+    const { name, email, password } = req.body;
+    const user = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (name) db.prepare('UPDATE users SET name=? WHERE id=?').run(name, req.params.id);
+    if (email) db.prepare('UPDATE users SET email=? WHERE id=?').run(email, req.params.id);
+    if (password) {
+      const bcrypt = require('bcrypt');
+      const hash = await bcrypt.hash(password, 10);
+      db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hash, req.params.id);
+    }
+    res.json({ ok: true });
   });
 
   app.delete('/api/admin/users/:id', requireAuth, (req, res) => {
