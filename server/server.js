@@ -175,6 +175,9 @@ function verifySSOCookie(req) {
       userOps.createFromZoho(payload.email, name);
       user = userOps.findByEmail(payload.email);
     }
+    // Merge SSO JWT fields (apps, role) into local user for permission checks
+    if (payload.apps) user.apps = payload.apps;
+    if (payload.role) user.role = payload.role;
     return user;
   } catch {
     return null;
