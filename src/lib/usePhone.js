@@ -434,10 +434,12 @@ export function usePhone() {
 
     client.on('telnyx.socket.open', () => {
       console.log('[Phone] Telnyx WebRTC connected');
+      window.__telnyxDebug = { connected: true, ready: false, notifications: [], errors: [] };
     });
 
     client.on('telnyx.ready', () => {
       console.log('[Phone] Telnyx registered — ready');
+      if (window.__telnyxDebug) window.__telnyxDebug.ready = true;
       isConnectingRef.current = false;
       if (mountedRef.current) { setStatus('ready'); setLastError(null); }
     });
@@ -460,6 +462,7 @@ export function usePhone() {
 
     client.on('telnyx.error', (err) => {
       console.error('[Phone] Telnyx error:', err);
+      if (window.__telnyxDebug) window.__telnyxDebug.errors.push({ msg: err?.message, ts: Date.now() });
       if (mountedRef.current) {
         setLastError(err?.message || 'Phone registration failed');
         setStatus('idle');
@@ -467,6 +470,8 @@ export function usePhone() {
     });
 
     client.on('telnyx.notification', (notification) => {
+      console.log('[Phone] Telnyx notification:', notification.type, notification.call?.state);
+      if (window.__telnyxDebug) window.__telnyxDebug.notifications.push({ type: notification.type, state: notification.call?.state, ts: Date.now() });
       if (!mountedRef.current) return;
       if (notification.type === 'callUpdate') {
         handleCallUpdate(notification.call);
