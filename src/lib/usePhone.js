@@ -472,6 +472,7 @@ export function usePhone() {
     });
 
     clientRef.current = client;
+    window.__telnyxClient = client; // Expose for Dream testing
     client.connect();
   }, [handleCallUpdate, resetCallState]); // eslint-disable-line react-hooks/exhaustive-deps
 
