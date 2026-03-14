@@ -455,7 +455,7 @@ const callLogOps = {
   list(userId, { limit = 50, filter } = {}) {
     let where = 'WHERE user_id=?';
     const params = [userId];
-    if (filter === 'missed')   { where += " AND status='missed'"; }
+    if (filter === 'missed')   { where += " AND (status='missed' OR (duration=0 AND direction='inbound'))"; }
     else if (filter === 'incoming') { where += " AND direction='inbound'"; }
     else if (filter === 'outgoing') { where += " AND direction='outbound'"; }
     return db.prepare(`SELECT * FROM call_logs ${where} ORDER BY created_at DESC LIMIT ?`)

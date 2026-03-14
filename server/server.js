@@ -463,21 +463,26 @@ app.get('/api/call-logs', requireAuth, (req, res) => {
 app.post('/api/call-logs', requireAuth, (req, res) => {
   if (!callLogOps) return res.status(503).json({ error: 'DB not ready' });
   const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
-  const { direction, from_number, to_number, from_name, to_name, status, duration, started_at, ended_at, transcript } = req.body;
+  const { direction, from_number, to_number, from_name, to_name, status, call_type, duration, started_at, ended_at, transcript, ai_summary, recording_url } = req.body;
+  const dir = direction || 'outbound';
+  const dur = duration || 0;
+  const resolvedStatus = status || call_type || (dur === 0 && dir === 'inbound' ? 'missed' : 'ended');
   const log = callLogOps.create({
     user_id: phoneUserId,
-    direction: direction || 'outbound',
+    direction: dir,
     from_number: from_number || '',
     to_number: to_number || '',
     from_name: from_name || '',
     to_name: to_name || '',
-    status: status || 'ended',
+    status: resolvedStatus,
     started_at: started_at || new Date().toISOString(),
   });
   const updates = {};
   if (duration !== undefined) updates.duration = duration;
   if (ended_at) updates.ended_at = ended_at;
   if (transcript) updates.transcript = transcript;
+  if (ai_summary) updates.ai_summary = ai_summary;
+  if (recording_url) updates.recording_id = recording_url;
   if (Object.keys(updates).length) callLogOps.update(log.id, updates);
   res.json(log);
 });
@@ -927,6 +932,7 @@ app.get('/api/phone/call-events', (req, res) => {
     'X-Accel-Buffering': 'no',
   });
   res.write('data: {"type":"connected"}\n\n');
+  if (typeof res.flush === 'function') res.flush(); // flush through compression middleware
   if (!_sseClients.has(userId)) _sseClients.set(userId, new Set());
   _sseClients.get(userId).add(res);
   req.on('close', () => {
@@ -940,7 +946,7 @@ function broadcastCallEvent(userId, event) {
   console.log('[SSE] broadcast', event.type, 'to userId:', userId, 'clients:', clients?.size || 0);
   if (!clients) return;
   const msg = `data: ${JSON.stringify(event)}\n\n`;
-  for (const res of clients) { try { res.write(msg); } catch(e) {} }
+  for (const res of clients) { try { res.write(msg); if (typeof res.flush === 'function') res.flush(); } catch(e) {} }
 }
 
 // ─── Answer inbound call (called by frontend when user clicks Accept) ────────
