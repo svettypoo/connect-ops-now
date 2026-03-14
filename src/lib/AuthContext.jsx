@@ -34,9 +34,12 @@ export const AuthProvider = ({ children }) => {
     await api.logout().catch(() => {});
     setUser(null);
     setIsAuthenticated(false);
+    window.location.href = 'https://sso.stproperties.com';
   };
 
-  const navigateToLogin = () => { setUser(null); setIsAuthenticated(false); };
+  const navigateToLogin = () => {
+    window.location.href = 'https://sso.stproperties.com?return_to=' + encodeURIComponent(window.location.origin);
+  };
 
   return (
     <AuthContext.Provider value={{

@@ -119,6 +119,8 @@ app.get('/architecture', (req, res) => {
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
 const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || '';
+const SSO_JWT_SECRET = process.env.SSO_JWT_SECRET || '';
+const SSO_COOKIE_NAME = 'sst_session';
 
 // Supabase ES256 public key (from JWKS endpoint) for JWT verification
 const SUPABASE_ES256_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
@@ -159,8 +161,34 @@ function verifySupabaseJWT(authHeader) {
   return user;
 }
 
+// Verify SSO JWT cookie (sst_session on .stproperties.com)
+function verifySSOCookie(req) {
+  const token = req.cookies?.[SSO_COOKIE_NAME];
+  if (!token || !SSO_JWT_SECRET) return null;
+  try {
+    const payload = jwt.verify(token, SSO_JWT_SECRET, { issuer: 'sso.stproperties.com' });
+    if (!payload || !payload.email) return null;
+    // Auto-provision user in local DB if needed
+    let user = userOps.findByEmail(payload.email);
+    if (!user) {
+      const name = payload.name || payload.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      userOps.createFromZoho(payload.email, name);
+      user = userOps.findByEmail(payload.email);
+    }
+    return user;
+  } catch {
+    return null;
+  }
+}
+
 function requireAuth(req, res, next) {
-  // 1. Try local session (cookie or header)
+  // 1. Try SSO cookie (sst_session on .stproperties.com)
+  const ssoUser = verifySSOCookie(req);
+  if (ssoUser) {
+    req.user = ssoUser;
+    return next();
+  }
+  // 2. Try local session (cookie or header)
   const token = req.cookies.session || req.headers['x-session'];
   if (token) {
     const session = sessionOps.get(token);
@@ -170,17 +198,16 @@ function requireAuth(req, res, next) {
       return next();
     }
   }
-  // 2. Try Supabase SSO JWT (injected by Svet Browser extension)
-  const ssoUser = verifySupabaseJWT(req.headers.authorization);
-  if (ssoUser) {
-    // Create a local session so subsequent requests are faster
-    const sessionId = sessionOps.create(ssoUser.id);
+  // 3. Try Supabase JWT (Authorization header — SSO extension fallback)
+  const supabaseUser = verifySupabaseJWT(req.headers.authorization);
+  if (supabaseUser) {
+    const sessionId = sessionOps.create(supabaseUser.id);
     const isProd = process.env.NODE_ENV === 'production';
     res.cookie('session', sessionId, {
       httpOnly: true, secure: isProd, maxAge: 30 * 24 * 60 * 60 * 1000,
       sameSite: isProd ? 'none' : 'lax',
     });
-    req.user = ssoUser;
+    req.user = supabaseUser;
     req.sessionId = sessionId;
     return next();
   }
@@ -188,14 +215,18 @@ function requireAuth(req, res, next) {
 }
 
 function optionalAuth(req, res, next) {
+  // Try SSO cookie first
+  const ssoUser = verifySSOCookie(req);
+  if (ssoUser) { req.user = ssoUser; return next(); }
+  // Then local session
   const token = req.cookies.session || req.headers['x-session'];
   if (token) {
     const session = sessionOps.get(token);
     if (session) { req.user = session; req.sessionId = token; }
   }
   if (!req.user) {
-    const ssoUser = verifySupabaseJWT(req.headers.authorization);
-    if (ssoUser) { req.user = ssoUser; }
+    const supabaseUser = verifySupabaseJWT(req.headers.authorization);
+    if (supabaseUser) { req.user = supabaseUser; }
   }
   next();
 }
@@ -250,14 +281,20 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', requireAuth, (req, res) => {
-  sessionOps.delete(req.sessionId);
+  if (req.sessionId) sessionOps.delete(req.sessionId);
   res.clearCookie('session');
+  // Clear SSO cookie on .stproperties.com domain
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie(SSO_COOKIE_NAME, 'deleted', {
+    httpOnly: true, sameSite: 'lax', maxAge: 0, path: '/',
+    ...(isProd ? { secure: true, domain: '.stproperties.com' } : {}),
+  });
   res.json({ ok: true });
 });
 
 app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json({
-    id: req.user.user_id,
+    id: req.user.user_id || req.user.id,
     email: req.user.email,
     name: req.user.name,
     avatar_color: req.user.avatar_color,
