@@ -1089,6 +1089,21 @@ app.post('/api/phone/reject-call', express.json(), async (req, res) => {
   }
 });
 
+// ─── Hangup by call_control_id (used by sendBeacon on tab close) ────────────
+
+app.post('/api/phone/hangup-call', express.json(), async (req, res) => {
+  const { callControlId } = req.body;
+  if (!callControlId) return res.status(400).json({ error: 'missing callControlId' });
+  try {
+    await telnyxRest('POST', `/calls/${callControlId}/actions/hangup`, {});
+    const log = callLogOps.findByCallControlId(callControlId);
+    if (log) callLogOps.update(log.id, { status: 'ended' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: true }); // call may have already ended
+  }
+});
+
 // ─── Blind transfer ─────────────────────────────────────────────────────────
 
 app.post('/api/phone/transfer-call', express.json(), optionalAuth, async (req, res) => {

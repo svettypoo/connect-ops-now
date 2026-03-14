@@ -445,27 +445,33 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   const [showEmailDraft, setShowEmailDraft] = useState(false);
   const { callControlId } = phone;
 
-  // Best-effort transcript save when tab is closed during active call
+  // Tab close: hang up the call + save transcript
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (phone.status !== 'active' && phone.status !== 'held') return;
+      // 1. Hang up via server (sendBeacon survives tab close)
+      if (phone.callControlId) {
+        navigator.sendBeacon('/api/phone/hangup-call',
+          new Blob([JSON.stringify({ callControlId: phone.callControlId })], { type: 'application/json' }));
+      }
+      // 2. Save transcript
       const text = transcript.join(' ').trim();
-      if (!text) return;
-      const payload = JSON.stringify({
-        transcript: text,
-        duration: phone.elapsed,
-        contact_name: phone.activeName || dialName || '',
-        contact_number: phone.activeNumber || dialTo || '',
-        tab_closed: true,
-      });
-      // sendBeacon is more reliable than fetch during unload (64KB limit)
-      if (payload.length < 64000) {
-        navigator.sendBeacon('/api/call-logs/transcript', new Blob([payload], { type: 'application/json' }));
+      if (text) {
+        const payload = JSON.stringify({
+          transcript: text,
+          duration: phone.elapsed,
+          contact_name: phone.activeName || dialName || '',
+          contact_number: phone.activeNumber || dialTo || '',
+          tab_closed: true,
+        });
+        if (payload.length < 64000) {
+          navigator.sendBeacon('/api/call-logs/transcript', new Blob([payload], { type: 'application/json' }));
+        }
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [phone.status, phone.elapsed, phone.activeName, phone.activeNumber, transcript, dialName, dialTo]);
+  }, [phone.status, phone.elapsed, phone.activeName, phone.activeNumber, phone.callControlId, transcript, dialName, dialTo]);
 
   // Auto-navigate back when call ends/fails (status snaps to 'ready' with no elapsed)
   const prevStatusRef = useRef(null);

@@ -291,6 +291,7 @@ export function usePhone() {
     callRef.current = null;
     pendingCcidRef.current = null;
     activeCcidRef.current = null;
+    setCallControlId(null);
     setElapsed(0);
     setIsMuted(false);
     setIsOnHold(false);
@@ -713,7 +714,8 @@ export function usePhone() {
     if (pendingCcidRef.current) {
       const ccid = pendingCcidRef.current;
       pendingCcidRef.current = null;
-      activeCcidRef.current = ccid; // store for transfer
+      activeCcidRef.current = ccid; // store for transfer + tab-close hangup
+      setCallControlId(ccid);
       setActiveName(inboundCall?.name || '');
       setActiveNumber(inboundCall?.number || '');
       setInboundCall(null);
@@ -846,7 +848,7 @@ export function usePhone() {
   }, [resetCallState]);
 
   const [isRecording, setIsRecording] = useState(false);
-  const [callControlId] = useState(null);
+  const [callControlId, setCallControlId] = useState(null);
 
   // ── Browser-side call recording ──────────────────────────────────────────────
 
