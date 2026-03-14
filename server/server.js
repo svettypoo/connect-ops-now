@@ -916,7 +916,7 @@ const _sseClients = new Map(); // userId -> Set<res>
 app.get('/api/phone/call-events', (req, res) => {
   // Auth via session cookie or header
   const sessionToken = req.headers['x-session'] || req.cookies?.session || req.query.session;
-  const session = sessionToken && sessionOps ? sessionOps.findByToken(sessionToken) : null;
+  const session = sessionToken && sessionOps ? sessionOps.get(sessionToken) : null;
   const userId = session?.user_id || req.query.userId;
   if (!userId) return res.status(401).end();
   res.writeHead(200, {
