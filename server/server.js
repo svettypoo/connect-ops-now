@@ -2053,16 +2053,19 @@ app.patch('/api/phone/ring-timeout', requireAuth, (req, res) => {
   const { ring_timeout } = req.body;
   const val = Math.max(5, Math.min(120, parseInt(ring_timeout) || 20));
   try {
-    // Ensure column exists
-    try { db.exec('ALTER TABLE phone_credentials ADD COLUMN ring_timeout INTEGER DEFAULT 20'); } catch {}
-    const result = db.prepare('UPDATE phone_credentials SET ring_timeout=? WHERE user_id=?').run(val, req.user.id);
-    if (result.changes === 0) {
-      // No credential row for this user — might need to be created
-      return res.json({ ring_timeout: val, warning: 'no credential row found for user' });
-    }
-    res.json({ ring_timeout: val });
+    db.prepare('UPDATE phone_credentials SET ring_timeout=? WHERE user_id=?').run(val, req.user.id);
+    // Verify
+    const cred = db.prepare('SELECT ring_timeout FROM phone_credentials WHERE user_id=?').get(req.user.id);
+    res.json({ ring_timeout: cred?.ring_timeout ?? val });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    // Column might not exist — try adding it
+    try {
+      db.exec('ALTER TABLE phone_credentials ADD COLUMN ring_timeout INTEGER DEFAULT 20');
+      db.prepare('UPDATE phone_credentials SET ring_timeout=? WHERE user_id=?').run(val, req.user.id);
+      res.json({ ring_timeout: val });
+    } catch (e2) {
+      res.status(500).json({ error: e2.message });
+    }
   }
 });
 
