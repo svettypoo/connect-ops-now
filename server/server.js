@@ -451,6 +451,19 @@ app.get('/api/voicemails/:id/audio', requireAuth, (req, res) => {
   voicemailOps.markRead(req.params.id, phoneUserId);
 });
 
+app.delete('/api/voicemails/:id', requireAuth, (req, res) => {
+  const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
+  const vm = db.prepare('SELECT * FROM voicemails WHERE id=? AND user_id=?').get(req.params.id, phoneUserId);
+  if (!vm) return res.status(404).json({ error: 'Not found' });
+  // Delete audio file if exists
+  if (vm.filename) {
+    const filepath = path.join(uploadsDir, vm.filename);
+    try { if (fs.existsSync(filepath)) fs.unlinkSync(filepath); } catch {}
+  }
+  db.prepare('DELETE FROM voicemails WHERE id=? AND user_id=?').run(req.params.id, phoneUserId);
+  res.json({ ok: true });
+});
+
 // ─── Routes: Call logs ────────────────────────────────────────────────────────
 
 app.get('/api/call-logs', requireAuth, (req, res) => {
