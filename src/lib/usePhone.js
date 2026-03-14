@@ -331,10 +331,34 @@ export function usePhone() {
     if ((state === 'trying' || state === 'requesting' || state === 'early' || (state === 'ringing' && dir === 'outbound'))) {
       callRef.current = call;
       setStatus('calling');
+      // B1 fix: detect when remote party answers but SDK doesn't fire 'active'
+      // Check for remote audio stream arriving during 'early' media (voicemail/IVR)
+      if (state === 'early' && call.remoteStream) {
+        // Remote audio is flowing — may be voicemail or the call connected
+        // Start a check: if remoteStream has active audio tracks, the call is effectively active
+        setTimeout(() => {
+          if (callRef.current === call && statusRef.current === 'calling') {
+            const remoteTracks = call.remoteStream?.getAudioTracks() || [];
+            if (remoteTracks.some(t => t.readyState === 'live')) {
+              console.log('[Phone] B1 fix: remote audio detected in early state — forcing active');
+              setStatus('active');
+              setIsOnHold(false);
+              if (!timerRef.current) startTimer();
+              setTimeout(() => {
+                if (callRef.current) {
+                  setupLevelMeters(call.remoteStream, call.localStream);
+                  startRecording(call.remoteStream, call.localStream);
+                }
+              }, 500);
+            }
+          }
+        }, 3000);
+      }
       return;
     }
 
     if (state === 'active' || state === 'answering') {
+      callRef.current = call; // ensure ref is always current
       stopRingtone();
       setInboundCall(null);
       setStatus('active');
@@ -700,6 +724,34 @@ export function usePhone() {
         remoteElement: getOrCreateRemoteAudio(),
       });
       callRef.current = call;
+      // B1 fix: monitor peer connection state to detect when call actually connects
+      // The SDK sometimes doesn't fire 'active' state when remote answers
+      setTimeout(() => {
+        const pc = call?.peer?.instance;
+        if (pc) {
+          const onConnected = () => {
+            if (statusRef.current === 'calling' && callRef.current === call) {
+              console.log('[Phone] B1 fix: PeerConnection connected — forcing active state');
+              stopRingtone();
+              setInboundCall(null);
+              setStatus('active');
+              setIsOnHold(false);
+              if (!timerRef.current) startTimer();
+              setTimeout(() => {
+                if (callRef.current) {
+                  setupLevelMeters(call.remoteStream, call.localStream);
+                  startRecording(call.remoteStream, call.localStream);
+                }
+              }, 500);
+            }
+          };
+          pc.addEventListener('connectionstatechange', () => {
+            if (pc.connectionState === 'connected') onConnected();
+          });
+          // Already connected by the time we check
+          if (pc.connectionState === 'connected' && statusRef.current === 'calling') onConnected();
+        }
+      }, 1000);
     } catch (e) {
       setLastError(e.message || 'Call failed');
       setStatus('ready');
@@ -784,10 +836,30 @@ export function usePhone() {
     }
 
     const call = callRef.current;
-    if (call) { try { call.hangup(); } catch {} }
-    else {
+    if (call) {
+      try { call.hangup(); } catch {}
+      // Force-kill media streams even if SDK hangup silently fails (fixes ghost call B2)
+      try { call.localStream?.getTracks().forEach(t => t.stop()); } catch {}
+      try { call.remoteStream?.getTracks().forEach(t => t.stop()); } catch {}
+      try { call.peer?.instance?.close(); } catch {}
+    } else {
       stopRecording();
     }
+
+    // Fallback: server-side hangup via call_control_id if SDK hangup didn't work (fixes B3 voicemail hangup)
+    if (activeCcidRef.current) {
+      const ccid = activeCcidRef.current;
+      const base = getServerBase();
+      const headers = { 'Content-Type': 'application/json' };
+      const sessionToken = localStorage.getItem('con_session_token')
+        || document.cookie.match(/session=([^;]+)/)?.[1];
+      if (sessionToken) headers['x-session'] = sessionToken;
+      fetch(`${base}/api/phone/hangup-call`, {
+        method: 'POST', headers, credentials: 'include',
+        body: JSON.stringify({ callControlId: ccid }),
+      }).catch(() => {});
+    }
+
     setStatus('ready');
     resetCallState();
   }, [resetCallState]); // eslint-disable-line react-hooks/exhaustive-deps
