@@ -125,7 +125,7 @@ module.exports = function registerExtensions(app, requireAuth, dbInstance, ai, t
 
   app.post('/api/presence', requireAuth, (req, res) => {
     const { status } = req.body;
-    db.prepare('INSERT OR REPLACE INTO presence (user_id, status, updated_at) VALUES (?,?,datetime("now"))').run(req.user.user_id, status || 'available');
+    db.prepare("INSERT OR REPLACE INTO presence (user_id, status, updated_at) VALUES (?,?,datetime('now'))").run(req.user.user_id, status || 'available');
     res.json({ ok: true });
   });
 
