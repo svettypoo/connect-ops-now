@@ -970,11 +970,17 @@ const _sseClients = new Map(); // userId -> Set<res>
 
 app.get('/api/phone/call-events', (req, res) => {
   // Auth via session cookie or header
-  const sessionToken = req.headers['x-session'] || req.cookies?.session || req.query.session;
-  console.log('[SSE] auth attempt — cookies:', JSON.stringify(req.cookies || {}), 'query.session:', req.query.session?.slice(0,8), 'x-session:', req.headers['x-session']?.slice(0,8));
-  const session = sessionToken && sessionOps ? sessionOps.get(sessionToken) : null;
-  const userId = session?.user_id || req.query.userId;
-  if (!userId) { console.log('[SSE] auth failed — token:', sessionToken?.slice(0,8), 'session found:', !!session); return res.status(401).end(); }
+  // Auth: SSO cookie, local session cookie, header, or query param
+  let userId = null;
+  const ssoUser = verifySSOCookie(req);
+  if (ssoUser) {
+    userId = ssoUser.id;
+  } else {
+    const sessionToken = req.headers['x-session'] || req.cookies?.session || req.query.session;
+    const session = sessionToken && sessionOps ? sessionOps.get(sessionToken) : null;
+    userId = session?.user_id;
+  }
+  if (!userId) { console.log('[SSE] auth failed — no SSO cookie or session'); return res.status(401).end(); }
   console.log('[SSE] client connected, userId:', userId);
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
