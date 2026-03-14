@@ -941,6 +941,65 @@ function broadcastCallEvent(userId, event) {
   for (const res of clients) { try { res.write(msg); } catch(e) {} }
 }
 
+// ─── Answer inbound call (called by frontend when user clicks Accept) ────────
+
+app.post('/api/phone/answer-call', express.json(), async (req, res) => {
+  const { callControlId } = req.body;
+  if (!callControlId) return res.status(400).json({ error: 'missing callControlId' });
+  const pending = _pendingInboundCalls[callControlId];
+  if (!pending) return res.status(404).json({ error: 'call not found or already answered' });
+  pending.answered = true;
+  clearTimeout(pending._vmTimeout);
+  delete _pendingInboundCalls[callControlId];
+  try {
+    // Look up the SIP username for the credential
+    const credResp = await telnyxRest('GET', `/telephony_credentials/${pending.credId}`, null);
+    const sipUser = credResp?.body?.data?.sip_username;
+    if (sipUser) {
+      console.log('[Phone] answering + transferring', callControlId, 'to sip:' + sipUser + '@sip.telnyx.com');
+      // Answer the inbound PSTN call first
+      await telnyxRest('POST', `/calls/${callControlId}/actions/answer`, {});
+      // Then transfer to the WebRTC client — now the WebRTC SDK should get the SIP INVITE
+      await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
+        to: `sip:${sipUser}@sip.telnyx.com`,
+        from: pending.toNumber,
+        timeout_secs: 30,
+        webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
+      });
+      // Start recording on the original leg
+      telnyxRest('POST', `/calls/${callControlId}/actions/record_start`, { format: 'wav', channels: 'dual' })
+        .catch(e => console.warn('[recording] record_start failed:', e.message));
+      res.json({ ok: true });
+    } else {
+      res.status(500).json({ error: 'could not find SIP username' });
+    }
+  } catch (e) {
+    console.error('[Phone] answer-call error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Reject/decline inbound call ─────────────────────────────────────────────
+
+app.post('/api/phone/reject-call', express.json(), async (req, res) => {
+  const { callControlId } = req.body;
+  if (!callControlId) return res.status(400).json({ error: 'missing callControlId' });
+  const pending = _pendingInboundCalls[callControlId];
+  if (pending) {
+    pending.answered = true; // prevent voicemail
+    clearTimeout(pending._vmTimeout);
+    delete _pendingInboundCalls[callControlId];
+  }
+  try {
+    await telnyxRest('POST', `/calls/${callControlId}/actions/reject`, {});
+    const log = callLogOps.findByCallControlId(callControlId);
+    if (log) callLogOps.update(log.id, { status: 'rejected' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: true }); // call may have already ended
+  }
+});
+
 // ─── Telnyx webhook (Call Control) ───────────────────────────────────────────
 
 app.post('/api/phone/webhook', express.json(), async (req, res) => {
@@ -1102,6 +1161,13 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
     const hangupSource = payload.hangup_source || 'unknown';
     console.log('[Phone webhook] hangup cause:', hangupCause, 'source:', hangupSource, 'from:', payload.from, 'to:', payload.to);
     _vmDebugLogs.push({ ts: new Date().toISOString(), msg: 'hangup', ccid: callControlId, cause: hangupCause });
+    // Clean up pending SSE-routed inbound call if caller hung up before answer
+    if (_pendingInboundCalls[callControlId]) {
+      const pending = _pendingInboundCalls[callControlId];
+      clearTimeout(pending._vmTimeout);
+      delete _pendingInboundCalls[callControlId];
+      broadcastCallEvent(pending.userId, { type: 'call.missed', callControlId, from: pending.fromNumber, callerName: pending.callerName });
+    }
     if (_voicemailCalls[callControlId] && !_voicemailCalls[callControlId].answered && !_voicemailCalls[callControlId]._answeredByBackend) {
       clearTimeout(_voicemailCalls[callControlId]._timeout);
       delete _voicemailCalls[callControlId];

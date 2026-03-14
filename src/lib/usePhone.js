@@ -66,6 +66,7 @@ export function usePhone() {
   const statusRef        = useRef('idle');  // mirror of status for SSE callback
   const reconnectTimer   = useRef(null);    // pending reconnect setTimeout id
   const inboundCallRef   = useRef(null);    // separate ref for inbound call when already on a call
+  const pendingCcidRef   = useRef(null);    // call_control_id from SSE-first inbound routing
 
   // Level refs (read by AudioLevels component via requestAnimationFrame)
   const micLevelRef    = useRef(0);
@@ -260,6 +261,7 @@ export function usePhone() {
     teardownLevelMeters();
     teardownNoiseProcessor();
     callRef.current = null;
+    pendingCcidRef.current = null;
     setElapsed(0);
     setIsMuted(false);
     setIsOnHold(false);
@@ -539,6 +541,27 @@ export function usePhone() {
         try {
           const evt = JSON.parse(e.data);
           console.log('[Phone] SSE event:', evt.type);
+          // Server-side incoming call notification (SSE-first routing)
+          if (evt.type === 'call.incoming' && statusRef.current !== 'active' && statusRef.current !== 'calling') {
+            console.log('[Phone] SSE: incoming call from', evt.from, evt.callerName);
+            pendingCcidRef.current = evt.callControlId;
+            callMetaRef.current = { direction: 'inbound', from: evt.from, to: evt.to, name: evt.callerName, startedAt: new Date().toISOString() };
+            setInboundCall({ name: evt.callerName, number: evt.from });
+            setStatus('ringing');
+            startRingtone({ ringOnCall: true, ringtone: 'classic', ringVolume: 80, vibrateOnCall: true });
+            if (Notification?.permission === 'granted') {
+              new Notification('Incoming Call', { body: evt.callerName, icon: '/favicon.ico', tag: 'incoming-call', renotify: false });
+            }
+          }
+          if (evt.type === 'call.missed') {
+            console.log('[Phone] SSE: call missed from', evt.from);
+            if (statusRef.current === 'ringing') {
+              stopRingtone();
+              setInboundCall(null);
+              setStatus('ready');
+              pendingCcidRef.current = null;
+            }
+          }
           if (evt.type === 'call.answered' && statusRef.current === 'calling') {
             // Server confirmed the remote phone answered — transition to active
             const call = callRef.current;
@@ -653,12 +676,41 @@ export function usePhone() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const answerCall = useCallback(() => {
+  const answerCall = useCallback(async () => {
     stopRingtone();
-    // If there's an inbound call stored separately (user was already on a call), swap to it
+
+    // SSE-first routing: if we have a pending call_control_id from the server,
+    // tell the server to answer + transfer to SIP credential (which will arrive as SDK inbound)
+    if (pendingCcidRef.current) {
+      const ccid = pendingCcidRef.current;
+      pendingCcidRef.current = null;
+      setActiveName(inboundCall?.name || '');
+      setActiveNumber(inboundCall?.number || '');
+      setInboundCall(null);
+      setStatus('calling'); // show "connecting" while server answers + transfers
+      try {
+        const base = getServerBase();
+        const headers = { 'Content-Type': 'application/json' };
+        const sessionToken = localStorage.getItem('con_session_token')
+          || document.cookie.match(/session=([^;]+)/)?.[1];
+        if (sessionToken) headers['x-session'] = sessionToken;
+        await fetch(`${base}/api/phone/answer-call`, {
+          method: 'POST', headers, credentials: 'include',
+          body: JSON.stringify({ callControlId: ccid }),
+        });
+        // The server will answer the PSTN call and transfer to our SIP credential.
+        // The SDK will receive an inbound call notification shortly — handleCallUpdate takes over.
+      } catch (e) {
+        console.error('[Phone] answer-call failed:', e.message);
+        setLastError('Failed to answer call');
+        setStatus('ready');
+      }
+      return;
+    }
+
+    // Standard SDK inbound call (direct SIP)
     const inbCall = inboundCallRef.current || callRef.current;
     if (!inbCall) return;
-    // Hang up existing active call if switching to a new inbound
     if (inboundCallRef.current && callRef.current && callRef.current !== inboundCallRef.current) {
       try { callRef.current.hangup(); } catch {}
     }
@@ -672,7 +724,6 @@ export function usePhone() {
       video: false,
       remoteElement: getOrCreateRemoteAudio(),
     });
-    // Apply saved output device after a short delay
     setTimeout(() => {
       const el = remoteAudioRef.current;
       if (el && outputDeviceId !== 'default' && typeof el.setSinkId === 'function') {
@@ -684,10 +735,25 @@ export function usePhone() {
   const hangup = useCallback((transcript) => {
     stopRingtone();
     if (transcript && callMetaRef.current) callMetaRef.current._transcript = transcript;
+
+    // If this was an SSE-routed inbound call that hasn't been answered yet, reject via server
+    if (pendingCcidRef.current) {
+      const ccid = pendingCcidRef.current;
+      pendingCcidRef.current = null;
+      const base = getServerBase();
+      const headers = { 'Content-Type': 'application/json' };
+      const sessionToken = localStorage.getItem('con_session_token')
+        || document.cookie.match(/session=([^;]+)/)?.[1];
+      if (sessionToken) headers['x-session'] = sessionToken;
+      fetch(`${base}/api/phone/reject-call`, {
+        method: 'POST', headers, credentials: 'include',
+        body: JSON.stringify({ callControlId: ccid }),
+      }).catch(() => {});
+    }
+
     const call = callRef.current;
     if (call) { try { call.hangup(); } catch {} }
     else {
-      // If SDK didn't fire hangup event, still stop recording + log manually
       stopRecording();
     }
     setStatus('ready');
