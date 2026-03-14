@@ -31,6 +31,7 @@ import PhoneScreen from './dialer/PhoneScreen';
 import ContactsView from './dialer/ContactsView';
 import RecordingsList from './dialer/RecordingsList';
 import MoreSettings from './dialer/MoreSettings';
+import FloatingCallWidget from '@/components/dialer/FloatingCallWidget';
 
 export default function Dialer() {
   const { user, logout } = useAuth();
@@ -269,6 +270,14 @@ export default function Dialer() {
             Reload
           </button>
         </div>
+      )}
+
+      {/* Floating call widget — visible when on a call but navigated away from voice screen */}
+      {(phone.status === 'active' || phone.status === 'held' || phone.status === 'calling') && activeNav !== 'voice' && (
+        <FloatingCallWidget
+          phone={phone}
+          onExpand={() => setActiveNav('voice')}
+        />
       )}
 
       {/* Inbound call banner */}
