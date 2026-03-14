@@ -247,37 +247,92 @@ function requireAI(req, res, next) {
 }
 
 // ─── Permission-based role gating (uses SSO JWT apps array) ─────────────────
-// Permission map for Connect Ops Now (phone app)
+// Permission map for Connect Ops Now (phone app) — granular view/manage format
 const PHONE_PERMISSIONS = {
-  admin:      ['*'],
-  supervisor: ['calls', 'recordings', 'analytics.team', 'voicemail', 'contacts', 'sms', 'wallboard', 'supervisor'],
-  agent:      ['calls', 'recordings.own', 'voicemail.own', 'contacts', 'sms.own'],
+  admin: ['*'],
+  supervisor: [
+    'calls.view', 'calls.manage', 'recordings.view', 'recordings.manage',
+    'analytics.view', 'voicemail.view', 'voicemail.manage',
+    'contacts.view', 'contacts.manage', 'sms.view', 'sms.manage',
+    'wallboard.view', 'supervisor.manage',
+  ],
+  agent: [
+    'calls.view', 'calls.manage', 'recordings.view_own',
+    'voicemail.view_own', 'contacts.view', 'sms.view_own', 'sms.manage_own',
+  ],
+};
+
+// Legacy aliases — maps old permission strings to new granular format
+const PHONE_LEGACY_ALIASES = {
+  'calls': ['calls.view', 'calls.manage'],
+  'recordings': ['recordings.view', 'recordings.manage'],
+  'recordings.own': ['recordings.view_own', 'recordings.manage_own'],
+  'analytics.team': ['analytics.view'],
+  'voicemail': ['voicemail.view', 'voicemail.manage'],
+  'voicemail.own': ['voicemail.view_own', 'voicemail.manage_own'],
+  'contacts': ['contacts.view', 'contacts.manage'],
+  'sms': ['sms.view', 'sms.manage'],
+  'sms.own': ['sms.view_own', 'sms.manage_own'],
+  'wallboard': ['wallboard.view'],
+  'supervisor': ['supervisor.manage'],
 };
 
 /**
+ * Resolve effective permissions for a phone app user.
+ * Starts from role defaults, then applies JWT p overrides.
+ */
+function resolvePhonePermissions(appRole, overrides) {
+  const rolePerms = PHONE_PERMISSIONS[appRole] || [];
+  if (rolePerms.includes('*')) return new Set(['*']);
+  const perms = new Set(rolePerms);
+  if (Array.isArray(overrides)) {
+    for (const o of overrides) {
+      if (o.startsWith('+')) perms.add(o.slice(1));
+      else if (o.startsWith('-')) perms.delete(o.slice(1));
+    }
+  }
+  return perms;
+}
+
+/**
+ * Check if a permission set grants the requested permission (with inheritance + aliases).
+ */
+function phoneHasPermission(permSet, permission) {
+  if (permSet.has('*')) return true;
+  if (permSet.has(permission)) return true;
+  // Check legacy aliases
+  const aliases = PHONE_LEGACY_ALIASES[permission];
+  if (aliases) { for (const a of aliases) { if (permSet.has(a)) return true; } }
+  // Inheritance: manage → view, view → view_own, manage → manage_own
+  const parts = permission.split('.');
+  if (parts.length === 2) {
+    const [resource, action] = parts;
+    if (action === 'view' && permSet.has(`${resource}.manage`)) return true;
+    if (action === 'view_own' && (permSet.has(`${resource}.view`) || permSet.has(`${resource}.manage`))) return true;
+    if (action === 'manage_own' && permSet.has(`${resource}.manage`)) return true;
+  }
+  return false;
+}
+
+/**
  * Middleware factory: requires the user to have a specific permission in the phone app.
- * Checks the SSO JWT's apps array for the phone app role, then checks the permission map.
+ * Checks the SSO JWT's apps array for the phone app role + overrides.
  * Global admins and phone admins bypass all checks.
  */
 function requirePhonePermission(permission) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
-    // Determine the user's phone app role from SSO JWT
     const appRole = getPhoneAppRole(req.user);
-    // Global admins and phone admins bypass
     if (appRole === 'admin' || req.user.role === 'admin') {
       req.user.phoneRole = 'admin';
       return next();
     }
     if (!appRole) return res.status(403).json({ error: 'No access to this app' });
-    const perms = PHONE_PERMISSIONS[appRole] || [];
-    if (perms.includes('*') || perms.includes(permission)) {
-      req.user.phoneRole = appRole;
-      return next();
-    }
-    // Check parent permission (e.g. 'recordings' grants 'recordings.own')
-    const parts = permission.split('.');
-    if (parts.length > 1 && perms.includes(parts[0])) {
+    // Get JWT overrides (p array)
+    const phoneAccess = (req.user.apps || []).find(a => a.s === 'phone');
+    const overrides = phoneAccess?.p || null;
+    const permSet = resolvePhonePermissions(appRole, overrides);
+    if (phoneHasPermission(permSet, permission)) {
       req.user.phoneRole = appRole;
       return next();
     }
