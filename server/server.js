@@ -1087,6 +1087,66 @@ function broadcastCallEvent(userId, event) {
   for (const res of clients) { try { res.write(msg); if (typeof res.flush === 'function') res.flush(); } catch(e) {} }
 }
 
+// ─── Place outbound call (server-side via Call Control API) ─────────────────
+// The frontend calls this instead of using client.newCall() directly.
+// This gives us a call_control_id for reliable state tracking + hangup.
+// Flow: Server places PSTN call → remote answers → webhook fires call.answered →
+//       server transfers call to user's WebRTC SIP credential → audio flows via SDK
+
+const _pendingOutboundCalls = {}; // callControlId -> { userId, toNumber, credId, ... }
+
+app.post('/api/phone/make-call', express.json(), requireAuth, async (req, res) => {
+  const { to, name } = req.body;
+  if (!to) return res.status(400).json({ error: 'missing destination number' });
+
+  // Normalize to E.164
+  let dest = to.replace(/\D/g, '');
+  if (dest.length === 10) dest = '1' + dest;
+  if (!dest.startsWith('+')) dest = '+' + dest;
+
+  // Look up the user's SIP credential
+  const email = req.user.email || '';
+  let key = email.split('@')[0] || 'hr';
+  if (!TELNYX_CRED_IDS[key]) key = 'hr';
+  const credId = TELNYX_CRED_IDS[key];
+  const fromNumber = process.env.TELNYX_FROM_NUMBER || '+15878643090';
+
+  try {
+    // Place the call via Call Control API
+    const callResp = await telnyxRest('POST', '/calls', {
+      connection_id: '2911967655273432744',
+      to: dest,
+      from: fromNumber,
+      webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
+      timeout_secs: 60,
+    });
+
+    if (callResp.status >= 400) {
+      console.error('[Phone] make-call failed:', JSON.stringify(callResp.body).slice(0, 200));
+      return res.status(502).json({ error: 'Call failed', detail: callResp.body });
+    }
+
+    const callControlId = callResp.body?.data?.call_control_id;
+    if (!callControlId) return res.status(500).json({ error: 'No call_control_id returned' });
+
+    // Store pending outbound call so webhook can transfer to SIP when answered
+    _pendingOutboundCalls[callControlId] = {
+      userId: req.user.user_id || req.user.id,
+      toNumber: dest,
+      toName: name || dest,
+      fromNumber,
+      credId,
+      startedAt: Date.now(),
+    };
+
+    console.log('[Phone] outbound call placed:', callControlId, '->', dest);
+    res.json({ ok: true, callControlId });
+  } catch (e) {
+    console.error('[Phone] make-call error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── Answer inbound call (called by frontend when user clicks Accept) ────────
 
 app.post('/api/phone/answer-call', express.json(), requireAuth, async (req, res) => {
@@ -1148,7 +1208,7 @@ app.post('/api/phone/reject-call', express.json(), requireAuth, async (req, res)
 
 // ─── Hangup by call_control_id (used by sendBeacon on tab close) ────────────
 
-app.post('/api/phone/hangup-call', express.json(), requireAuth, async (req, res) => {
+app.post('/api/phone/hangup-call', express.json(), optionalAuth, async (req, res) => {
   const { callControlId } = req.body;
   if (!callControlId) return res.status(400).json({ error: 'missing callControlId' });
   try {
@@ -1314,6 +1374,33 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
       // Notify frontend via SSE so UI transitions from "calling" to "active"
       broadcastCallEvent(log.user_id, { type: 'call.answered', callControlId, callLogId: log.id });
     }
+
+    // Outbound call answered by remote party — transfer to user's WebRTC SIP credential
+    const outbound = _pendingOutboundCalls[callControlId];
+    if (outbound) {
+      delete _pendingOutboundCalls[callControlId];
+      try {
+        const credResp = await telnyxRest('GET', `/telephony_credentials/${outbound.credId}`, null);
+        const sipUser = credResp?.body?.data?.sip_username;
+        if (sipUser) {
+          console.log('[Phone] outbound answered — transferring', callControlId, 'to sip:' + sipUser + '@sip.telnyx.com');
+          await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
+            to: `sip:${sipUser}@sip.telnyx.com`,
+            from: outbound.fromNumber,
+            timeout_secs: 30,
+            webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
+          });
+          // Start recording
+          telnyxRest('POST', `/calls/${callControlId}/actions/record_start`, { format: 'wav', channels: 'dual' })
+            .catch(e => console.warn('[recording] record_start failed:', e.message));
+        } else {
+          console.error('[Phone] outbound: no SIP username for credential', outbound.credId);
+        }
+      } catch (e) {
+        console.error('[Phone] outbound transfer error:', e.message);
+      }
+    }
+
     resolveAnsweredWaiter(callControlId);
     const vmEntry = _voicemailCalls[callControlId];
     if (vmEntry) {

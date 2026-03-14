@@ -312,6 +312,21 @@ export function usePhone() {
       const from = call.options?.remoteCallerNumber || call.options?.callerNumber || 'Unknown';
       const name = call.options?.remoteCallerName || from;
       const alreadyOnCall = statusRef.current === 'active' || statusRef.current === 'held' || statusRef.current === 'calling';
+
+      // If we're in 'calling' status with an outbound ccid, this inbound SIP INVITE
+      // is the transfer leg from our server-side outbound call — auto-answer it
+      if (statusRef.current === 'calling' && activeCcidRef.current) {
+        console.log('[Phone] Auto-answering transferred outbound call leg');
+        callRef.current = call;
+        call.answer({
+          audio: true,
+          video: false,
+          remoteElement: getOrCreateRemoteAudio(),
+        });
+        // Don't show as inbound or ring — handleCallUpdate will fire 'active' next
+        return;
+      }
+
       if (alreadyOnCall) {
         // Don't overwrite active call — store inbound separately
         inboundCallRef.current = call;
@@ -617,7 +632,12 @@ export function usePhone() {
             }
           }
           if (evt.type === 'call.answered' && statusRef.current === 'calling') {
-            // Server confirmed the remote phone answered — transition to active
+            // Server confirmed the remote phone answered.
+            // For server-routed outbound calls, callRef may be null — the SIP transfer
+            // hasn't arrived yet. The auto-answer in handleCallUpdate will set callRef
+            // and transition to 'active'. Just log here.
+            console.log('[Phone] SSE: call.answered received, callRef:', !!callRef.current);
+            // If callRef is already set (inbound call flow), transition immediately
             const call = callRef.current;
             if (call) {
               stopRingtone();
@@ -715,44 +735,32 @@ export function usePhone() {
     setStatus('calling');
     callMetaRef.current = { direction: 'outbound', from: '+15878643090', to: dest, name: name || number, startedAt: new Date().toISOString() };
 
+    // Place the call server-side via Call Control API.
+    // When remote answers, server transfers to our SIP credential → SDK picks it up.
+    // This gives us a call_control_id for reliable hangup and state tracking.
     try {
-      const call = client.newCall({
-        destinationNumber: dest,
-        callerNumber: '+15878643090',
-        audio: true,
-        video: false,
-        remoteElement: getOrCreateRemoteAudio(),
+      const base = getServerBase();
+      const headers = { 'Content-Type': 'application/json' };
+      const sessionToken = localStorage.getItem('con_session_token')
+        || document.cookie.match(/session=([^;]+)/)?.[1];
+      if (sessionToken) headers['x-session'] = sessionToken;
+      const resp = await fetch(`${base}/api/phone/make-call`, {
+        method: 'POST', headers, credentials: 'include',
+        body: JSON.stringify({ to: dest, name: name || number }),
       });
-      callRef.current = call;
-      // B1 fix: monitor peer connection state to detect when call actually connects
-      // The SDK sometimes doesn't fire 'active' state when remote answers
-      setTimeout(() => {
-        const pc = call?.peer?.instance;
-        if (pc) {
-          const onConnected = () => {
-            if (statusRef.current === 'calling' && callRef.current === call) {
-              console.log('[Phone] B1 fix: PeerConnection connected — forcing active state');
-              stopRingtone();
-              setInboundCall(null);
-              setStatus('active');
-              setIsOnHold(false);
-              if (!timerRef.current) startTimer();
-              setTimeout(() => {
-                if (callRef.current) {
-                  setupLevelMeters(call.remoteStream, call.localStream);
-                  startRecording(call.remoteStream, call.localStream);
-                }
-              }, 500);
-            }
-          };
-          pc.addEventListener('connectionstatechange', () => {
-            if (pc.connectionState === 'connected') onConnected();
-          });
-          // Already connected by the time we check
-          if (pc.connectionState === 'connected' && statusRef.current === 'calling') onConnected();
-        }
-      }, 1000);
+      const data = await resp.json();
+      if (!resp.ok || !data.callControlId) {
+        throw new Error(data.error || 'Call failed');
+      }
+      // Store the call_control_id so hangup can use the server API
+      activeCcidRef.current = data.callControlId;
+      setCallControlId(data.callControlId);
+      console.log('[Phone] Outbound call placed via server, ccid:', data.callControlId);
+      // The SDK will receive an inbound SIP INVITE when remote answers and server transfers.
+      // handleCallUpdate will fire with state 'ringing' for this new leg.
+      // The SSE call.answered event will also fire — that handler already transitions UI to 'active'.
     } catch (e) {
+      console.error('[Phone] makeCall server error:', e.message);
       setLastError(e.message || 'Call failed');
       setStatus('ready');
     }
