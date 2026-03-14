@@ -880,13 +880,13 @@ app.get('/api/phone/webrtc-token', requireAuth, async (req, res) => {
     if (!TELNYX_CRED_IDS[key]) key = 'hr';
     const credId = TELNYX_CRED_IDS[key] || TELNYX_CREDENTIAL_ID;
 
-    // Get or create phone credential record
+    // Get or create phone credential record, keeping telnyx_cred_id in sync
     let dbCred = phoneOps.get(req.user.user_id);
-    if (!dbCred) {
+    if (!dbCred || dbCred.telnyx_cred_id !== credId) {
       dbCred = phoneOps.upsert(req.user.user_id, {
         telnyx_cred_id: credId,
         telnyx_sip_user: key,
-        phone_number: process.env.TELNYX_FROM_NUMBER || '+15878643090',
+        phone_number: dbCred?.phone_number || process.env.TELNYX_FROM_NUMBER || '+15878643090',
       });
     }
 
@@ -956,10 +956,40 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
       const contact = userId ? db.prepare(`SELECT name FROM phone_contacts WHERE user_id=? AND phone=? LIMIT 1`).get(userId, fromNum) : null;
       const callerName = contact?.name || fromNum;
 
-      // Inbound calls are delivered to WebRTC clients directly by Telnyx via WebSocket.
-      // The webhook runs in parallel — we only handle push notifications and voicemail fallback here.
-      // Do NOT try to transfer/bridge — SIP transfer can't reach WebRTC endpoints.
-      console.log('[Phone webhook] inbound to', toNum, '— WebRTC delivery by Telnyx + voicemail fallback in 15s');
+      // Hybrid routing: Numbers on Call Control App → transfer to WebRTC SIP endpoint
+      // The CCA has an outbound voice profile, enabling the transfer leg.
+      // If WebRTC client doesn't answer within timeout, fall back to voicemail.
+      if (cred?.telnyx_cred_id) {
+        try {
+          const credResp = await telnyxRest('GET', `/telephony_credentials/${cred.telnyx_cred_id}`, null);
+          const sipUser = credResp?.body?.data?.sip_username;
+          if (sipUser) {
+            console.log('[Phone webhook] transferring', toNum, 'to WebRTC sip:' + sipUser + '@sip.telnyx.com');
+            const transferResp = await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
+              to: `sip:${sipUser}@sip.telnyx.com`,
+              from: toNum,
+              timeout_secs: 20,
+              webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
+            });
+            console.log('[Phone webhook] transfer status:', transferResp.status);
+            _voicemailCalls[callControlId] = { userId, fromNumber: fromNum, fromName: callerName, startedAt: Date.now(), answered: false, transferred: true };
+            // Send push notification
+            if (global._sendPushToUser) {
+              global._sendPushToUser(userId || null, {
+                title: 'Incoming Call',
+                body: callerName,
+                tag: 'call-' + callControlId,
+                data: { type: 'incoming_call', from: fromNum, caller_name: callerName, call_control_id: callControlId },
+              }).catch(() => {});
+            }
+            return;
+          }
+        } catch (e) {
+          console.error('[Phone webhook] transfer failed:', e.message);
+        }
+      }
+      // Fallback: no credential found or transfer failed — voicemail after 15s
+      console.log('[Phone webhook] no WebRTC credential for', toNum, '— voicemail fallback in 15s');
       if (global._sendPushToUser) {
         global._sendPushToUser(userId || null, {
           title: 'Incoming Call',
