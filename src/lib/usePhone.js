@@ -65,6 +65,7 @@ export function usePhone() {
   const isConnectingRef  = useRef(false);   // guard against concurrent connectWebRTC calls
   const statusRef        = useRef('idle');  // mirror of status for SSE callback
   const reconnectTimer   = useRef(null);    // pending reconnect setTimeout id
+  const inboundCallRef   = useRef(null);    // separate ref for inbound call when already on a call
 
   // Level refs (read by AudioLevels component via requestAnimationFrame)
   const micLevelRef    = useRef(0);
@@ -276,12 +277,18 @@ export function usePhone() {
     console.log('[Phone] Call state:', state, 'dir:', dir, 'hasRemote:', !!call.remoteStream);
 
     if (state === 'ringing' && dir === 'inbound') {
-      callRef.current = call;
       const from = call.options?.remoteCallerNumber || call.options?.callerNumber || 'Unknown';
       const name = call.options?.remoteCallerName || from;
-      callMetaRef.current = { direction: 'inbound', from, to: '+15878643090', name, startedAt: new Date().toISOString() };
-      setInboundCall({ name, number: from });
-      setStatus('ringing');
+      const alreadyOnCall = statusRef.current === 'active' || statusRef.current === 'held' || statusRef.current === 'calling';
+      if (alreadyOnCall) {
+        // Don't overwrite active call — store inbound separately
+        inboundCallRef.current = call;
+      } else {
+        callRef.current = call;
+        callMetaRef.current = { direction: 'inbound', from, to: '+15878643090', name, startedAt: new Date().toISOString() };
+        setStatus('ringing');
+      }
+      setInboundCall({ name, number: from, call });
       startRingtone({ ringOnCall: true, ringtone: 'classic', ringVolume: 80, vibrateOnCall: true });
       if (Notification?.permission === 'granted') {
         new Notification('Incoming Call', { body: name, icon: '/favicon.ico', tag: 'incoming-call', renotify: false });
@@ -648,12 +655,19 @@ export function usePhone() {
 
   const answerCall = useCallback(() => {
     stopRingtone();
-    const call = callRef.current;
-    if (!call) return;
+    // If there's an inbound call stored separately (user was already on a call), swap to it
+    const inbCall = inboundCallRef.current || callRef.current;
+    if (!inbCall) return;
+    // Hang up existing active call if switching to a new inbound
+    if (inboundCallRef.current && callRef.current && callRef.current !== inboundCallRef.current) {
+      try { callRef.current.hangup(); } catch {}
+    }
+    callRef.current = inbCall;
+    inboundCallRef.current = null;
     setActiveName(inboundCall?.name || '');
     setActiveNumber(inboundCall?.number || '');
     setInboundCall(null);
-    call.answer({
+    inbCall.answer({
       audio: true,
       video: false,
       remoteElement: getOrCreateRemoteAudio(),
