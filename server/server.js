@@ -1094,6 +1094,7 @@ function broadcastCallEvent(userId, event) {
 //       server transfers call to user's WebRTC SIP credential → audio flows via SDK
 
 const _pendingOutboundCalls = {}; // callControlId -> { userId, toNumber, credId, ... }
+const _pendingBridges = {};       // sipCallControlId -> { pstnCcid, outbound }
 
 app.post('/api/phone/make-call', express.json(), requireAuth, async (req, res) => {
   const { to, name } = req.body;
@@ -1262,6 +1263,13 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
     const dir = payload.direction === 'incoming' ? 'inbound' : 'outbound';
     const fromNum = payload.from || '';
     const toNum   = payload.to   || '';
+
+    // Skip logging internal SIP transfer legs (to/from sip:...@sip.telnyx.com)
+    if (fromNum.startsWith('sip:') || toNum.startsWith('sip:')) {
+      console.log('[Phone webhook] skipping call log for SIP transfer leg:', fromNum, '->', toNum);
+      return;
+    }
+
     const allCreds = phoneOps.all();
     const cred = allCreds.find(c => c.phone_number === (dir === 'inbound' ? toNum : fromNum)) || allCreds[0];
     const userId = cred?.user_id;
@@ -1375,7 +1383,11 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
       broadcastCallEvent(log.user_id, { type: 'call.answered', callControlId, callLogId: log.id });
     }
 
-    // Outbound call answered by remote party — transfer to user's WebRTC SIP credential
+    // Outbound call answered by remote party — bridge to user's WebRTC SIP credential.
+    // We place a NEW call to the SIP endpoint (which the SDK auto-answers) and then
+    // bridge the two legs. This avoids the "transfer ringback" delay that the remote
+    // party hears when using transfer (which puts them on hold with ringing until
+    // the SDK picks up the SIP INVITE).
     const outbound = _pendingOutboundCalls[callControlId];
     if (outbound) {
       delete _pendingOutboundCalls[callControlId];
@@ -1383,21 +1395,51 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
         const credResp = await telnyxRest('GET', `/telephony_credentials/${outbound.credId}`, null);
         const sipUser = credResp?.body?.data?.sip_username;
         if (sipUser) {
-          console.log('[Phone] outbound answered — transferring', callControlId, 'to sip:' + sipUser + '@sip.telnyx.com');
-          await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
-            to: `sip:${sipUser}@sip.telnyx.com`,
+          const sipDest = `sip:${sipUser}@sip.telnyx.com`;
+          console.log('[Phone] outbound answered — placing SIP leg to', sipDest, 'then bridging');
+          // Place a new call to the SIP credential (SDK will auto-answer this)
+          const sipCallResp = await telnyxRest('POST', '/calls', {
+            connection_id: '2911967655273432744',
+            to: sipDest,
             from: outbound.fromNumber,
-            timeout_secs: 30,
             webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
+            timeout_secs: 15,
           });
-          // Start recording
+          const sipCcid = sipCallResp?.body?.data?.call_control_id;
+          if (sipCcid) {
+            // Store the bridge pair so when the SIP leg answers, we bridge them
+            _pendingBridges[sipCcid] = { pstnCcid: callControlId, outbound };
+            console.log('[Phone] SIP leg placed:', sipCcid, '— will bridge with PSTN leg', callControlId);
+          } else {
+            console.error('[Phone] Failed to place SIP call — falling back to transfer');
+            await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
+              to: sipDest, from: outbound.fromNumber, timeout_secs: 30,
+              webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
+            });
+          }
+          // Start recording on the PSTN leg
           telnyxRest('POST', `/calls/${callControlId}/actions/record_start`, { format: 'wav', channels: 'dual' })
             .catch(e => console.warn('[recording] record_start failed:', e.message));
         } else {
           console.error('[Phone] outbound: no SIP username for credential', outbound.credId);
         }
       } catch (e) {
-        console.error('[Phone] outbound transfer error:', e.message);
+        console.error('[Phone] outbound bridge error:', e.message);
+      }
+    }
+
+    // Bridge handler: when the SIP leg (to WebRTC SDK) is answered, bridge it with the PSTN leg
+    const bridgeInfo = _pendingBridges[callControlId];
+    if (bridgeInfo) {
+      delete _pendingBridges[callControlId];
+      console.log('[Phone] SIP leg answered — bridging', callControlId, '<->', bridgeInfo.pstnCcid);
+      try {
+        await telnyxRest('POST', `/calls/${callControlId}/actions/bridge`, {
+          call_control_id: bridgeInfo.pstnCcid,
+        });
+        console.log('[Phone] Bridge established:', callControlId, '<->', bridgeInfo.pstnCcid);
+      } catch (e) {
+        console.error('[Phone] Bridge failed:', e.message);
       }
     }
 
@@ -1439,6 +1481,8 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
     const hangupSource = payload.hangup_source || 'unknown';
     console.log('[Phone webhook] hangup cause:', hangupCause, 'source:', hangupSource, 'from:', payload.from, 'to:', payload.to);
     _vmDebugLogs.push({ ts: new Date().toISOString(), msg: 'hangup', ccid: callControlId, cause: hangupCause });
+    // Clean up pending bridge if SIP leg never answered
+    if (_pendingBridges[callControlId]) delete _pendingBridges[callControlId];
     // Clean up pending SSE-routed inbound call if caller hung up before answer
     if (_pendingInboundCalls[callControlId]) {
       const pending = _pendingInboundCalls[callControlId];

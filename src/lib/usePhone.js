@@ -318,6 +318,8 @@ export function usePhone() {
       if (statusRef.current === 'calling' && activeCcidRef.current) {
         console.log('[Phone] Auto-answering transferred outbound call leg');
         callRef.current = call;
+        // Mark this as a transfer leg so hangup handler doesn't create a duplicate log
+        call._isTransferLeg = true;
         call.answer({
           audio: true,
           video: false,
@@ -424,9 +426,13 @@ export function usePhone() {
         callMetaRef.current.duration = dur;
       }
       stopRecording(); // fire-and-forget upload
-      // Log the completed call
+
+      // Skip client-side log for transfer legs — server already tracks the real call
+      const isTransferLeg = call._isTransferLeg;
+
+      // Log the completed call (only for non-transfer legs)
       const meta = callMetaRef.current;
-      if (meta && meta.startedAt) {
+      if (meta && meta.startedAt && !isTransferLeg) {
         const endedAt = new Date().toISOString();
         const duration = Math.round((new Date(endedAt) - new Date(meta.startedAt)) / 1000);
         const wasAnswered = duration > 2; // if < 2s, it was missed/unanswered
