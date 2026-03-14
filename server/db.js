@@ -231,7 +231,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS number_assignments (
 try {
   const assigned = db.prepare('SELECT COUNT(*) as n FROM number_assignments').get().n;
   if (assigned === 0) {
-    const creds = db.prepare('SELECT user_id, phone_number FROM phone_credentials WHERE phone_number IS NOT NULL AND phone_number != ""').all();
+    const creds = db.prepare("SELECT user_id, phone_number FROM phone_credentials WHERE phone_number IS NOT NULL AND phone_number != ''").all();
     const ins = db.prepare('INSERT OR IGNORE INTO number_assignments (user_id, phone_number, role) VALUES (?, ?, ?)');
     for (const c of creds) ins.run(c.user_id, c.phone_number, 'primary');
     if (creds.length) console.log(`[DB] Migrated ${creds.length} phone_credentials → number_assignments`);

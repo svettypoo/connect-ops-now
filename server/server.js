@@ -2079,7 +2079,7 @@ app.get('/api/number-map', requireAuth, (req, res) => {
     const numbersSet = new Set();
     // Collect numbers from assignments + phone_credentials
     assignments.forEach(a => numbersSet.add(a.phone_number));
-    db.prepare('SELECT phone_number FROM phone_credentials WHERE phone_number IS NOT NULL AND phone_number != ""').all()
+    db.prepare("SELECT phone_number FROM phone_credentials WHERE phone_number IS NOT NULL AND phone_number != ''").all()
       .forEach(r => numbersSet.add(r.phone_number));
     res.json({ users, numbers: [...numbersSet], assignments });
   } catch (e) { res.status(500).json({ error: e.message }); }
