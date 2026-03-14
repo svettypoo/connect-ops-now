@@ -46,11 +46,11 @@ async function zohoImapAuth(email, password) {
 }
 
 let userOps, sessionOps, contactOps, phoneOps, smsOps, voicemailOps, callLogOps,
-    recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, insightOps, ensureAdminUser, db;
+    recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, insightOps, numberAssignmentOps, ensureAdminUser, db;
 let DB_LOAD_ERROR = null;
 try {
   ({ userOps, sessionOps, contactOps, phoneOps, smsOps, voicemailOps, callLogOps,
-     recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, insightOps, ensureAdminUser, db } = require('./db'));
+     recordingOps, recordingCommentOps, meetingOps, devicePrefsOps, insightOps, numberAssignmentOps, ensureAdminUser, db } = require('./db'));
   console.log('[DB] Loaded successfully. Node version:', process.version);
 } catch (e) {
   DB_LOAD_ERROR = e.message;
@@ -2066,6 +2066,47 @@ app.patch('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
 app.delete('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
   try {
     db.prepare('DELETE FROM phone_credentials WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── Number Map (many-to-many user ↔ phone number assignments) ──────────────
+
+app.get('/api/number-map', requireAuth, (req, res) => {
+  try {
+    const assignments = numberAssignmentOps.getAll();
+    const users = userOps.list();
+    const numbersSet = new Set();
+    // Collect numbers from assignments + phone_credentials
+    assignments.forEach(a => numbersSet.add(a.phone_number));
+    db.prepare('SELECT phone_number FROM phone_credentials WHERE phone_number IS NOT NULL AND phone_number != ""').all()
+      .forEach(r => numbersSet.add(r.phone_number));
+    res.json({ users, numbers: [...numbersSet], assignments });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/number-map', requireAuth, (req, res) => {
+  try {
+    const { user_id, phone_number, role, ring_order, label } = req.body;
+    if (!user_id || !phone_number) return res.status(400).json({ error: 'user_id and phone_number required' });
+    const row = numberAssignmentOps.create({ user_id, phone_number, role, ring_order, label });
+    res.json(row);
+  } catch (e) {
+    if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Assignment already exists' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/number-map/:id', requireAuth, (req, res) => {
+  try {
+    numberAssignmentOps.update(parseInt(req.params.id), req.body);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/number-map/:id', requireAuth, (req, res) => {
+  try {
+    numberAssignmentOps.delete(parseInt(req.params.id));
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

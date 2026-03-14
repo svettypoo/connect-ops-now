@@ -117,6 +117,11 @@ export const api = {
   updatePhoneLine: (id, data) => request('PATCH', '/api/admin/phone-lines/' + id, data),
   deletePhoneLine: (id) => request('DELETE', '/api/admin/phone-lines/' + id),
   getTelnyxNumbers: () => request('GET', '/api/admin/telnyx-numbers'),
+  // Number map (many-to-many assignments)
+  getNumberMap: () => request('GET', '/api/number-map'),
+  createAssignment: (data) => request('POST', '/api/number-map', data),
+  updateAssignment: (id, data) => request('PATCH', '/api/number-map/' + id, data),
+  deleteAssignment: (id) => request('DELETE', '/api/number-map/' + id),
 };
 
 export default api;

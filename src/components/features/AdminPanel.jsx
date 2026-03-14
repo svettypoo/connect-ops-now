@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Shield, Phone, Plus, X, Settings, Pencil, Trash2, Link, Unlink, RefreshCw } from "lucide-react";
+import { Shield, Phone, Plus, X, Settings, Pencil, Trash2, Link, Unlink, RefreshCw, Share2 } from "lucide-react";
 import api from "@/api/inboxAiClient";
+import NumberMap from "./NumberMap";
 
 export default function AdminPanel() {
   const [tab, setTab] = useState("users");
@@ -132,10 +133,11 @@ export default function AdminPanel() {
       </div>
 
       <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit flex-wrap">
-        {["users","numbers","roles","settings"].map(t => (
+        {["users","numbers","map","roles","settings"].map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={"px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-all " + (tab === t ? "bg-[#3b82f6] text-white" : "text-slate-400 hover:text-white")}>
-            {t === "numbers" ? "Phone Numbers" : t.charAt(0).toUpperCase() + t.slice(1)}
+            className={"px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-all flex items-center gap-1.5 " + (tab === t ? "bg-[#3b82f6] text-white" : "text-slate-400 hover:text-white")}>
+            {t === "map" && <Share2 className="w-3.5 h-3.5" />}
+            {t === "numbers" ? "Phone Numbers" : t === "map" ? "Canvas Map" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -377,6 +379,8 @@ export default function AdminPanel() {
           )}
         </div>
       )}
+
+      {tab === "map" && <NumberMap />}
 
       {tab === "roles" && (
         <div className="space-y-3">

@@ -214,6 +214,59 @@ db.exec(`CREATE TABLE IF NOT EXISTS device_prefs (
   updated_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 )`);
 
+// ─── Number assignments (many-to-many: users ↔ phone numbers) ───────────────
+db.exec(`CREATE TABLE IF NOT EXISTS number_assignments (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id      TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  role         TEXT DEFAULT 'member',
+  ring_order   INTEGER DEFAULT 0,
+  label        TEXT DEFAULT '',
+  created_at   TEXT DEFAULT (datetime('now')),
+  UNIQUE(user_id, phone_number),
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+)`);
+
+// Seed number_assignments from existing phone_credentials (one-time migration)
+try {
+  const assigned = db.prepare('SELECT COUNT(*) as n FROM number_assignments').get().n;
+  if (assigned === 0) {
+    const creds = db.prepare('SELECT user_id, phone_number FROM phone_credentials WHERE phone_number IS NOT NULL AND phone_number != ""').all();
+    const ins = db.prepare('INSERT OR IGNORE INTO number_assignments (user_id, phone_number, role) VALUES (?, ?, ?)');
+    for (const c of creds) ins.run(c.user_id, c.phone_number, 'primary');
+    if (creds.length) console.log(`[DB] Migrated ${creds.length} phone_credentials → number_assignments`);
+  }
+} catch {}
+
+// ─── Number assignment operations ────────────────────────────────────────────
+
+const numberAssignmentOps = {
+  getAll() {
+    return db.prepare(`
+      SELECT na.*, u.name as user_name, u.email as user_email, u.avatar_color
+      FROM number_assignments na
+      JOIN users u ON u.id = na.user_id
+      ORDER BY na.phone_number, na.ring_order
+    `).all();
+  },
+  create({ user_id, phone_number, role, ring_order, label }) {
+    db.prepare('INSERT INTO number_assignments (user_id, phone_number, role, ring_order, label) VALUES (?,?,?,?,?)')
+      .run(user_id, phone_number, role || 'member', ring_order || 0, label || '');
+    return db.prepare('SELECT * FROM number_assignments WHERE user_id=? AND phone_number=?').get(user_id, phone_number);
+  },
+  update(id, { role, ring_order, label }) {
+    const sets = []; const vals = [];
+    if (role !== undefined) { sets.push('role=?'); vals.push(role); }
+    if (ring_order !== undefined) { sets.push('ring_order=?'); vals.push(ring_order); }
+    if (label !== undefined) { sets.push('label=?'); vals.push(label); }
+    if (!sets.length) return;
+    db.prepare(`UPDATE number_assignments SET ${sets.join(',')} WHERE id=?`).run(...vals, id);
+  },
+  delete(id) {
+    db.prepare('DELETE FROM number_assignments WHERE id=?').run(id);
+  },
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function safeJson(str, fallback) {
@@ -676,5 +729,6 @@ module.exports = {
   meetingOps,
   devicePrefsOps,
   insightOps,
+  numberAssignmentOps,
   ensureAdminUser,
 };
