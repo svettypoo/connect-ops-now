@@ -959,7 +959,7 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
       // Inbound calls are delivered to WebRTC clients directly by Telnyx via WebSocket.
       // The webhook runs in parallel — we only handle push notifications and voicemail fallback here.
       // Do NOT try to transfer/bridge — SIP transfer can't reach WebRTC endpoints.
-      console.log('[Phone webhook] no WebRTC endpoint — waiting 15s before voicemail');
+      console.log('[Phone webhook] inbound to', toNum, '— WebRTC delivery by Telnyx + voicemail fallback in 15s');
       if (global._sendPushToUser) {
         global._sendPushToUser(userId || null, {
           title: 'Incoming Call',
