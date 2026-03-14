@@ -473,6 +473,16 @@ export function usePhone() {
 
     clientRef.current = client;
     window.__telnyxClient = client; // Expose for Dream testing
+    // Expose test helper to simulate inbound calls (for Dream QA testing)
+    window.__simulateInbound = (name, number) => {
+      handleCallUpdate({
+        state: 'ringing',
+        direction: 'inbound',
+        options: { remoteCallerName: name || 'Test Caller', remoteCallerNumber: number || '+10001112222', callerName: name || 'Test Caller', callerNumber: number || '+10001112222' },
+        answer() { handleCallUpdate({ ...this, state: 'active' }); },
+        hangup() { resetCallState(); },
+      });
+    };
     client.connect();
   }, [handleCallUpdate, resetCallState]); // eslint-disable-line react-hooks/exhaustive-deps
 
