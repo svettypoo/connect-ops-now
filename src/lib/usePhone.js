@@ -67,6 +67,7 @@ export function usePhone() {
   const reconnectTimer   = useRef(null);    // pending reconnect setTimeout id
   const inboundCallRef   = useRef(null);    // separate ref for inbound call when already on a call
   const pendingCcidRef   = useRef(null);    // call_control_id from SSE-first inbound routing
+  const activeCcidRef    = useRef(null);    // call_control_id of the active PSTN leg (for transfer)
 
   // Level refs (read by AudioLevels component via requestAnimationFrame)
   const micLevelRef    = useRef(0);
@@ -289,6 +290,7 @@ export function usePhone() {
     teardownNoiseProcessor();
     callRef.current = null;
     pendingCcidRef.current = null;
+    activeCcidRef.current = null;
     setElapsed(0);
     setIsMuted(false);
     setIsOnHold(false);
@@ -711,6 +713,7 @@ export function usePhone() {
     if (pendingCcidRef.current) {
       const ccid = pendingCcidRef.current;
       pendingCcidRef.current = null;
+      activeCcidRef.current = ccid; // store for transfer
       setActiveName(inboundCall?.name || '');
       setActiveNumber(inboundCall?.number || '');
       setInboundCall(null);
@@ -815,7 +818,32 @@ export function usePhone() {
     if (call) call.dtmf(String(digit));
   }, []);
 
-  const blindTransfer = useCallback(() => hangup(), [hangup]);
+  const blindTransfer = useCallback(async (destination) => {
+    if (!destination) return;
+    // SSE-routed call: transfer via server API using stored call_control_id
+    if (activeCcidRef.current) {
+      try {
+        const base = getServerBase();
+        const headers = { 'Content-Type': 'application/json' };
+        const sessionToken = localStorage.getItem('con_session_token')
+          || document.cookie.match(/session=([^;]+)/)?.[1];
+        if (sessionToken) headers['x-session'] = sessionToken;
+        await fetch(`${base}/api/phone/transfer-call`, {
+          method: 'POST', headers, credentials: 'include',
+          body: JSON.stringify({ callControlId: activeCcidRef.current, destination }),
+        });
+      } catch (e) {
+        console.error('[Phone] blind transfer failed:', e.message);
+        setLastError('Transfer failed');
+        return;
+      }
+    }
+    // Disconnect our WebRTC leg — the PSTN call continues to the transfer destination
+    const call = callRef.current;
+    if (call) { try { call.hangup(); } catch {} }
+    setStatus('ready');
+    resetCallState();
+  }, [resetCallState]);
 
   const [isRecording, setIsRecording] = useState(false);
   const [callControlId] = useState(null);

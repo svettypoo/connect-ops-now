@@ -1082,6 +1082,29 @@ app.post('/api/phone/reject-call', express.json(), async (req, res) => {
   }
 });
 
+// ─── Blind transfer ─────────────────────────────────────────────────────────
+
+app.post('/api/phone/transfer-call', express.json(), optionalAuth, async (req, res) => {
+  const { callControlId, destination } = req.body;
+  if (!callControlId || !destination) return res.status(400).json({ error: 'missing callControlId or destination' });
+  try {
+    // Normalize destination to E.164 if it looks like a phone number
+    let to = destination.trim();
+    if (/^[\d\s\-()]+$/.test(to)) {
+      to = '+1' + to.replace(/\D/g, '').replace(/^1/, '');
+    }
+    await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
+      to,
+    });
+    const log = callLogOps.findByCallControlId(callControlId);
+    if (log) callLogOps.update(log.id, { status: 'transferred', notes: `Transferred to ${to}` });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[Phone] transfer failed:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── Telnyx webhook (Call Control) ───────────────────────────────────────────
 
 app.post('/api/phone/webhook', express.json(), async (req, res) => {

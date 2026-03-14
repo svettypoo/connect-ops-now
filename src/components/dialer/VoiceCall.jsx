@@ -445,6 +445,28 @@ export default function VoiceCall({ phone, dialTo, dialName, onCallEnd, onHangup
   const [showEmailDraft, setShowEmailDraft] = useState(false);
   const { callControlId } = phone;
 
+  // Best-effort transcript save when tab is closed during active call
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (phone.status !== 'active' && phone.status !== 'held') return;
+      const text = transcript.join(' ').trim();
+      if (!text) return;
+      const payload = JSON.stringify({
+        transcript: text,
+        duration: phone.elapsed,
+        contact_name: phone.activeName || dialName || '',
+        contact_number: phone.activeNumber || dialTo || '',
+        tab_closed: true,
+      });
+      // sendBeacon is more reliable than fetch during unload (64KB limit)
+      if (payload.length < 64000) {
+        navigator.sendBeacon('/api/call-logs/transcript', new Blob([payload], { type: 'application/json' }));
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [phone.status, phone.elapsed, phone.activeName, phone.activeNumber, transcript, dialName, dialTo]);
+
   // Auto-navigate back when call ends/fails (status snaps to 'ready' with no elapsed)
   const prevStatusRef = useRef(null);
   useEffect(() => {
