@@ -1319,8 +1319,9 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
     const fromNum = payload.from || '';
     const toNum   = payload.to   || '';
 
-    // Skip logging internal SIP transfer legs (to/from sip:...@sip.telnyx.com)
-    if (fromNum.startsWith('sip:') || toNum.startsWith('sip:')) {
+    // Skip logging internal SIP transfer legs (to/from sip:...@sip.telnyx.com or gencred* usernames)
+    const isSipAddr = (s) => s.startsWith('sip:') || s.startsWith('gencred') || s.includes('@sip.telnyx.com');
+    if (isSipAddr(fromNum) || isSipAddr(toNum)) {
       console.log('[Phone webhook] skipping call log for SIP transfer leg:', fromNum, '->', toNum);
       return;
     }
