@@ -842,6 +842,7 @@ function telnyxRest(method, path_, body) {
 
 const _aiCalls = {};
 const _voicemailCalls = {};
+const _pendingInboundCalls = {}; // callControlId -> { userId, fromNumber, toNumber, callerName, credId, startedAt, answered }
 const _pendingDemo = { active: false, resolve: null };
 const _speakWaiters = {};
 const _answeredWaiters = {};
@@ -988,37 +989,49 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
       const contact = userId ? db.prepare(`SELECT name FROM phone_contacts WHERE user_id=? AND phone=? LIMIT 1`).get(userId, fromNum) : null;
       const callerName = contact?.name || fromNum;
 
-      // Hybrid routing: Numbers on Call Control App → transfer to WebRTC SIP endpoint
-      // The CCA has an outbound voice profile, enabling the transfer leg.
-      // If WebRTC client doesn't answer within timeout, fall back to voicemail.
-      if (cred?.telnyx_cred_id) {
-        try {
-          const credResp = await telnyxRest('GET', `/telephony_credentials/${cred.telnyx_cred_id}`, null);
-          const sipUser = credResp?.body?.data?.sip_username;
-          if (sipUser) {
-            console.log('[Phone webhook] transferring', toNum, 'to WebRTC sip:' + sipUser + '@sip.telnyx.com');
-            const transferResp = await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
-              to: `sip:${sipUser}@sip.telnyx.com`,
-              from: toNum,
-              timeout_secs: 20,
-              webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
-            });
-            console.log('[Phone webhook] transfer status:', transferResp.status);
-            _voicemailCalls[callControlId] = { userId, fromNumber: fromNum, fromName: callerName, startedAt: Date.now(), answered: false, transferred: true };
-            // Send push notification
-            if (global._sendPushToUser) {
-              global._sendPushToUser(userId || null, {
-                title: 'Incoming Call',
-                body: callerName,
-                tag: 'call-' + callControlId,
-                data: { type: 'incoming_call', from: fromNum, caller_name: callerName, call_control_id: callControlId },
-              }).catch(() => {});
-            }
-            return;
-          }
-        } catch (e) {
-          console.error('[Phone webhook] transfer failed:', e.message);
+      // SSE-first routing: Notify frontend via SSE about the incoming call.
+      // The frontend shows the incoming call UI. When user clicks "Answer",
+      // frontend calls /api/phone/answer-call which transfers to the SIP credential.
+      // This avoids the auto-answer issue with direct SIP transfers.
+      if (cred?.telnyx_cred_id && userId) {
+        console.log('[Phone webhook] notifying frontend via SSE about inbound call from', fromNum);
+        // Store pending call so /answer-call can find it
+        _pendingInboundCalls[callControlId] = {
+          userId, fromNumber: fromNum, toNumber: toNum, callerName,
+          credId: cred.telnyx_cred_id, startedAt: Date.now(),
+        };
+        // Notify frontend via SSE
+        broadcastCallEvent(userId, {
+          type: 'call.incoming',
+          callControlId,
+          from: fromNum,
+          to: toNum,
+          callerName,
+        });
+        // Send push notification
+        if (global._sendPushToUser) {
+          global._sendPushToUser(userId, {
+            title: 'Incoming Call',
+            body: callerName,
+            tag: 'call-' + callControlId,
+            data: { type: 'incoming_call', from: fromNum, caller_name: callerName, call_control_id: callControlId },
+          }).catch(() => {});
         }
+        // Voicemail fallback after 20s if not answered
+        const vmTimeout = setTimeout(async () => {
+          const pending = _pendingInboundCalls[callControlId];
+          if (pending && !pending.answered) {
+            console.log('[Phone webhook] no answer after 20s — voicemail fallback for', callControlId);
+            delete _pendingInboundCalls[callControlId];
+            broadcastCallEvent(userId, { type: 'call.missed', callControlId, from: fromNum, callerName });
+            const clogForVm = callLogOps.findByCallControlId(callControlId);
+            if (clogForVm) callLogOps.update(clogForVm.id, { is_voicemail: 1 });
+            await telnyxRest('POST', `/calls/${callControlId}/actions/answer`, {}).catch(() => {});
+            _voicemailCalls[callControlId] = { userId, fromNumber: fromNum, fromName: callerName, startedAt: Date.now(), answered: false, _answeredByBackend: true };
+          }
+        }, 20000);
+        _pendingInboundCalls[callControlId]._vmTimeout = vmTimeout;
+        return;
       }
       // Fallback: no credential found or transfer failed — voicemail after 15s
       console.log('[Phone webhook] no WebRTC credential for', toNum, '— voicemail fallback in 15s');

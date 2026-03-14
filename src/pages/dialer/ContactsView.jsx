@@ -4,6 +4,7 @@ import { PhoneIcon } from './icons';
 // ContactsView: simple contacts list placeholder
 export default function ContactsView({ onCall, onMessage }) {
   const [contacts, setContacts] = useState([]);
+  const [search, setSearch] = useState('');
   useEffect(() => {
     import('@/api/inboxAiClient').then(m => {
       const a = m.api || m.default;
@@ -16,12 +17,22 @@ export default function ContactsView({ onCall, onMessage }) {
     return n.trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  const q = search.toLowerCase().trim();
+  const filtered = q ? contacts.filter(c =>
+    (c.name || '').toLowerCase().includes(q) ||
+    (c.phone || '').includes(q) ||
+    (c.company || '').toLowerCase().includes(q) ||
+    (c.email || '').toLowerCase().includes(q)
+  ) : contacts;
+
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: '#0a0e1a' }}>
       {/* Search bar */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a2744' }}>
         <input
           placeholder="Search contacts..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
           style={{
             width: '100%', background: '#0f1628', border: '1px solid #1a2744',
             borderRadius: '10px', padding: '8px 12px', color: '#FFFFFF',
@@ -29,13 +40,13 @@ export default function ContactsView({ onCall, onMessage }) {
           }}
         />
       </div>
-      {contacts.length === 0 ? (
+      {filtered.length === 0 ? (
         <div style={{ padding: '32px', textAlign: 'center', color: '#6b84a8', fontSize: '14px' }}>
-          No contacts found
+          {search ? 'No matching contacts' : 'No contacts found'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {contacts.map(c => (
+          {filtered.map(c => (
             <div key={c.id || c.email} style={{
               display: 'flex', alignItems: 'center', gap: '12px',
               padding: '12px 16px', borderBottom: '1px solid #1a2744',
