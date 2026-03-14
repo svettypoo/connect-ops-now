@@ -956,20 +956,24 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
       const contact = userId ? db.prepare(`SELECT name FROM phone_contacts WHERE user_id=? AND phone=? LIMIT 1`).get(userId, fromNum) : null;
       const callerName = contact?.name || fromNum;
 
-      // Try to ring the WebRTC client by transferring to their SIP endpoint
+      // Try to ring the WebRTC client by answering + transferring to SIP endpoint
       if (cred?.telnyx_cred_id) {
         const credId = cred.telnyx_cred_id;
         try {
           // Fetch the SIP username from Telnyx credential
           const credResp = await telnyxRest('GET', `/telephony_credentials/${credId}`, null);
           const sipUser = credResp?.body?.data?.sip_username;
+          const connId = credResp?.body?.data?.resource_id; // e.g. "connection:123456"
           if (sipUser) {
-            console.log('[Phone webhook] transferring to WebRTC SIP:', sipUser);
-            await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
+            console.log('[Phone webhook] transferring to WebRTC SIP:', sipUser, 'resource:', connId);
+            // Transfer directly (CCA has outbound voice profile)
+            const transferResp = await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
               to: `sip:${sipUser}@sip.telnyx.com`,
-              timeout_secs: 20,
+              from: toNum,
+              timeout_secs: 25,
               webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
             });
+            console.log('[Phone webhook] transfer response:', transferResp.status, JSON.stringify(transferResp.body)?.slice(0, 300));
             // Store the call for voicemail fallback (transfer leg has new CCID)
             _voicemailCalls[callControlId] = { userId, fromNumber: fromNum, fromName: callerName, startedAt: Date.now(), answered: false, transferred: true };
             _vmDebugLogs.push({ ts: new Date().toISOString(), msg: 'transferred to SIP endpoint', ccid: callControlId, sipUser });
@@ -1051,7 +1055,10 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
   }
 
   if (type === 'call.hangup' || type === 'call.disconnected') {
-    _vmDebugLogs.push({ ts: new Date().toISOString(), msg: 'hangup', ccid: callControlId });
+    const hangupCause = payload.hangup_cause || payload.sip_hangup_cause || 'unknown';
+    const hangupSource = payload.hangup_source || 'unknown';
+    console.log('[Phone webhook] hangup cause:', hangupCause, 'source:', hangupSource, 'from:', payload.from, 'to:', payload.to);
+    _vmDebugLogs.push({ ts: new Date().toISOString(), msg: 'hangup', ccid: callControlId, cause: hangupCause });
     if (_voicemailCalls[callControlId] && !_voicemailCalls[callControlId].answered && !_voicemailCalls[callControlId]._answeredByBackend) {
       clearTimeout(_voicemailCalls[callControlId]._timeout);
       delete _voicemailCalls[callControlId];
