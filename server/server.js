@@ -1195,8 +1195,10 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
             broadcastCallEvent(userId, { type: 'call.missed', callControlId, from: fromNum, callerName });
             const clogForVm = callLogOps.findByCallControlId(callControlId);
             if (clogForVm) callLogOps.update(clogForVm.id, { is_voicemail: 1 });
-            await telnyxRest('POST', `/calls/${callControlId}/actions/answer`, {}).catch(() => {});
+            // IMPORTANT: Set _voicemailCalls BEFORE answering, to avoid race condition
+            // where call.answered webhook arrives before this line executes
             _voicemailCalls[callControlId] = { userId, fromNumber: fromNum, fromName: callerName, startedAt: Date.now(), answered: false, _answeredByBackend: true };
+            await telnyxRest('POST', `/calls/${callControlId}/actions/answer`, {}).catch(() => {});
           }
         }, ringTimeoutSec * 1000);
         _pendingInboundCalls[callControlId]._vmTimeout = vmTimeout;
