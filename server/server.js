@@ -908,6 +908,38 @@ app.get('/api/phone/webrtc-token', requireAuth, async (req, res) => {
   }
 });
 
+// ─── SSE: real-time call events to frontend ──────────────────────────────────
+
+const _sseClients = new Map(); // userId -> Set<res>
+
+app.get('/api/phone/call-events', (req, res) => {
+  // Auth via session cookie or header
+  const sessionToken = req.headers['x-session'] || req.cookies?.session || req.query.session;
+  const session = sessionToken && sessionOps ? sessionOps.findByToken(sessionToken) : null;
+  const userId = session?.user_id || req.query.userId;
+  if (!userId) return res.status(401).end();
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('data: {"type":"connected"}\n\n');
+  if (!_sseClients.has(userId)) _sseClients.set(userId, new Set());
+  _sseClients.get(userId).add(res);
+  req.on('close', () => {
+    const s = _sseClients.get(userId);
+    if (s) { s.delete(res); if (s.size === 0) _sseClients.delete(userId); }
+  });
+});
+
+function broadcastCallEvent(userId, event) {
+  const clients = _sseClients.get(String(userId));
+  if (!clients) return;
+  const msg = `data: ${JSON.stringify(event)}\n\n`;
+  for (const res of clients) { try { res.write(msg); } catch(e) {} }
+}
+
 // ─── Telnyx webhook (Call Control) ───────────────────────────────────────────
 
 app.post('/api/phone/webhook', express.json(), async (req, res) => {
@@ -1014,7 +1046,11 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
 
   if (type === 'call.answered') {
     const log = callLogOps.findByCallControlId(callControlId);
-    if (log) callLogOps.update(log.id, { status: 'answered', answered_at: new Date().toISOString() });
+    if (log) {
+      callLogOps.update(log.id, { status: 'answered', answered_at: new Date().toISOString() });
+      // Notify frontend via SSE so UI transitions from "calling" to "active"
+      broadcastCallEvent(log.user_id, { type: 'call.answered', callControlId, callLogId: log.id });
+    }
     resolveAnsweredWaiter(callControlId);
     const vmEntry = _voicemailCalls[callControlId];
     if (vmEntry) {

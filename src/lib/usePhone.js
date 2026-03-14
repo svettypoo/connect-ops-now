@@ -63,6 +63,7 @@ export function usePhone() {
   const isMutedRef      = useRef(false);
   const inputDeviceIdRef = useRef('default');
   const isConnectingRef  = useRef(false);   // guard against concurrent connectWebRTC calls
+  const statusRef        = useRef('idle');  // mirror of status for SSE callback
   const reconnectTimer   = useRef(null);    // pending reconnect setTimeout id
 
   // Level refs (read by AudioLevels component via requestAnimationFrame)
@@ -70,6 +71,7 @@ export function usePhone() {
   const remoteLevelRef = useRef(0);
 
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   // ── Timer ────────────────────────────────────────────────────────────────────
 
@@ -271,7 +273,7 @@ export function usePhone() {
     const state = call.state;
     const dir   = call.direction; // 'inbound' or 'outbound'
 
-    console.log('[Phone] Call state:', state, 'dir:', dir);
+    console.log('[Phone] Call state:', state, 'dir:', dir, 'hasRemote:', !!call.remoteStream);
 
     if (state === 'ringing' && dir === 'inbound') {
       callRef.current = call;
@@ -287,17 +289,18 @@ export function usePhone() {
       return;
     }
 
-    if ((state === 'trying' || state === 'requesting' || (state === 'ringing' && dir === 'outbound'))) {
+    if ((state === 'trying' || state === 'requesting' || state === 'early' || (state === 'ringing' && dir === 'outbound'))) {
       callRef.current = call;
       setStatus('calling');
       return;
     }
 
-    if (state === 'active') {
+    if (state === 'active' || state === 'answering') {
       stopRingtone();
       setInboundCall(null);
       setStatus('active');
-      startTimer();
+      setIsOnHold(false);
+      if (!timerRef.current) startTimer();
       // Wire up noise processing, level meters + auto-start recording
       // Give the SDK a moment to attach streams
       setTimeout(() => {
@@ -331,12 +334,6 @@ export function usePhone() {
     if (state === 'held') {
       setStatus('held');
       setIsOnHold(true);
-      return;
-    }
-
-    if (state === 'active' && isOnHold) {
-      setStatus('active');
-      setIsOnHold(false);
       return;
     }
 
@@ -513,6 +510,51 @@ export function usePhone() {
       connectWebRTC();
     })();
 
+    // SSE: listen for server-side call events (call.answered, call.hangup)
+    const sessionToken = localStorage.getItem('con_session_token')
+      || document.cookie.match(/session=([^;]+)/)?.[1] || '';
+    const sseUrl = `${getServerBase()}/api/phone/call-events?session=${encodeURIComponent(sessionToken)}`;
+    let sse = null;
+    try {
+      sse = new EventSource(sseUrl);
+      sse.onmessage = (e) => {
+        try {
+          const evt = JSON.parse(e.data);
+          console.log('[Phone] SSE event:', evt.type);
+          if (evt.type === 'call.answered' && statusRef.current === 'calling') {
+            // Server confirmed the remote phone answered — transition to active
+            const call = callRef.current;
+            if (call) {
+              stopRingtone();
+              setInboundCall(null);
+              setStatus('active');
+              setIsOnHold(false);
+              if (!timerRef.current) startTimer();
+              setTimeout(() => {
+                const c = callRef.current;
+                if (c) {
+                  if (c.localStream) {
+                    const cleanStream = createNoiseProcessor(c.localStream);
+                    try {
+                      const pc = c.peer?.instance;
+                      if (pc) {
+                        const cleanTrack = cleanStream.getAudioTracks()[0];
+                        const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
+                        if (sender && cleanTrack) sender.replaceTrack(cleanTrack);
+                      }
+                    } catch (err) { console.warn('[Phone] SSE: mic track replace error:', err.message); }
+                  }
+                  setupLevelMeters(c.remoteStream, c.localStream);
+                  startRecording(c.remoteStream, c.localStream);
+                }
+              }, 500);
+            }
+          }
+        } catch {}
+      };
+      sse.onerror = () => { /* SSE will auto-reconnect */ };
+    } catch {}
+
     const onVisible = () => {
       if (document.visibilityState === 'visible' && mountedRef.current) {
         const c = clientRef.current;
@@ -533,6 +575,7 @@ export function usePhone() {
       teardownLevelMeters();
       if (recorderRef.current) { try { recorderRef.current.stop(); } catch {} recorderRef.current = null; }
       try { recAudioCtxRef.current?.close(); } catch {} recAudioCtxRef.current = null;
+      if (sse) { try { sse.close(); } catch {} }
       document.removeEventListener('visibilitychange', onVisible);
       if (navigator.mediaDevices) navigator.mediaDevices.removeEventListener('devicechange', refreshDevices);
       if (clientRef.current) {
