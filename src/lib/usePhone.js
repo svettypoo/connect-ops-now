@@ -639,18 +639,18 @@ export function usePhone() {
           }
           if (evt.type === 'call.answered' && statusRef.current === 'calling') {
             // Server confirmed the remote phone answered.
-            // For server-routed outbound calls, callRef may be null — the SIP transfer
-            // hasn't arrived yet. The auto-answer in handleCallUpdate will set callRef
-            // and transition to 'active'. Just log here.
-            console.log('[Phone] SSE: call.answered received, callRef:', !!callRef.current);
-            // If callRef is already set (inbound call flow), transition immediately
+            // Transition UI to 'active' IMMEDIATELY — even if callRef is null.
+            // The SIP bridge leg will arrive shortly and auto-answer will wire up audio.
+            // This stops the "Calling" UI and any local ringback instantly.
+            console.log('[Phone] SSE: call.answered — transitioning to active, callRef:', !!callRef.current);
+            stopRingtone();
+            setInboundCall(null);
+            setStatus('active');
+            setIsOnHold(false);
+            if (!timerRef.current) startTimer();
+            // If callRef is already set, wire up audio processing immediately
             const call = callRef.current;
             if (call) {
-              stopRingtone();
-              setInboundCall(null);
-              setStatus('active');
-              setIsOnHold(false);
-              if (!timerRef.current) startTimer();
               setTimeout(() => {
                 const c = callRef.current;
                 if (c) {
