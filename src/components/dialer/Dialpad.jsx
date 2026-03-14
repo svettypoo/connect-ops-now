@@ -124,7 +124,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
     return () => window.removeEventListener('keydown', handler);
   }, [number]);
 
-  const busy = resolvedPhoneStatus === "active" || resolvedPhoneStatus === "held" || resolvedPhoneStatus === "ringing";
+  const busy = resolvedPhoneStatus === "active" || resolvedPhoneStatus === "held" || resolvedPhoneStatus === "ringing" || resolvedPhoneStatus === "calling";
 
   const StatusIcon = ({ direction, status }) => {
     if (status === "missed") return <PhoneMissed size={14} color="#F44336" />;

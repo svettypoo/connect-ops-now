@@ -313,9 +313,10 @@ export function usePhone() {
       const name = call.options?.remoteCallerName || from;
       const alreadyOnCall = statusRef.current === 'active' || statusRef.current === 'held' || statusRef.current === 'calling';
 
-      // If we're in 'calling' status with an outbound ccid, this inbound SIP INVITE
-      // is the transfer leg from our server-side outbound call — auto-answer it
-      if (statusRef.current === 'calling' && activeCcidRef.current) {
+      // If we have an active outbound ccid, this inbound SIP INVITE is the bridge
+      // leg from our server-side outbound call — auto-answer it immediately.
+      // Check both 'calling' (before SSE arrives) and 'active' (after SSE call.answered).
+      if ((statusRef.current === 'calling' || statusRef.current === 'active') && activeCcidRef.current) {
         console.log('[Phone] Auto-answering transferred outbound call leg');
         callRef.current = call;
         // Mark this as a transfer leg so hangup handler doesn't create a duplicate log
