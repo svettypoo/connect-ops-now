@@ -475,6 +475,7 @@ export function usePhone() {
     });
 
     clientRef.current = client;
+    window.__telnyxClient = client; // expose for debugging/testing
     client.connect();
   }, [handleCallUpdate, resetCallState]); // eslint-disable-line react-hooks/exhaustive-deps
 
