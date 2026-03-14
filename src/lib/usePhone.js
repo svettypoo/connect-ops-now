@@ -722,8 +722,15 @@ export function usePhone() {
   // ── Call controls ─────────────────────────────────────────────────────────────
 
   const makeCall = useCallback(async (number, name) => {
+    // Synchronous guard: statusRef updates immediately, unlike React state
+    if (statusRef.current === 'calling' || statusRef.current === 'active' || statusRef.current === 'held') {
+      console.log('[Phone] makeCall blocked — already in state:', statusRef.current);
+      return;
+    }
+    statusRef.current = 'calling'; // Set ref IMMEDIATELY to prevent double-dial race
+
     const client = clientRef.current;
-    if (!client) { setLastError('Not connected'); return; }
+    if (!client) { statusRef.current = 'ready'; setLastError('Not connected'); return; }
 
     if (!Capacitor.isNativePlatform()) {
       const perm = await checkMicPermission();
@@ -769,6 +776,7 @@ export function usePhone() {
     } catch (e) {
       console.error('[Phone] makeCall server error:', e.message);
       setLastError(e.message || 'Call failed');
+      statusRef.current = 'ready';
       setStatus('ready');
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
