@@ -32,6 +32,7 @@ import ContactsView from './dialer/ContactsView';
 import RecordingsList from './dialer/RecordingsList';
 import MoreSettings from './dialer/MoreSettings';
 import FloatingCallWidget from '@/components/dialer/FloatingCallWidget';
+import FloatingIncomingCall from '@/components/dialer/FloatingIncomingCall';
 
 export default function Dialer() {
   const { user, logout } = useAuth();
@@ -280,35 +281,13 @@ export default function Dialer() {
         />
       )}
 
-      {/* Inbound call banner */}
+      {/* Floating incoming call popup — vibrates, stacks above active call widget */}
       {inbound && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
-          background: 'linear-gradient(135deg, #1B4332, #2D6A4F)',
-          borderBottom: '1px solid #4CAF50',
-          padding: '12px 20px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          boxShadow: '0 4px 24px rgba(76,175,80,0.3)',
-        }}>
-          <div>
-            <div style={{ fontSize: '11px', color: '#81C784', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Incoming Call</div>
-            <div style={{ color: '#FFFFFF', fontWeight: 700, fontSize: '17px' }}>{inbound.callerNumber}</div>
-          </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={() => phone.answerCall()}
-              style={{ background: '#4CAF50', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 20px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
-            >
-              Answer
-            </button>
-            <button
-              onClick={() => phone.hangup()}
-              style={{ background: '#F44336', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 20px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
-            >
-              Decline
-            </button>
-          </div>
-        </div>
+        <FloatingIncomingCall
+          inbound={inbound}
+          onAnswer={() => { phone.answerCall(); setActiveNav('voice'); }}
+          onDecline={() => phone.hangup()}
+        />
       )}
 
     </div>
