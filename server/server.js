@@ -952,9 +952,46 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
       return;
     }
     if (payload.direction === 'incoming') {
-      console.log('[Phone webhook] inbound call from', fromNum, '— waiting 15s before voicemail');
+      console.log('[Phone webhook] inbound call from', fromNum, 'to', toNum);
       const contact = userId ? db.prepare(`SELECT name FROM phone_contacts WHERE user_id=? AND phone=? LIMIT 1`).get(userId, fromNum) : null;
       const callerName = contact?.name || fromNum;
+
+      // Try to ring the WebRTC client by transferring to their SIP endpoint
+      if (cred?.telnyx_cred_id) {
+        const credId = cred.telnyx_cred_id;
+        try {
+          // Fetch the SIP username from Telnyx credential
+          const credResp = await telnyxRest('GET', `/telephony_credentials/${credId}`, null);
+          const sipUser = credResp?.body?.data?.sip_username;
+          if (sipUser) {
+            console.log('[Phone webhook] transferring to WebRTC SIP:', sipUser);
+            await telnyxRest('POST', `/calls/${callControlId}/actions/transfer`, {
+              to: `sip:${sipUser}@sip.telnyx.com`,
+              timeout_secs: 20,
+              webhook_url: process.env.TELNYX_WEBHOOK_URL || 'https://phone.stproperties.com/api/phone/webhook',
+            });
+            // Store the call for voicemail fallback (transfer leg has new CCID)
+            _voicemailCalls[callControlId] = { userId, fromNumber: fromNum, fromName: callerName, startedAt: Date.now(), answered: false, transferred: true };
+            _vmDebugLogs.push({ ts: new Date().toISOString(), msg: 'transferred to SIP endpoint', ccid: callControlId, sipUser });
+
+            // Send push notification too
+            if (global._sendPushToUser) {
+              global._sendPushToUser(userId || null, {
+                title: 'Incoming Call',
+                body: callerName,
+                tag: 'call-' + callControlId,
+                data: { type: 'incoming_call', from: fromNum, caller_name: callerName, call_control_id: callControlId },
+              }).catch(() => {});
+            }
+            return; // Transfer handles the rest
+          }
+        } catch (e) {
+          console.error('[Phone webhook] transfer failed:', e.message);
+        }
+      }
+
+      // Fallback: no SIP user found or transfer failed — wait for voicemail
+      console.log('[Phone webhook] no WebRTC endpoint — waiting 15s before voicemail');
       if (global._sendPushToUser) {
         global._sendPushToUser(userId || null, {
           title: 'Incoming Call',
@@ -973,7 +1010,7 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
         }
       }, 15000);
       _voicemailCalls[callControlId] = { userId, fromNumber: fromNum, fromName: callerName, startedAt: Date.now(), answered: false, _timeout: vmTimeout };
-      _vmDebugLogs.push({ ts: new Date().toISOString(), msg: 'stored inbound CCID', ccid: callControlId });
+      _vmDebugLogs.push({ ts: new Date().toISOString(), msg: 'stored inbound CCID (fallback)', ccid: callControlId });
     }
   }
 
