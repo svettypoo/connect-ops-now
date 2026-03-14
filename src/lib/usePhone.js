@@ -145,43 +145,70 @@ export function usePhone() {
       noiseCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(rawMicStream);
 
-      // 1) High-pass filter — cut rumble below 85 Hz (fans, AC, traffic)
+      // 1) High-pass filter — cut rumble below 100 Hz (fans, AC, traffic, hum)
       const highpass = ctx.createBiquadFilter();
       highpass.type = 'highpass';
-      highpass.frequency.value = 85;
+      highpass.frequency.value = 100;
       highpass.Q.value = 0.7;
 
-      // 2) Low-pass filter — cut hiss above 8 kHz (most speech energy is below 4 kHz)
+      // 2) Low-pass filter — cut hiss above 7 kHz
       const lowpass = ctx.createBiquadFilter();
       lowpass.type = 'lowpass';
-      lowpass.frequency.value = 8000;
+      lowpass.frequency.value = 7000;
       lowpass.Q.value = 0.5;
 
-      // 3) Compressor as a noise gate — squash quiet sounds aggressively
-      //    threshold: -50 dB means anything below conversational speech gets compressed
-      //    ratio 12:1 makes quiet noise nearly silent
-      //    fast attack catches transients, slow release keeps speech natural
-      const gate = ctx.createDynamicsCompressor();
-      gate.threshold.value = -50;  // dB — speech is typically -30 to -10 dB
-      gate.knee.value = 5;
-      gate.ratio.value = 12;
-      gate.attack.value = 0.003;   // 3ms — fast attack
-      gate.release.value = 0.25;   // 250ms — natural release for speech
+      // 3) Compressor — aggressive ratio to squash background noise
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -40;  // dB — only speech above this passes cleanly
+      compressor.knee.value = 3;
+      compressor.ratio.value = 20;       // very aggressive compression on quiet sounds
+      compressor.attack.value = 0.002;   // 2ms — instant attack
+      compressor.release.value = 0.15;   // 150ms — quick release for natural speech
 
-      // 4) Make-up gain to compensate for compression
+      // 4) True noise gate — AnalyserNode monitors level, GainNode mutes when below threshold
+      //    This clips low-volume audio entirely (silence, not just compression)
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.3;
+      const gateGain = ctx.createGain();
+      gateGain.gain.value = 0; // start muted
+      const gateThreshold = 0.015; // RMS threshold — below this = silence
+      const gateOpen = 0.012;      // hysteresis — slightly lower to prevent chatter
+      let gateIsOpen = false;
+      const gateBuf = new Float32Array(analyser.fftSize);
+      const gateCheck = () => {
+        if (!noiseCtxRef.current || noiseCtxRef.current.state === 'closed') return;
+        analyser.getFloatTimeDomainData(gateBuf);
+        let sum = 0;
+        for (let i = 0; i < gateBuf.length; i++) sum += gateBuf[i] * gateBuf[i];
+        const rms = Math.sqrt(sum / gateBuf.length);
+        if (!gateIsOpen && rms > gateThreshold) {
+          gateIsOpen = true;
+          gateGain.gain.setTargetAtTime(1.0, ctx.currentTime, 0.005); // open fast (5ms)
+        } else if (gateIsOpen && rms < gateOpen) {
+          gateIsOpen = false;
+          gateGain.gain.setTargetAtTime(0.0, ctx.currentTime, 0.05); // close slower (50ms)
+        }
+        requestAnimationFrame(gateCheck);
+      };
+      requestAnimationFrame(gateCheck);
+
+      // 5) Make-up gain to compensate
       const makeupGain = ctx.createGain();
-      makeupGain.gain.value = 1.5;
+      makeupGain.gain.value = 1.4;
 
-      // Chain: source → highpass → lowpass → gate → makeup → destination
+      // Chain: source → highpass → lowpass → compressor → analyser + gateGain → makeup → destination
       const dest = ctx.createMediaStreamDestination();
       source.connect(highpass);
       highpass.connect(lowpass);
-      lowpass.connect(gate);
-      gate.connect(makeupGain);
+      lowpass.connect(compressor);
+      compressor.connect(analyser);
+      compressor.connect(gateGain);
+      gateGain.connect(makeupGain);
       makeupGain.connect(dest);
 
       cleanStreamRef.current = dest.stream;
-      console.log('[Phone] Noise processing pipeline active (highpass 85Hz, lowpass 8kHz, gate -50dB)');
+      console.log('[Phone] Noise processing pipeline active (highpass 100Hz, lowpass 7kHz, gate threshold 0.015, compressor -40dB/20:1)');
       return dest.stream;
     } catch (e) {
       console.warn('[Phone] Noise processing setup failed, using raw mic:', e.message);
