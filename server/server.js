@@ -181,11 +181,18 @@ function verifySSOCookie(req) {
   }
 }
 
+function normalizeUser(user) {
+  // Ensure user_id is always set (SSO path returns {id}, session path returns {user_id})
+  if (user && !user.user_id) user.user_id = user.id;
+  if (user && !user.id) user.id = user.user_id;
+  return user;
+}
+
 function requireAuth(req, res, next) {
   // 1. Try SSO cookie (sst_session on .stproperties.com)
   const ssoUser = verifySSOCookie(req);
   if (ssoUser) {
-    req.user = ssoUser;
+    req.user = normalizeUser(ssoUser);
     return next();
   }
   // 2. Try local session (cookie or header)
@@ -193,7 +200,7 @@ function requireAuth(req, res, next) {
   if (token) {
     const session = sessionOps.get(token);
     if (session) {
-      req.user = session;
+      req.user = normalizeUser(session);
       req.sessionId = token;
       return next();
     }
@@ -207,7 +214,7 @@ function requireAuth(req, res, next) {
       httpOnly: true, secure: isProd, maxAge: 30 * 24 * 60 * 60 * 1000,
       sameSite: isProd ? 'none' : 'lax',
     });
-    req.user = supabaseUser;
+    req.user = normalizeUser(supabaseUser);
     req.sessionId = sessionId;
     return next();
   }
@@ -217,16 +224,16 @@ function requireAuth(req, res, next) {
 function optionalAuth(req, res, next) {
   // Try SSO cookie first
   const ssoUser = verifySSOCookie(req);
-  if (ssoUser) { req.user = ssoUser; return next(); }
+  if (ssoUser) { req.user = normalizeUser(ssoUser); return next(); }
   // Then local session
   const token = req.cookies.session || req.headers['x-session'];
   if (token) {
     const session = sessionOps.get(token);
-    if (session) { req.user = session; req.sessionId = token; }
+    if (session) { req.user = normalizeUser(session); req.sessionId = token; }
   }
   if (!req.user) {
     const supabaseUser = verifySupabaseJWT(req.headers.authorization);
-    if (supabaseUser) { req.user = supabaseUser; }
+    if (supabaseUser) { req.user = normalizeUser(supabaseUser); }
   }
   next();
 }
