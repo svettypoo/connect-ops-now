@@ -1745,6 +1745,94 @@ app.post('/api/admin/users', requireAuth, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── Phone Line Management (Admin) ────────────────────────────────────────────
+
+app.get('/api/admin/phone-lines', requireAuth, (req, res) => {
+  try {
+    const lines = phoneOps.all(); // includes user email, name via JOIN
+    res.json(lines);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/phone-lines', requireAuth, (req, res) => {
+  const { user_id, phone_number, telnyx_cred_id, telnyx_sip_user } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
+  try {
+    const line = phoneOps.upsert(user_id, {
+      phone_number: phone_number || null,
+      telnyx_cred_id: telnyx_cred_id || null,
+      telnyx_sip_user: telnyx_sip_user || null,
+    });
+    res.json(line);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
+  const { phone_number, telnyx_cred_id, telnyx_sip_user } = req.body;
+  try {
+    const existing = db.prepare('SELECT * FROM phone_credentials WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'not found' });
+    db.prepare('UPDATE phone_credentials SET phone_number=?, telnyx_cred_id=?, telnyx_sip_user=? WHERE id=?')
+      .run(phone_number ?? existing.phone_number, telnyx_cred_id ?? existing.telnyx_cred_id, telnyx_sip_user ?? existing.telnyx_sip_user, req.params.id);
+    res.json(db.prepare('SELECT pc.*, u.email, u.name FROM phone_credentials pc JOIN users u ON u.id = pc.user_id WHERE pc.id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
+  try {
+    db.prepare('DELETE FROM phone_credentials WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Fetch available Telnyx phone numbers and credential connections
+app.get('/api/admin/telnyx-numbers', requireAuth, async (req, res) => {
+  try {
+    const apiKey = process.env.TELNYX_API_KEY;
+    if (!apiKey) return res.json({ numbers: [], connections: [] });
+
+    const [numRes, connRes] = await Promise.all([
+      fetch('https://api.telnyx.com/v2/phone_numbers?page%5Bsize%5D=50', {
+        headers: { Authorization: `Bearer ${apiKey}` }
+      }),
+      fetch('https://api.telnyx.com/v2/credential_connections?page%5Bsize%5D=50', {
+        headers: { Authorization: `Bearer ${apiKey}` }
+      }),
+    ]);
+
+    const numData = await numRes.json();
+    const connData = await connRes.json();
+
+    const numbers = (numData.data || []).map(n => ({
+      phone_number: n.phone_number,
+      connection_id: n.connection_id,
+      connection_name: n.connection_name,
+      status: n.status,
+    }));
+
+    const connections = (connData.data || []).map(c => ({
+      id: c.id,
+      name: c.connection_name,
+      active: c.active,
+    }));
+
+    // Also fetch telephony credentials
+    const credRes = await fetch('https://api.telnyx.com/v2/telephony_credentials?page%5Bsize%5D=50', {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    const credData = await credRes.json();
+    const credentials = (credData.data || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      sip_username: c.sip_username,
+      resource_id: c.resource_id,
+      status: c.status,
+    }));
+
+    res.json({ numbers, connections, credentials });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── Phone Extensions (Phase 1-4 features) ───────────────────────────────────
 
 require('./phone-extensions')(app, requireAuth, db, ai, telnyxRest, phoneOps, smsOps, callLogOps);

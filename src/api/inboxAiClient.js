@@ -108,6 +108,12 @@ export const api = {
   getTranscriptionConfig: () => request('GET', '/api/transcription/config'),
   setTranscriptionConfig: (provider) => request('POST', '/api/transcription/config', { provider }),
   getTranscriptionToken: () => request('POST', '/api/transcription/token'),
+  // Phone line management
+  getPhoneLines: () => request('GET', '/api/admin/phone-lines'),
+  assignPhoneLine: (data) => request('POST', '/api/admin/phone-lines', data),
+  updatePhoneLine: (id, data) => request('PATCH', '/api/admin/phone-lines/' + id, data),
+  deletePhoneLine: (id) => request('DELETE', '/api/admin/phone-lines/' + id),
+  getTelnyxNumbers: () => request('GET', '/api/admin/telnyx-numbers'),
 };
 
 export default api;
