@@ -4,7 +4,7 @@
 'use strict';
 const { v4: uuidv4 } = require('uuid');
 
-module.exports = function registerExtensions(app, requireAuth, dbInstance, ai, telnyxRest, phoneOps, smsOps, callLogOps) {
+module.exports = function registerExtensions(app, requireAuth, dbInstance, ai, telnyxRest, phoneOps, smsOps, callLogOps, requirePhonePermission) {
   const db = dbInstance;
 
   // ── Schema additions ────────────────────────────────────────────────────────
@@ -141,8 +141,8 @@ module.exports = function registerExtensions(app, requireAuth, dbInstance, ai, t
     res.json({ ok: true });
   });
 
-  // ── Analytics ────────────────────────────────────────────────────────────────
-  app.get('/api/analytics/calls', requireAuth, (req, res) => {
+  // ── Analytics (supervisor+ only) ─────────────────────────────────────────────
+  app.get('/api/analytics/calls', requireAuth, requirePhonePermission('analytics.team'), (req, res) => {
     const range = req.query.range || '7d';
     const days = range === '30d' ? 30 : range === '90d' ? 90 : 7;
     const since = new Date(Date.now() - days * 86400000).toISOString();
@@ -196,7 +196,7 @@ module.exports = function registerExtensions(app, requireAuth, dbInstance, ai, t
     res.json({ total, missed, avgDuration: Math.round(avgDur), smsSent, daily, inbound, outbound, topCallers, hourly, avgResponse: Math.round(avgResponse), voicemails });
   });
 
-  app.get('/api/analytics/agents', requireAuth, (req, res) => {
+  app.get('/api/analytics/agents', requireAuth, requirePhonePermission('analytics.team'), (req, res) => {
     // For single-user mode, return stats for the current user
     const uid = req.user.user_id;
     const user = db.prepare('SELECT id, name, email FROM users WHERE id=?').get(uid);
@@ -290,13 +290,13 @@ module.exports = function registerExtensions(app, requireAuth, dbInstance, ai, t
     });
   });
 
-  // ── IVR Config ───────────────────────────────────────────────────────────────
-  app.get('/api/ivr', requireAuth, (req, res) => {
+  // ── IVR Config (admin only) ──────────────────────────────────────────────────
+  app.get('/api/ivr', requireAuth, requirePhonePermission('admin'), (req, res) => {
     const rows = db.prepare('SELECT * FROM ivr_configs WHERE user_id=? ORDER BY created_at DESC').all(req.user.user_id);
     res.json(rows.map(r => ({ ...r, nodes: JSON.parse(r.nodes || '[]') })));
   });
 
-  app.post('/api/ivr', requireAuth, (req, res) => {
+  app.post('/api/ivr', requireAuth, requirePhonePermission('admin'), (req, res) => {
     const { name, greeting, nodes, active } = req.body;
     if (active) db.prepare('UPDATE ivr_configs SET active=0 WHERE user_id=?').run(req.user.user_id);
     const id = uuidv4();
@@ -304,7 +304,7 @@ module.exports = function registerExtensions(app, requireAuth, dbInstance, ai, t
     res.json({ id, name, greeting, nodes, active });
   });
 
-  app.patch('/api/ivr/:id', requireAuth, (req, res) => {
+  app.patch('/api/ivr/:id', requireAuth, requirePhonePermission('admin'), (req, res) => {
     const { name, greeting, nodes, active } = req.body;
     if (active) db.prepare('UPDATE ivr_configs SET active=0 WHERE user_id=?').run(req.user.user_id);
     db.prepare('UPDATE ivr_configs SET name=COALESCE(?,name), greeting=COALESCE(?,greeting), nodes=COALESCE(?,nodes), active=COALESCE(?,active) WHERE id=? AND user_id=?').run(name, greeting, nodes ? JSON.stringify(nodes) : null, active !== undefined ? (active ? 1 : 0) : null, req.params.id, req.user.user_id);
@@ -357,8 +357,8 @@ Respond with JSON only: { "score": <avg 0-100>, "breakdown": { "professionalism"
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  // ── Supervisor Listen/Whisper/Barge ──────────────────────────────────────────
-  app.post('/api/phone/supervisor/listen', requireAuth, async (req, res) => {
+  // ── Supervisor Listen/Whisper/Barge (supervisor+ only) ──────────────────────
+  app.post('/api/phone/supervisor/listen', requireAuth, requirePhonePermission('supervisor'), async (req, res) => {
     const { call_control_id, mode } = req.body;
     if (!call_control_id) return res.status(400).json({ error: 'call_control_id required' });
     try {
@@ -418,8 +418,8 @@ Respond with JSON only: { "score": <avg 0-100>, "breakdown": { "professionalism"
     res.json(rows.map(r => ({ ...r, slots: JSON.parse(r.slots || '[]') })));
   });
 
-  // ── SMS Campaigns ─────────────────────────────────────────────────────────────
-  app.post('/api/sms/campaign', requireAuth, async (req, res) => {
+  // ── SMS Campaigns (admin only — mass messaging) ─────────────────────────────
+  app.post('/api/sms/campaign', requireAuth, requirePhonePermission('admin'), async (req, res) => {
     const { contact_ids, prompt, preview } = req.body;
     const uid = req.user.user_id;
     if (!contact_ids?.length || !prompt) return res.status(400).json({ error: 'contact_ids and prompt required' });
@@ -461,13 +461,13 @@ Respond with JSON only: { "score": <avg 0-100>, "breakdown": { "professionalism"
     res.json({ id: campaignId, sent_count: sent, total: contacts.length, messages });
   });
 
-  app.get('/api/sms/campaigns', requireAuth, (req, res) => {
+  app.get('/api/sms/campaigns', requireAuth, requirePhonePermission('admin'), (req, res) => {
     const rows = db.prepare('SELECT * FROM sms_campaigns WHERE user_id=? ORDER BY created_at DESC LIMIT 20').all(req.user.user_id);
     res.json(rows.map(r => ({ ...r, contact_ids: JSON.parse(r.contact_ids||'[]'), messages: JSON.parse(r.messages||'[]') })));
   });
 
-  // ── Admin: User Management ────────────────────────────────────────────────────
-  app.get('/api/admin/users', requireAuth, (req, res) => {
+  // ── Admin: User Management (admin only) ──────────────────────────────────────
+  app.get('/api/admin/users', requireAuth, requirePhonePermission('admin'), (req, res) => {
     const users = db.prepare('SELECT id, name, email, avatar_color, created_at FROM users ORDER BY created_at ASC').all();
     const result = users.map(u => {
       const cred = db.prepare('SELECT telnyx_sip_user, phone_number FROM phone_credentials WHERE user_id=?').get(u.id);
@@ -477,7 +477,7 @@ Respond with JSON only: { "score": <avg 0-100>, "breakdown": { "professionalism"
     res.json(result);
   });
 
-  app.post('/api/admin/users', requireAuth, async (req, res) => {
+  app.post('/api/admin/users', requireAuth, requirePhonePermission('admin'), async (req, res) => {
     const { email, name, password } = req.body;
     if (!email || !name) return res.status(400).json({ error: 'email and name required' });
     const existing = db.prepare('SELECT id FROM users WHERE email=?').get(email);
@@ -489,7 +489,7 @@ Respond with JSON only: { "score": <avg 0-100>, "breakdown": { "professionalism"
     res.json({ id, email, name, message: 'User created. Temporary password: TempPass123!' });
   });
 
-  app.patch('/api/admin/users/:id', requireAuth, async (req, res) => {
+  app.patch('/api/admin/users/:id', requireAuth, requirePhonePermission('admin'), async (req, res) => {
     const { name, email, password } = req.body;
     const user = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -503,14 +503,14 @@ Respond with JSON only: { "score": <avg 0-100>, "breakdown": { "professionalism"
     res.json({ ok: true });
   });
 
-  app.delete('/api/admin/users/:id', requireAuth, (req, res) => {
+  app.delete('/api/admin/users/:id', requireAuth, requirePhonePermission('admin'), (req, res) => {
     if (req.params.id === req.user.user_id) return res.status(400).json({ error: "Can't delete yourself" });
     db.prepare('DELETE FROM users WHERE id=?').run(req.params.id);
     res.json({ ok: true });
   });
 
-  // ── AI Receptionist Config ────────────────────────────────────────────────────
-  app.get('/api/ai-receptionist/config', requireAuth, (req, res) => {
+  // ── AI Receptionist Config (admin only) ──────────────────────────────────────
+  app.get('/api/ai-receptionist/config', requireAuth, requirePhonePermission('admin'), (req, res) => {
     const user = db.prepare('SELECT settings FROM users WHERE id=?').get(req.user.user_id);
     try {
       const s = JSON.parse(user?.settings || '{}');
@@ -518,7 +518,7 @@ Respond with JSON only: { "score": <avg 0-100>, "breakdown": { "professionalism"
     } catch { res.json({ enabled: false }); }
   });
 
-  app.post('/api/ai-receptionist/config', requireAuth, (req, res) => {
+  app.post('/api/ai-receptionist/config', requireAuth, requirePhonePermission('admin'), (req, res) => {
     const user = db.prepare('SELECT settings FROM users WHERE id=?').get(req.user.user_id);
     const settings = JSON.parse(user?.settings || '{}');
     settings.ai_receptionist = req.body;

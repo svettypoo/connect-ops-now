@@ -243,6 +243,60 @@ function requireAI(req, res, next) {
   next();
 }
 
+// ─── Permission-based role gating (uses SSO JWT apps array) ─────────────────
+// Permission map for Connect Ops Now (phone app)
+const PHONE_PERMISSIONS = {
+  admin:      ['*'],
+  supervisor: ['calls', 'recordings', 'analytics.team', 'voicemail', 'contacts', 'sms', 'wallboard', 'supervisor'],
+  agent:      ['calls', 'recordings.own', 'voicemail.own', 'contacts', 'sms.own'],
+};
+
+/**
+ * Middleware factory: requires the user to have a specific permission in the phone app.
+ * Checks the SSO JWT's apps array for the phone app role, then checks the permission map.
+ * Global admins and phone admins bypass all checks.
+ */
+function requirePhonePermission(permission) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+    // Determine the user's phone app role from SSO JWT
+    const appRole = getPhoneAppRole(req.user);
+    // Global admins and phone admins bypass
+    if (appRole === 'admin' || req.user.role === 'admin') {
+      req.user.phoneRole = 'admin';
+      return next();
+    }
+    if (!appRole) return res.status(403).json({ error: 'No access to this app' });
+    const perms = PHONE_PERMISSIONS[appRole] || [];
+    if (perms.includes('*') || perms.includes(permission)) {
+      req.user.phoneRole = appRole;
+      return next();
+    }
+    // Check parent permission (e.g. 'recordings' grants 'recordings.own')
+    const parts = permission.split('.');
+    if (parts.length > 1 && perms.includes(parts[0])) {
+      req.user.phoneRole = appRole;
+      return next();
+    }
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  };
+}
+
+/**
+ * Get the user's phone app role from the SSO JWT apps array.
+ * Returns the role string or null if no access.
+ */
+function getPhoneAppRole(user) {
+  // SSO users have user.apps = [{ s: 'phone', r: 'admin' }, ...]
+  if (user.role === 'admin') return 'admin';
+  if (user.apps) {
+    const phoneAccess = user.apps.find(a => a.s === 'phone');
+    if (phoneAccess) return phoneAccess.r || 'agent';
+  }
+  // Legacy session users without apps array — treat as agent (backward compat)
+  return 'agent';
+}
+
 // ─── Routes: Health ───────────────────────────────────────────────────────────
 
 app.get('/api/health', (req, res) => res.json({ ok: !DB_LOAD_ERROR, node: process.version, db: DB_LOAD_ERROR || 'ok' }));
@@ -864,18 +918,18 @@ app.post('/api/phone/assign', requireAuth, (req, res) => {
   }
 });
 
-// Debug endpoints
+// Debug endpoints (admin-only)
 const _webhookLog = [];
-app.get('/api/phone/webhook-log', (req, res) => res.json({ events: _webhookLog.slice(-50) }));
+app.get('/api/phone/webhook-log', requireAuth, (req, res) => res.json({ events: _webhookLog.slice(-50) }));
 const _vmDebugLogs = [];
-app.get('/api/phone/vm-debug', (req, res) => res.json({
+app.get('/api/phone/vm-debug', requireAuth, (req, res) => res.json({
   voicemailCalls: Object.entries(_voicemailCalls).map(([k,v]) => ({ ccid: k, fromNumber: v.fromNumber, answered: v.answered, _answeredByBackend: v._answeredByBackend, startedAt: v.startedAt })),
   debugLogs: _vmDebugLogs.slice(-30),
 }));
 
 // Demo call status
 const _demoStatus = { steps: [], running: false };
-app.get('/api/phone/demo-status', (req, res) => res.json({ ..._demoStatus, speakWaiterKeys: Object.keys(_speakWaiters) }));
+app.get('/api/phone/demo-status', requireAuth, (req, res) => res.json({ ..._demoStatus, speakWaiterKeys: Object.keys(_speakWaiters) }));
 function demoLog(msg) { console.log('[demo-call]', msg); _demoStatus.steps.push({ ts: new Date().toISOString().slice(11,19), msg }); }
 
 // ─── Telnyx helpers ───────────────────────────────────────────────────────────
@@ -1032,7 +1086,7 @@ function broadcastCallEvent(userId, event) {
 
 // ─── Answer inbound call (called by frontend when user clicks Accept) ────────
 
-app.post('/api/phone/answer-call', express.json(), async (req, res) => {
+app.post('/api/phone/answer-call', express.json(), requireAuth, async (req, res) => {
   const { callControlId } = req.body;
   if (!callControlId) return res.status(400).json({ error: 'missing callControlId' });
   const pending = _pendingInboundCalls[callControlId];
@@ -1070,7 +1124,7 @@ app.post('/api/phone/answer-call', express.json(), async (req, res) => {
 
 // ─── Reject/decline inbound call ─────────────────────────────────────────────
 
-app.post('/api/phone/reject-call', express.json(), async (req, res) => {
+app.post('/api/phone/reject-call', express.json(), requireAuth, async (req, res) => {
   const { callControlId } = req.body;
   if (!callControlId) return res.status(400).json({ error: 'missing callControlId' });
   const pending = _pendingInboundCalls[callControlId];
@@ -1091,7 +1145,7 @@ app.post('/api/phone/reject-call', express.json(), async (req, res) => {
 
 // ─── Hangup by call_control_id (used by sendBeacon on tab close) ────────────
 
-app.post('/api/phone/hangup-call', express.json(), async (req, res) => {
+app.post('/api/phone/hangup-call', express.json(), requireAuth, async (req, res) => {
   const { callControlId } = req.body;
   if (!callControlId) return res.status(400).json({ error: 'missing callControlId' });
   try {
@@ -1106,7 +1160,7 @@ app.post('/api/phone/hangup-call', express.json(), async (req, res) => {
 
 // ─── Blind transfer ─────────────────────────────────────────────────────────
 
-app.post('/api/phone/transfer-call', express.json(), optionalAuth, async (req, res) => {
+app.post('/api/phone/transfer-call', express.json(), requireAuth, async (req, res) => {
   const { callControlId, destination } = req.body;
   if (!callControlId || !destination) return res.status(400).json({ error: 'missing callControlId or destination' });
   try {
@@ -1886,7 +1940,7 @@ app.get('/api/recordings/:id/comments', (req, res) => {
   res.json(recordingCommentOps.list(req.params.id));
 });
 
-app.post('/api/recordings/:id/comments', (req, res) => {
+app.post('/api/recordings/:id/comments', requireAuth, (req, res) => {
   const rec = recordingOps.getById(req.params.id);
   if (!rec || !rec.is_public) return res.status(404).json({ error: 'Not found' });
   const { authorName, authorEmail, body, timestampSec } = req.body;
@@ -2031,11 +2085,11 @@ app.post('/api/transcription/token', requireAuth, (req, res) => {
 
 // ─── Admin routes ─────────────────────────────────────────────────────────────
 
-app.get('/api/admin/users', requireAuth, (req, res) => {
+app.get('/api/admin/users', requireAuth, requirePhonePermission('admin'), (req, res) => {
   res.json(userOps.list());
 });
 
-app.post('/api/admin/users', requireAuth, (req, res) => {
+app.post('/api/admin/users', requireAuth, requirePhonePermission('admin'), (req, res) => {
   const { email, name } = req.body;
   if (!email || !name) return res.status(400).json({ error: 'email and name required' });
   try {
@@ -2047,14 +2101,14 @@ app.post('/api/admin/users', requireAuth, (req, res) => {
 
 // ─── Phone Line Management (Admin) ────────────────────────────────────────────
 
-app.get('/api/admin/phone-lines', requireAuth, (req, res) => {
+app.get('/api/admin/phone-lines', requireAuth, requirePhonePermission('admin'), (req, res) => {
   try {
     const lines = phoneOps.all(); // includes user email, name via JOIN
     res.json(lines);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/admin/phone-lines', requireAuth, (req, res) => {
+app.post('/api/admin/phone-lines', requireAuth, requirePhonePermission('admin'), (req, res) => {
   const { user_id, phone_number, telnyx_cred_id, telnyx_sip_user } = req.body;
   if (!user_id) return res.status(400).json({ error: 'user_id required' });
   try {
@@ -2067,7 +2121,7 @@ app.post('/api/admin/phone-lines', requireAuth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.patch('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
+app.patch('/api/admin/phone-lines/:id', requireAuth, requirePhonePermission('admin'), (req, res) => {
   const { phone_number, telnyx_cred_id, telnyx_sip_user, ring_timeout } = req.body;
   try {
     const existing = db.prepare('SELECT * FROM phone_credentials WHERE id = ?').get(req.params.id);
@@ -2078,7 +2132,7 @@ app.patch('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
+app.delete('/api/admin/phone-lines/:id', requireAuth, requirePhonePermission('admin'), (req, res) => {
   try {
     db.prepare('DELETE FROM phone_credentials WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
@@ -2087,7 +2141,7 @@ app.delete('/api/admin/phone-lines/:id', requireAuth, (req, res) => {
 
 // ─── Number Map (many-to-many user ↔ phone number assignments) ──────────────
 
-app.get('/api/number-map', requireAuth, (req, res) => {
+app.get('/api/number-map', requireAuth, requirePhonePermission('admin'), (req, res) => {
   try {
     const assignments = numberAssignmentOps.getAll();
     const users = userOps.list();
@@ -2100,7 +2154,7 @@ app.get('/api/number-map', requireAuth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/number-map', requireAuth, (req, res) => {
+app.post('/api/number-map', requireAuth, requirePhonePermission('admin'), (req, res) => {
   try {
     const { user_id, phone_number, role, ring_order, label } = req.body;
     if (!user_id || !phone_number) return res.status(400).json({ error: 'user_id and phone_number required' });
@@ -2112,14 +2166,14 @@ app.post('/api/number-map', requireAuth, (req, res) => {
   }
 });
 
-app.patch('/api/number-map/:id', requireAuth, (req, res) => {
+app.patch('/api/number-map/:id', requireAuth, requirePhonePermission('admin'), (req, res) => {
   try {
     numberAssignmentOps.update(parseInt(req.params.id), req.body);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/number-map/:id', requireAuth, (req, res) => {
+app.delete('/api/number-map/:id', requireAuth, requirePhonePermission('admin'), (req, res) => {
   try {
     numberAssignmentOps.delete(parseInt(req.params.id));
     res.json({ ok: true });
@@ -2158,7 +2212,7 @@ app.patch('/api/phone/ring-timeout', requireAuth, (req, res) => {
 });
 
 // Fetch available Telnyx phone numbers and credential connections
-app.get('/api/admin/telnyx-numbers', requireAuth, async (req, res) => {
+app.get('/api/admin/telnyx-numbers', requireAuth, requirePhonePermission('admin'), async (req, res) => {
   try {
     const apiKey = process.env.TELNYX_API_KEY;
     if (!apiKey) return res.json({ numbers: [], connections: [] });
@@ -2207,7 +2261,7 @@ app.get('/api/admin/telnyx-numbers', requireAuth, async (req, res) => {
 
 // ─── Phone Extensions (Phase 1-4 features) ───────────────────────────────────
 
-require('./phone-extensions')(app, requireAuth, db, ai, telnyxRest, phoneOps, smsOps, callLogOps);
+require('./phone-extensions')(app, requireAuth, db, ai, telnyxRest, phoneOps, smsOps, callLogOps, requirePhonePermission);
 
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
 
