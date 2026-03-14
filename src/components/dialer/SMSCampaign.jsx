@@ -12,7 +12,7 @@ export default function SMSCampaign() {
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    api.getContacts().then(setContacts).catch(console.error);
+    api.getContacts().then(cs => { const arr = Array.isArray(cs) ? cs : (cs?.contacts || []); setContacts(arr); }).catch(console.error);
     api.getSmsCampaigns().then(setCampaigns).catch(console.error);
   }, []);
 

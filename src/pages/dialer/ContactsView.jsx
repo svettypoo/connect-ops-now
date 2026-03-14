@@ -7,7 +7,7 @@ export default function ContactsView({ onCall, onMessage }) {
   useEffect(() => {
     import('@/api/inboxAiClient').then(m => {
       const a = m.api || m.default;
-      if (a && a.getContacts) a.getContacts().then(cs => { if (Array.isArray(cs)) setContacts(cs); }).catch(() => {});
+      if (a && a.getContacts) a.getContacts().then(cs => { const arr = Array.isArray(cs) ? cs : (cs?.contacts || []); setContacts(arr); }).catch(() => {});
     });
   }, []);
 

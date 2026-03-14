@@ -53,7 +53,7 @@ export default function Dialer() {
   useEffect(() => {
     api.getVoicemails().then(vms => setVmUnread(vms.filter(v => !v.is_read).length)).catch(() => {});
     api.getCallLogs().then(data => setCallLogs(Array.isArray(data) ? data : (data?.call_logs || []))).catch(() => {});
-    api.getContacts().then(cs => { if (Array.isArray(cs)) setContacts(cs); }).catch(() => {});
+    api.getContacts().then(cs => { const arr = Array.isArray(cs) ? cs : (cs?.contacts || []); setContacts(arr); }).catch(() => {});
   }, []);
 
   // Fetch AI insight after call ends

@@ -15,7 +15,7 @@ export default function SMSCampaign() {
 
   useEffect(() => {
     api.getContacts()
-      .then(d => setContacts(Array.isArray(d) ? d : []))
+      .then(d => setContacts(Array.isArray(d) ? d : (d?.contacts || [])))
       .catch(() => setContacts([]));
   }, []);
 

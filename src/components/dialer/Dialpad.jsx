@@ -96,7 +96,7 @@ export default function Dialpad({ onCall, onDial, phone, phoneStatus, phoneNumbe
         setRecents(unique);
       }
     }).catch(() => {});
-    api.getContacts().then(cs => { if (Array.isArray(cs)) setContacts(cs); }).catch(() => {});
+    api.getContacts().then(cs => { const arr = Array.isArray(cs) ? cs : (cs?.contacts || []); setContacts(arr); }).catch(() => {});
   }, []);
 
   useEffect(() => {
