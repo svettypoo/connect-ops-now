@@ -918,7 +918,8 @@ app.get('/api/phone/call-events', (req, res) => {
   const sessionToken = req.headers['x-session'] || req.cookies?.session || req.query.session;
   const session = sessionToken && sessionOps ? sessionOps.get(sessionToken) : null;
   const userId = session?.user_id || req.query.userId;
-  if (!userId) return res.status(401).end();
+  if (!userId) { console.log('[SSE] auth failed — no valid session for token:', sessionToken?.slice(0,8)); return res.status(401).end(); }
+  console.log('[SSE] client connected, userId:', userId);
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -936,6 +937,7 @@ app.get('/api/phone/call-events', (req, res) => {
 
 function broadcastCallEvent(userId, event) {
   const clients = _sseClients.get(String(userId));
+  console.log('[SSE] broadcast', event.type, 'to userId:', userId, 'clients:', clients?.size || 0);
   if (!clients) return;
   const msg = `data: ${JSON.stringify(event)}\n\n`;
   for (const res of clients) { try { res.write(msg); } catch(e) {} }
