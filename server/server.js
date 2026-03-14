@@ -457,6 +457,23 @@ app.get('/api/voicemails', requireAuth, (req, res) => {
   res.json({ voicemails: voicemailOps.list(phoneUserId) });
 });
 
+app.post('/api/voicemails', requireAuth, (req, res) => {
+  const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
+  const { from_number, from_name, duration, transcript, ai_summary, is_read, created_at } = req.body;
+  const vm = voicemailOps.create({
+    user_id: phoneUserId,
+    from_number: from_number || '',
+    from_name: from_name || '',
+    duration: duration || 0,
+    recording_url: '',
+    transcript: transcript || '',
+    ai_summary: ai_summary || '',
+    created_at: created_at || new Date().toISOString(),
+  });
+  if (is_read) voicemailOps.markRead(vm.id, phoneUserId);
+  res.json(vm);
+});
+
 app.patch('/api/voicemails/:id/read', requireAuth, (req, res) => {
   const phoneUserId = getPhoneOwnerUserId(req.user.user_id);
   voicemailOps.markRead(req.params.id, phoneUserId);
