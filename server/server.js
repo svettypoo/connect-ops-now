@@ -1319,11 +1319,26 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
     const fromNum = payload.from || '';
     const toNum   = payload.to   || '';
 
-    // Skip logging internal SIP transfer legs (to/from sip:...@sip.telnyx.com or gencred* usernames)
+    // Skip logging internal SIP transfer/bridge legs
     const isSipAddr = (s) => s.startsWith('sip:') || s.startsWith('gencred') || s.includes('@sip.telnyx.com');
     if (isSipAddr(fromNum) || isSipAddr(toNum)) {
-      console.log('[Phone webhook] skipping call log for SIP transfer leg:', fromNum, '->', toNum);
+      console.log('[Phone webhook] skipping call log for SIP leg:', fromNum, '->', toNum);
       return;
+    }
+    // Also skip if this ccid is a known bridge leg (outbound SIP call we placed)
+    if (_pendingBridges[callControlId]) {
+      console.log('[Phone webhook] skipping call log for bridge SIP leg:', callControlId);
+      return;
+    }
+    // Skip incoming calls from our own number that arrive right after an outbound bridge
+    // (these are the SIP INVITE legs created by the bridge, but with plain phone numbers)
+    if (payload.direction === 'incoming' && Object.keys(_pendingBridges).length > 0) {
+      const ourNumbers = [process.env.TELNYX_FROM_NUMBER || '+15878643090'];
+      const cleanFrom = fromNum.replace(/^\+?1?/, '+1');
+      if (ourNumbers.some(n => n === cleanFrom || n === fromNum)) {
+        console.log('[Phone webhook] skipping call log for bridge inbound leg from our number:', fromNum);
+        return;
+      }
     }
 
     const allCreds = phoneOps.all();
