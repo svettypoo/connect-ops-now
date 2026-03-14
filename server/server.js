@@ -1052,12 +1052,14 @@ app.post('/api/phone/webhook', express.json(), async (req, res) => {
       // The frontend shows the incoming call UI. When user clicks "Answer",
       // frontend calls /api/phone/answer-call which transfers to the SIP credential.
       // This avoids the auto-answer issue with direct SIP transfers.
-      if (cred?.telnyx_cred_id && userId) {
+      // Look up the SIP credential ID — from DB or fallback to TELNYX_CRED_IDS map
+      const sipCredId = cred?.telnyx_cred_id || (cred?.telnyx_sip_user && TELNYX_CRED_IDS[cred.telnyx_sip_user]) || TELNYX_CRED_IDS.svet;
+      if (userId && sipCredId) {
         console.log('[Phone webhook] notifying frontend via SSE about inbound call from', fromNum);
         // Store pending call so /answer-call can find it
         _pendingInboundCalls[callControlId] = {
           userId, fromNumber: fromNum, toNumber: toNum, callerName,
-          credId: cred.telnyx_cred_id, startedAt: Date.now(),
+          credId: sipCredId, startedAt: Date.now(),
         };
         // Notify frontend via SSE
         broadcastCallEvent(userId, {
@@ -2039,10 +2041,15 @@ if (ensureAdminUser) ensureAdminUser();
     if (fromNum) {
       const adminUser = db.prepare('SELECT id FROM users WHERE email=?').get('svet@stproperties.com');
       if (adminUser) {
-        const credExists = db.prepare('SELECT id FROM phone_credentials WHERE user_id=?').get(adminUser.id);
+        const credExists = db.prepare('SELECT id, telnyx_cred_id FROM phone_credentials WHERE user_id=?').get(adminUser.id);
         if (!credExists) {
-          db.prepare('INSERT OR IGNORE INTO phone_credentials (id,user_id,phone_number) VALUES (?,?,?)').run(uuidv4(), adminUser.id, fromNum);
+          db.prepare('INSERT OR IGNORE INTO phone_credentials (id,user_id,phone_number,telnyx_cred_id,telnyx_sip_user) VALUES (?,?,?,?,?)')
+            .run(uuidv4(), adminUser.id, fromNum, TELNYX_CRED_IDS.svet || null, 'svet');
           console.log(`[Seed] Phone credential seeded for ${fromNum}`);
+        } else if (!credExists.telnyx_cred_id && TELNYX_CRED_IDS.svet) {
+          db.prepare('UPDATE phone_credentials SET telnyx_cred_id=?, telnyx_sip_user=? WHERE id=?')
+            .run(TELNYX_CRED_IDS.svet, 'svet', credExists.id);
+          console.log(`[Seed] Updated phone credential with telnyx_cred_id for ${fromNum}`);
         }
       }
     }
